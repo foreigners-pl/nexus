@@ -31,8 +31,8 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
   }, [isOpen, onClose])
 
   // Close on backdrop click
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
       onClose()
     }
   }

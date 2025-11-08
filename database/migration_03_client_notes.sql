@@ -4,7 +4,7 @@
 CREATE TABLE IF NOT EXISTS client_notes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     client_id UUID REFERENCES clients(id) ON DELETE CASCADE,
-    user_id UUID REFERENCES users(id),
+    user_id UUID, -- No foreign key constraint to users table (auth.users is separate)
     note TEXT NOT NULL,
     is_pinned BOOLEAN DEFAULT false, -- Pin important notes to the top
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -17,6 +17,10 @@ CREATE INDEX IF NOT EXISTS idx_client_notes_created_at ON client_notes(created_a
 CREATE INDEX IF NOT EXISTS idx_client_notes_pinned ON client_notes(is_pinned) WHERE is_pinned = true;
 
 -- Trigger to automatically update updated_at timestamp
+-- Drop the trigger first if it exists
+DROP TRIGGER IF EXISTS update_client_notes_updated_at ON client_notes;
+
+-- Create or replace the function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -25,6 +29,7 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+-- Create the trigger
 CREATE TRIGGER update_client_notes_updated_at 
     BEFORE UPDATE ON client_notes
     FOR EACH ROW

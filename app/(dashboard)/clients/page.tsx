@@ -5,20 +5,31 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, Modal } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Select'
 import { createClient } from '@/lib/supabase/client'
 import { addClient } from '@/app/actions/clients'
-import type { Client } from '@/types/database'
+import { getAllCountries, getAllCities } from '@/app/actions/locations'
+import type { Client, Country, City } from '@/types/database'
+
+interface ClientWithPhones extends Client {
+  contact_numbers?: Array<{ id: string; number: string; is_on_whatsapp: boolean }>
+}
 
 const CLIENTS_PER_PAGE = 20
 
 export default function ClientsPage() {
-  const [clients, setClients] = useState<Client[]>([])
+  const [clients, setClients] = useState<ClientWithPhones[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [countries, setCountries] = useState<Country[]>([])
+  const [cities, setCities] = useState<City[]>([])
+  const [phoneNumbers, setPhoneNumbers] = useState<Array<{ number: string; isWhatsapp: boolean }>>([{ number: '', isWhatsapp: false }])
+  const [selectedCountry, setSelectedCountry] = useState<string>('')
+  const [selectedCity, setSelectedCity] = useState<string>('')
   const [filters, setFilters] = useState({
     firstName: '',
     lastName: '',
@@ -35,11 +46,26 @@ export default function ClientsPage() {
     fetchClients()
   }, [])
 
+  // Fetch countries and cities when modal opens
+  useEffect(() => {
+    if (isModalOpen && countries.length === 0) {
+      getAllCountries().then(setCountries)
+      getAllCities().then(setCities)
+    }
+  }, [isModalOpen])
+
   const fetchClients = async () => {
     setLoading(true)
     const { data, error } = await supabase
       .from('clients')
-      .select('*')
+      .select(`
+        *,
+        contact_numbers (
+          id,
+          number,
+          is_on_whatsapp
+        )
+      `)
       .order('created_at', { ascending: false })
       .range(0, CLIENTS_PER_PAGE - 1)
 
@@ -62,7 +88,14 @@ export default function ClientsPage() {
 
     const { data, error } = await supabase
       .from('clients')
-      .select('*')
+      .select(`
+        *,
+        contact_numbers (
+          id,
+          number,
+          is_on_whatsapp
+        )
+      `)
       .order('created_at', { ascending: false })
       .range(from, to)
 
@@ -103,7 +136,9 @@ export default function ClientsPage() {
     const matchesFirstName = !filters.firstName || client.first_name?.toLowerCase().includes(filters.firstName.toLowerCase())
     const matchesLastName = !filters.lastName || client.last_name?.toLowerCase().includes(filters.lastName.toLowerCase())
     const matchesEmail = !filters.email || client.contact_email?.toLowerCase().includes(filters.email.toLowerCase())
-    const matchesPhone = !filters.phone || client.contact_number?.includes(filters.phone)
+    const matchesPhone = !filters.phone || client.contact_numbers?.some(phone => 
+      phone.number.toLowerCase().includes(filters.phone.toLowerCase())
+    )
 
     return matchesFirstName && matchesLastName && matchesEmail && matchesPhone
   })
@@ -115,6 +150,27 @@ export default function ClientsPage() {
     setError(null)
 
     const formData = new FormData(e.currentTarget)
+    const firstName = formData.get('firstName') as string
+    const lastName = formData.get('lastName') as string
+    const email = formData.get('email') as string
+    const validPhones = phoneNumbers.filter(p => p.number.trim())
+
+    // Validate: at least one of first name, last name, email, or phone number must be provided
+    if (!firstName?.trim() && !lastName?.trim() && !email?.trim() && validPhones.length === 0) {
+      setError('Please provide at least one of: First Name, Last Name, Email, or Phone Number')
+      setIsSubmitting(false)
+      return
+    }
+    
+    // Add country and city
+    if (selectedCountry) formData.set('countryId', selectedCountry)
+    if (selectedCity) formData.set('cityId', selectedCity)
+    
+    // Add phone numbers as JSON
+    if (validPhones.length > 0) {
+      formData.set('phoneNumbers', JSON.stringify(validPhones))
+    }
+    
     const result = await addClient(formData)
 
     if (result?.error) {
@@ -123,9 +179,32 @@ export default function ClientsPage() {
     } else {
       setIsModalOpen(false)
       setIsSubmitting(false)
+      setPhoneNumbers([{ number: '', isWhatsapp: false }])
+      setSelectedCountry('')
+      setSelectedCity('')
       // Refresh the clients list
       fetchClients()
     }
+  }
+
+  const addPhoneField = () => {
+    setPhoneNumbers([...phoneNumbers, { number: '', isWhatsapp: false }])
+  }
+
+  const removePhoneField = (index: number) => {
+    setPhoneNumbers(phoneNumbers.filter((_, i) => i !== index))
+  }
+
+  const updatePhoneNumber = (index: number, number: string) => {
+    const updated = [...phoneNumbers]
+    updated[index].number = number
+    setPhoneNumbers(updated)
+  }
+
+  const updatePhoneWhatsApp = (index: number, isWhatsapp: boolean) => {
+    const updated = [...phoneNumbers]
+    updated[index].isWhatsapp = isWhatsapp
+    setPhoneNumbers(updated)
   }
 
   return (
@@ -149,6 +228,9 @@ export default function ClientsPage() {
         onClose={() => {
           setIsModalOpen(false)
           setError(null)
+          setPhoneNumbers([{ number: '', isWhatsapp: false }])
+          setSelectedCountry('')
+          setSelectedCity('')
         }}
         title="Add New Client"
       >
@@ -162,14 +244,12 @@ export default function ClientsPage() {
           <Input
             label="First Name"
             name="firstName"
-            required
             placeholder="John"
           />
 
           <Input
             label="Last Name"
             name="lastName"
-            required
             placeholder="Doe"
           />
 
@@ -180,12 +260,79 @@ export default function ClientsPage() {
             placeholder="john.doe@example.com"
           />
 
-          <Input
-            label="Phone"
-            name="phone"
-            type="tel"
-            placeholder="+1 234 567 8900"
-          />
+          {/* Phone Numbers */}
+          <div>
+            <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-2">
+              Phone Numbers
+            </label>
+            <div className="space-y-2">
+              {phoneNumbers.map((phone, index) => (
+                <div key={index} className="flex gap-2 items-start">
+                  <Input
+                    value={phone.number}
+                    onChange={(e) => updatePhoneNumber(index, e.target.value)}
+                    placeholder="+48 123 456 789"
+                    className="flex-1"
+                  />
+                  <div className="flex items-center gap-2 pt-2">
+                    <input
+                      type="checkbox"
+                      checked={phone.isWhatsapp}
+                      onChange={(e) => updatePhoneWhatsApp(index, e.target.checked)}
+                      className="w-4 h-4 rounded border-[hsl(var(--color-border))]"
+                    />
+                    <span className="text-sm text-[hsl(var(--color-text-secondary))]">WhatsApp</span>
+                  </div>
+                  {phoneNumbers.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removePhoneField(index)}
+                      className="mt-1"
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addPhoneField}
+              >
+                + Add Phone
+              </Button>
+            </div>
+          </div>
+
+          {/* Location */}
+          <div>
+            <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-2">
+              Country of Origin
+            </label>
+            <Select
+              options={countries.map(c => ({ id: c.id, label: c.country }))}
+              value={selectedCountry}
+              onChange={setSelectedCountry}
+              placeholder="Select country..."
+              searchPlaceholder="Search countries..."
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-2">
+              City in Poland
+            </label>
+            <Select
+              options={cities.map(c => ({ id: c.id, label: c.city }))}
+              value={selectedCity}
+              onChange={setSelectedCity}
+              placeholder="Select city..."
+              searchPlaceholder="Search cities..."
+            />
+          </div>
 
           <div className="flex justify-end gap-3 pt-4">
             <Button
@@ -251,22 +398,22 @@ export default function ClientsPage() {
                     </th>
                     <th className="text-left p-4 text-[hsl(var(--color-text-secondary))] font-medium">
                       <div className="space-y-2">
-                        <div>Email</div>
+                        <div>Phone Number(s)</div>
                         <Input
                           placeholder="Search..."
-                          value={filters.email}
-                          onChange={(e) => setFilters({ ...filters, email: e.target.value })}
+                          value={filters.phone}
+                          onChange={(e) => setFilters({ ...filters, phone: e.target.value })}
                           className="text-sm"
                         />
                       </div>
                     </th>
                     <th className="text-left p-4 text-[hsl(var(--color-text-secondary))] font-medium">
                       <div className="space-y-2">
-                        <div>Phone</div>
+                        <div>Email</div>
                         <Input
                           placeholder="Search..."
-                          value={filters.phone}
-                          onChange={(e) => setFilters({ ...filters, phone: e.target.value })}
+                          value={filters.email}
+                          onChange={(e) => setFilters({ ...filters, email: e.target.value })}
                           className="text-sm"
                         />
                       </div>
@@ -286,22 +433,37 @@ export default function ClientsPage() {
                         <Button 
                           variant="ghost" 
                           size="sm"
-                          onClick={() => router.push(`/clients/${client.id}`)}
+                          onClick={() => router.push(`/clients/${client.client_code || client.id}`)}
                         >
                           Open
                         </Button>
                       </td>
                       <td className="p-4 text-[hsl(var(--color-text-primary))]">
-                        {client.first_name}
+                        {client.first_name || '-'}
                       </td>
                       <td className="p-4 text-[hsl(var(--color-text-primary))]">
-                        {client.last_name}
+                        {client.last_name || '-'}
+                      </td>
+                      <td className="p-4 text-[hsl(var(--color-text-primary))]">
+                        {client.contact_numbers && client.contact_numbers.length > 0 ? (
+                          <div className="space-y-1">
+                            {client.contact_numbers.map((phone, index) => (
+                              <div key={phone.id} className="flex items-center gap-2">
+                                <span>{phone.number}</span>
+                                {phone.is_on_whatsapp && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded bg-green-500/10 text-green-600 dark:text-green-400">
+                                    WhatsApp
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          '-'
+                        )}
                       </td>
                       <td className="p-4 text-[hsl(var(--color-text-primary))]">
                         {client.contact_email || '-'}
-                      </td>
-                      <td className="p-4 text-[hsl(var(--color-text-primary))]">
-                        {client.contact_number || '-'}
                       </td>
                       <td className="p-4 text-[hsl(var(--color-text-secondary))] text-sm">
                         {new Date(client.created_at).toLocaleDateString()}

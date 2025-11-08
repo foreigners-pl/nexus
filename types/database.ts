@@ -3,12 +3,13 @@
 
 export interface Client {
   id: string
-  first_name: string
-  last_name: string
+  client_code?: string         // Custom ID like CL000001
+  first_name?: string           // Nullable - at least one of first_name, last_name, email, or phone required
+  last_name?: string            // Nullable - at least one of first_name, last_name, email, or phone required
   created_at: string
   contact_email?: string
-  country_of_origin?: string
-  city_in_poland?: string
+  country_of_origin?: string  // UUID reference to countries table
+  city_in_poland?: string      // UUID reference to cities table
 }
 
 export interface ContactNumber {
@@ -43,6 +44,7 @@ export interface ClientNote {
 
 export interface Case {
   id: string
+  case_code?: string           // Custom ID like C0000001
   client_id: string
   created_at: string
   status_id?: string
@@ -79,4 +81,14 @@ export interface Comment {
   user_id?: string
   text?: string
   created_at: string
+}
+
+export interface Country {
+  id: string
+  country: string
+}
+
+export interface City {
+  id: string
+  city: string
 }
