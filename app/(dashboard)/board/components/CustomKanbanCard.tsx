@@ -6,6 +6,7 @@ import { deleteCard } from '@/app/actions/card/core'
 import { Card } from '@/components/ui/Card'
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
+import type { CSSProperties } from 'react'
 
 interface CardWithAssignees extends CardType {
   card_assignees?: (CardAssignee & { users?: User })[]
@@ -16,9 +17,10 @@ interface CustomKanbanCardProps {
   isSharedBoard: boolean
   onUpdate: () => void
   onEdit: (card: CardWithAssignees) => void
+  isDraggingGhost?: boolean
 }
 
-export function CustomKanbanCard({ card, isSharedBoard, onUpdate, onEdit }: CustomKanbanCardProps) {
+export function CustomKanbanCard({ card, isSharedBoard, onUpdate, onEdit, isDraggingGhost = false }: CustomKanbanCardProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   
   // Setup draggable
@@ -30,10 +32,11 @@ export function CustomKanbanCard({ card, isSharedBoard, onUpdate, onEdit }: Cust
     }
   })
 
-  const style = {
+  const style: CSSProperties = {
     transform: CSS.Translate.toString(transform),
-    opacity: isDragging ? 0.5 : 1,
-    zIndex: isDragging ? 1000 : 'auto',
+    opacity: isDraggingGhost ? 0.8 : isDragging ? 0.5 : 1,
+    zIndex: isDraggingGhost ? 9999 : isDragging ? 1000 : 'auto',
+    pointerEvents: isDraggingGhost ? 'none' : undefined,
   }
   
   // Use assignees from the card prop (already fetched)

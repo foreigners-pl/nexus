@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { BoardStatus } from '@/types/database'
 import { CustomKanbanColumn } from './CustomKanbanColumn'
+import { CustomKanbanCard } from './CustomKanbanCard'
+import { CardModal } from './CardModal'
 import { createBoardStatus } from '@/app/actions/board/statuses'
 import { Button } from '@/components/ui/Button'
 import { 
@@ -57,6 +59,10 @@ export function CustomKanbanBoard({
   const [activeCard, setActiveCard] = useState<any>(null)
   const [activeStatus, setActiveStatus] = useState<BoardStatus | null>(null)
   const [isDraggingStatus, setIsDraggingStatus] = useState(false)
+  // Modal state for adding/editing cards
+  const [modalStatusId, setModalStatusId] = useState<string | null>(null)
+  const [modalCard, setModalCard] = useState<any | null>(null)
+  const [isCardModalOpen, setIsCardModalOpen] = useState(false)
 
   // Configure drag sensors
   const sensors = useSensors(
@@ -261,8 +267,42 @@ export function CustomKanbanBoard({
               onCardDelete={onCardDelete}
               onCardRefresh={onCardRefresh}
               isDragging={isDraggingStatus && activeStatus?.id === status.id}
+              // Modal triggers
+              onAddCard={() => {
+                setModalStatusId(status.id)
+                setModalCard(null)
+                setIsCardModalOpen(true)
+              }}
+              onEditCard={(card: any) => {
+                setModalStatusId(status.id)
+                setModalCard(card)
+                setIsCardModalOpen(true)
+              }}
             />
           ))}
+      {/* Card Modal rendered at board level for proper popup positioning */}
+      {isCardModalOpen && (
+        <CardModal
+          isOpen={isCardModalOpen}
+          onClose={() => setIsCardModalOpen(false)}
+          onSuccess={(card) => {
+            if (modalCard && card) {
+              // Edit success
+              onCardUpdate(modalCard.id, card)
+            } else if (card) {
+              // Add success
+              onCardAdd(card)
+            }
+            setIsCardModalOpen(false)
+            setModalCard(null)
+            setModalStatusId(null)
+          }}
+          boardId={boardId}
+          statusId={modalStatusId || ''}
+          card={modalCard}
+          isSharedBoard={isSharedBoard}
+        />
+      )}
 
         {/* Add Status Column */}
         <div className="flex-shrink-0 w-80">
@@ -329,32 +369,42 @@ export function CustomKanbanBoard({
       </SortableContext>
 
       {/* Drag Overlay - shows what you're dragging */}
-      <DragOverlay>
-        {activeStatus ? (
-          <div className="w-56 opacity-90 rotate-3 cursor-grabbing">
-            <CustomKanbanColumn
-              status={activeStatus}
-              cards={cards.filter(c => c.status_id === activeStatus.id)}
-              boardId={boardId}
-              isSharedBoard={isSharedBoard}
-              onUpdate={() => {}}
-              onDelete={() => {}}
-              onReorder={() => {}}
-              allStatuses={sortedStatuses}
-              statusIndex={0}
-              totalStatuses={sortedStatuses.length}
-              onCardUpdate={() => {}}
-              onCardAdd={() => {}}
-              onCardDelete={() => {}}
-              onCardRefresh={async () => {}}
-            />
-          </div>
-        ) : activeCard ? (
-          <div className="opacity-90 rotate-2">
-            {/* Card overlay if needed */}
-          </div>
-        ) : null}
-      </DragOverlay>
+        <DragOverlay>
+          {activeStatus ? (
+            <div className="w-56 opacity-90 rotate-3 cursor-grabbing z-[9999]">
+              <CustomKanbanColumn
+                status={activeStatus}
+                cards={cards.filter(c => c.status_id === activeStatus.id)}
+                boardId={boardId}
+                isSharedBoard={isSharedBoard}
+                onUpdate={() => {}}
+                onDelete={() => {}}
+                onReorder={() => {}}
+                allStatuses={sortedStatuses}
+                statusIndex={0}
+                totalStatuses={sortedStatuses.length}
+                onCardUpdate={() => {}}
+                onCardAdd={() => {}}
+                onCardDelete={() => {}}
+                onCardRefresh={async () => {}}
+              />
+            </div>
+          ) : activeCard ? (
+            <div className="opacity-90 rotate-2 z-[9999]">
+              {/* Render the actual card as drag ghost */}
+              <div style={{ width: '220px', pointerEvents: 'none' }}>
+                {/* Pass isDraggingGhost to CustomKanbanCard for styling if needed */}
+                <CustomKanbanCard
+                  card={activeCard}
+                  isSharedBoard={isSharedBoard}
+                  onUpdate={() => {}}
+                  onEdit={() => {}}
+                  isDraggingGhost={true}
+                />
+              </div>
+            </div>
+          ) : null}
+        </DragOverlay>
     </DndContext>
   )
 }
@@ -376,6 +426,8 @@ interface SortableStatusColumnProps {
   onCardDelete: (cardId: string) => void
   onCardRefresh: (cardId: string) => Promise<void>
   isDragging: boolean
+  onAddCard?: () => void
+  onEditCard?: (card: any) => void
 }
 
 function SortableStatusColumn(props: SortableStatusColumnProps) {
@@ -414,6 +466,8 @@ function SortableStatusColumn(props: SortableStatusColumnProps) {
       <CustomKanbanColumn 
         {...props} 
         dragHandleProps={{ ...attributes, ...listeners }}
+        onAddCard={props.onAddCard}
+        onEditCard={props.onEditCard}
       />
     </div>
   )

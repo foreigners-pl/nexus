@@ -22,6 +22,8 @@ interface CustomKanbanColumnProps {
   onCardDelete: (cardId: string) => void
   onCardRefresh: (cardId: string) => Promise<void>
   dragHandleProps?: any
+  onAddCard?: () => void
+  onEditCard?: (card: any) => void
 }
 
 export function CustomKanbanColumn({ 
@@ -41,8 +43,9 @@ export function CustomKanbanColumn({
   onCardRefresh,
   dragHandleProps
 }: CustomKanbanColumnProps) {
-  const [isAddingCard, setIsAddingCard] = useState(false)
-  const [editingCard, setEditingCard] = useState<Card | null>(null)
+  // Modal state now handled at board level
+  // Props for modal triggers
+  const { onAddCard, onEditCard } = arguments[0]
   const [isEditingName, setIsEditingName] = useState(false)
   const [editName, setEditName] = useState(status.name)
   const [showColorPicker, setShowColorPicker] = useState(false)
@@ -111,13 +114,10 @@ export function CustomKanbanColumn({
   }
 
   // Card update handler - refetch only this specific card
-  const handleCardUpdate = async () => {
-    if (editingCard) {
-      const cardId = editingCard.id
-      setEditingCard(null)
-      // Refresh just this card instead of the entire board
-      await onCardRefresh(cardId)
-    }
+  // Card update handler - refetch only this specific card
+  const handleCardUpdate = async (cardId: string) => {
+    // Refresh just this card instead of the entire board
+    await onCardRefresh(cardId)
   }
 
   // Optimistic card addition
@@ -240,6 +240,14 @@ export function CustomKanbanColumn({
             </div>
           </div>
 
+          {/* Add Task Button - always at the top */}
+          <button 
+            onClick={() => onAddCard && onAddCard()}
+            className="w-full text-center px-3 py-2 text-xs text-[hsl(var(--color-text-secondary))] hover:bg-[hsl(var(--color-surface-hover))] rounded-lg transition-colors border border-dashed border-[hsl(var(--color-border))] mb-3"
+          >
+            + Add Task
+          </button>
+
           {/* Cards Container */}
           <div className="space-y-3 flex-1 overflow-y-auto pr-1 scrollbar-thin">
             {statusCards.map(card => (
@@ -247,42 +255,15 @@ export function CustomKanbanColumn({
                 key={card.id}
                 card={card}
                 isSharedBoard={isSharedBoard}
-                onUpdate={handleCardUpdate}
-                onEdit={setEditingCard}
+                onUpdate={() => handleCardUpdate(card.id)}
+                onEdit={() => onEditCard && onEditCard(card)}
               />
             ))}
-            
-            {/* Add Task Button */}
-            <button 
-              onClick={() => setIsAddingCard(true)}
-              className="w-full text-center px-3 py-2 text-xs text-[hsl(var(--color-text-secondary))] hover:bg-[hsl(var(--color-surface-hover))] rounded-lg transition-colors border border-dashed border-[hsl(var(--color-border))]"
-            >
-              + Add Task
-            </button>
           </div>
         </div>
       </div>
 
-      {/* Add Task Modal */}
-      <CardModal
-        isOpen={isAddingCard}
-        onClose={() => setIsAddingCard(false)}
-        onSuccess={handleCardAdded}
-        boardId={boardId}
-        statusId={status.id}
-        isSharedBoard={isSharedBoard}
-      />
-
-      {/* Edit Task Modal */}
-      <CardModal
-        isOpen={!!editingCard}
-        onClose={() => setEditingCard(null)}
-        onSuccess={handleCardUpdate}
-        boardId={boardId}
-        statusId={status.id}
-        card={editingCard}
-        isSharedBoard={isSharedBoard}
-      />
+      {/* Modals are now rendered at board level for proper popup positioning */}
     </>
   )
 }
