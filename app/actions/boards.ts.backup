@@ -1,0 +1,1080 @@
+'use server'
+
+import { createClient } from '@/lib/supabase/server'
+import { revalidatePath } from 'next/cache'
+
+/**
+ * Helper function to check if user has editor or owner access to a board
+ */
+async function hasEditorAccess(supabase: any, boardId: string, userId: string): Promise<boolean> {
+  // Check if user is the owner
+  const { data: board, error: boardError } = await supabase
+    .from('boards')
+    .select('owner_id')
+    .eq('id', boardId)
+    .maybeSingle() // Use maybeSingle to handle board not found gracefully
+
+  if (boardError) {
+    console.error('Error checking board ownership:', boardError)
+    return false
+  }
+
+  if (board?.owner_id === userId) return true
+
+  // Check if user has editor or owner access level
+  const { data: access, error: accessError } = await supabase
+    .from('board_access')
+    .select('access_level')
+    .eq('board_id', boardId)
+    .eq('user_id', userId)
+    .maybeSingle() // Use maybeSingle instead of single to handle no results
+
+  if (accessError) {
+    console.error('Error checking board access:', accessError)
+    return false
+  }
+
+  return access?.access_level === 'editor' || access?.access_level === 'owner'
+}
+
+/**
+ * Get all boards accessible by the current user
+ * Returns boards with access information for categorization
+ */
+export async function getUserBoards() {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  // RLS policy now handles access control with SECURITY DEFINER function (no recursion)
+  const { data: boards, error: boardsError } = await supabase
+    .from('boards')
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (boardsError) {
+    return { error: boardsError.message }
+  }
+
+  if (!boards || boards.length === 0) {
+    return { data: [] }
+  }
+
+  // Get ALL access data for all boards in ONE query
+  const boardIds = boards.map(b => b.id)
+  const { data: allAccessData } = await supabase
+    .from('board_access')
+    .select('id, board_id, user_id, access_level')
+    .in('board_id', boardIds)
+
+  // Group access data by board_id
+  const accessByBoard = (allAccessData || []).reduce((acc, access) => {
+    if (!acc[access.board_id]) {
+      acc[access.board_id] = []
+    }
+    acc[access.board_id].push(access)
+    return acc
+  }, {} as Record<string, any[]>)
+
+  // Attach access data to each board, including the owner
+  const boardsWithAccess = boards.map(board => {
+    const boardAccess = accessByBoard[board.id] || []
+    
+    // Add owner to the access list if not already present (for display purposes)
+    const ownerInList = boardAccess.some(access => access.user_id === board.owner_id)
+    if (!ownerInList && board.owner_id) {
+      boardAccess.unshift({
+        id: `owner-${board.id}`,
+        board_id: board.id,
+        user_id: board.owner_id,
+        access_level: 'owner'
+      })
+    }
+    
+    return {
+      ...board,
+      board_access: boardAccess
+    }
+  })
+
+  // Sort: system boards first, then by created_at
+  boardsWithAccess.sort((a, b) => {
+    if (a.is_system && !b.is_system) return -1
+    if (!a.is_system && b.is_system) return 1
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  })
+
+  return { data: boardsWithAccess }
+}
+
+/**
+ * Create a new custom board
+ */
+export async function createBoard(name: string, description?: string) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  if (!name || name.trim().length === 0) {
+    return { error: 'Board name is required' }
+  }
+
+  // Create the board
+  const { data: board, error: boardError } = await supabase
+    .from('boards')
+    .insert({
+      name: name.trim(),
+      description: description?.trim(),
+      owner_id: user.id,
+      is_system: false
+    })
+    .select()
+    .single()
+
+  if (boardError) {
+    return { error: boardError.message }
+  }
+
+  // DON'T insert owner into board_access - they're already the owner via owner_id
+  // Only editors/viewers need entries in board_access
+
+  // Create default statuses: To Do, In Progress, Done
+  const defaultStatuses = [
+    { name: 'To Do', position: 0, color: '#94a3b8' }, // slate-400
+    { name: 'In Progress', position: 1, color: '#3b82f6' }, // blue-500
+    { name: 'Done', position: 2, color: '#22c55e' } // green-500
+  ]
+
+  const { error: statusError } = await supabase
+    .from('board_statuses')
+    .insert(
+      defaultStatuses.map(status => ({
+        board_id: board.id,
+        ...status
+      }))
+    )
+
+  if (statusError) {
+    console.error('Default status creation error:', statusError)
+    // Don't rollback - board is still usable, user can add statuses manually
+  }
+
+  // Don't revalidate - use optimistic updates in components
+  return { data: board }
+}
+
+/**
+ * Update board details (name, description)
+ */
+export async function updateBoard(boardId: string, updates: { name?: string; description?: string }) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  if (updates.name !== undefined && updates.name.trim().length === 0) {
+    return { error: 'Board name cannot be empty' }
+  }
+
+  // Check if user has editor or owner access
+  const hasAccess = await hasEditorAccess(supabase, boardId, user.id)
+  
+  console.log(`[updateBoard] User ${user.id} attempting to update board ${boardId}`)
+  console.log(`[updateBoard] Has editor access: ${hasAccess}`)
+  
+  if (!hasAccess) {
+    return { error: 'Only board owners and editors can update board details' }
+  }
+
+  const updateData: any = {}
+  if (updates.name !== undefined) updateData.name = updates.name.trim()
+  if (updates.description !== undefined) updateData.description = updates.description.trim()
+
+  const { data, error } = await supabase
+    .from('boards')
+    .update(updateData)
+    .eq('id', boardId)
+    .select()
+    .maybeSingle()
+
+  if (error) {
+    console.error('Error updating board:', error)
+    return { error: error.message }
+  }
+  
+  if (!data) {
+    return { error: 'Failed to update board. It may be a system board or you may not have permission.' }
+  }
+  
+  // Don't revalidate - use optimistic updates in components
+  return { data }
+}
+
+/**
+ * Delete a custom board (must be owner, cannot delete system boards)
+ */
+export async function deleteBoard(boardId: string) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const { error } = await supabase
+    .from('boards')
+    .delete()
+    .eq('id', boardId)
+    .eq('owner_id', user.id)
+    .eq('is_system', false)
+
+  if (error) return { error: error.message }
+  
+  // Don't revalidate - use optimistic updates in components
+  return { success: true }
+}
+
+/**
+ * Get board with all data (statuses, cards, access)
+ * For Cases board, returns null as it uses different data sources
+ */
+export async function getBoardWithData(boardId: string) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  // Check if this is the Cases board
+  if (boardId === '00000000-0000-0000-0000-000000000001') {
+    return { isCasesBoard: true }
+  }
+
+  // Get board with statuses
+  const { data: board, error: boardError } = await supabase
+    .from('boards')
+    .select(`
+      *,
+      board_statuses (
+        id,
+        name,
+        position,
+        color,
+        created_at,
+        updated_at
+      )
+    `)
+    .eq('id', boardId)
+    .single()
+
+  if (boardError) return { error: boardError.message }
+
+  // Get board access separately (no join to users since there's no FK)
+  const { data: boardAccess, error: accessError } = await supabase
+    .from('board_access')
+    .select('id, user_id, access_level, granted_at')
+    .eq('board_id', boardId)
+
+  if (accessError) {
+    console.error('Error fetching board access:', accessError)
+  }
+
+  // Get all cards for this board
+  const { data: cards } = await supabase
+    .from('cards')
+    .select('*')
+    .eq('board_id', boardId)
+    .order('position', { ascending: true })
+
+  // Fetch ALL assignees for all cards (not just for shared boards)
+  let assigneesByCard: Record<string, any[]> = {}
+  
+  if (cards && cards.length > 0) {
+    const cardIds = cards.map(c => c.id)
+    const { data: allAssignees } = await supabase
+      .from('card_assignees')
+      .select(`
+        id,
+        card_id,
+        user_id,
+        assigned_at,
+        users:user_id (
+          id,
+          email,
+          display_name
+        )
+      `)
+      .in('card_id', cardIds)
+
+    // Group assignees by card_id
+    if (allAssignees) {
+      assigneesByCard = allAssignees.reduce((acc, assignee) => {
+        if (!acc[assignee.card_id]) {
+          acc[assignee.card_id] = []
+        }
+        acc[assignee.card_id].push(assignee)
+        return acc
+      }, {} as Record<string, any[]>)
+    }
+  }
+
+  // Attach assignees to each card
+  const cardsWithAssignees = (cards || []).map(card => ({
+    ...card,
+    card_assignees: assigneesByCard[card.id] || []
+  }))
+
+  return { 
+    data: {
+      ...board,
+      board_access: boardAccess || [],
+      cards: cardsWithAssignees
+    }
+  }
+}
+
+/**
+ * Get Cases board data (cases + statuses from existing tables)
+ */
+export async function getCasesBoardData() {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  // Fetch statuses
+  const { data: statuses, error: statusError } = await supabase
+    .from('status')
+    .select('*')
+    .order('position', { ascending: true })
+
+  if (statusError) return { error: statusError.message }
+
+  // Fetch cases with relations
+  const { data: cases, error: casesError } = await supabase
+    .from('cases')
+    .select(`
+      *,
+      clients (
+        id,
+        client_code,
+        first_name,
+        last_name,
+        contact_email
+      ),
+      status (
+        id,
+        name
+      )
+    `)
+    .order('created_at', { ascending: false })
+
+  if (casesError) return { error: casesError.message }
+
+  return { data: { statuses, cases } }
+}
+
+// ============================================
+// CARD ACTIONS
+// ============================================
+
+/**
+ * Get cards for a specific board
+ */
+export async function getBoardCards(boardId: string) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const { data, error } = await supabase
+    .from('cards')
+    .select('*')
+    .eq('board_id', boardId)
+    .order('position', { ascending: true })
+
+  if (error) return { error: error.message }
+  
+  return { data }
+}
+
+/**
+ * Create a new card
+ */
+export async function createCard(
+  boardId: string, 
+  statusId: string, 
+  title: string, 
+  description?: string,
+  dueDate?: string
+) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  if (!title || title.trim().length === 0) {
+    return { error: 'Card title is required' }
+  }
+
+  // Get the highest position in this status
+  const { data: existingCards } = await supabase
+    .from('cards')
+    .select('position')
+    .eq('status_id', statusId)
+    .order('position', { ascending: false })
+    .limit(1)
+
+  const nextPosition = existingCards && existingCards.length > 0 
+    ? existingCards[0].position + 1 
+    : 0
+
+  const { data, error } = await supabase
+    .from('cards')
+    .insert({
+      board_id: boardId,
+      status_id: statusId,
+      title: title.trim(),
+      description: description?.trim(),
+      due_date: dueDate || null,
+      position: nextPosition,
+      created_by: user.id
+    })
+    .select()
+    .single()
+
+  if (error) return { error: error.message }
+  
+  // Don't revalidate - use optimistic updates in components
+  return { data }
+}
+
+/**
+ * Update a card
+ */
+export async function updateCard(
+  cardId: string, 
+  updates: { title?: string; description?: string; status_id?: string; due_date?: string }
+) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  if (updates.title !== undefined && updates.title.trim().length === 0) {
+    return { error: 'Card title cannot be empty' }
+  }
+
+  const updateData: any = {}
+  if (updates.title !== undefined) updateData.title = updates.title.trim()
+  if (updates.description !== undefined) updateData.description = updates.description.trim()
+  if (updates.status_id !== undefined) updateData.status_id = updates.status_id
+  if (updates.due_date !== undefined) updateData.due_date = updates.due_date || null
+
+  const { data, error } = await supabase
+    .from('cards')
+    .update(updateData)
+    .eq('id', cardId)
+    .select()
+    .single()
+
+  if (error) return { error: error.message }
+  
+  // Get board_id to revalidate
+  const { data: card } = await supabase
+    .from('cards')
+    .select('board_id')
+    .eq('id', cardId)
+    .single()
+  
+  // Don't revalidate - use optimistic updates in components
+  return { data }
+}
+
+/**
+ * Delete a card
+ */
+export async function deleteCard(cardId: string) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  // Get board_id before deleting
+  const { data: card } = await supabase
+    .from('cards')
+    .select('board_id')
+    .eq('id', cardId)
+    .single()
+
+  const { error } = await supabase
+    .from('cards')
+    .delete()
+    .eq('id', cardId)
+
+  if (error) return { error: error.message }
+  
+  // Don't revalidate - use optimistic updates in components
+  return { success: true }
+}
+
+/**
+ * Move card to different status
+ */
+export async function moveCard(cardId: string, newStatusId: string, newPosition: number) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const { data, error } = await supabase
+    .from('cards')
+    .update({ 
+      status_id: newStatusId,
+      position: newPosition
+    })
+    .eq('id', cardId)
+    .select('board_id')
+    .single()
+
+  if (error) return { error: error.message }
+  
+  // Don't revalidate - use optimistic updates in components
+  return { success: true }
+}
+
+// ============================================
+// STATUS MANAGEMENT ACTIONS
+// ============================================
+
+/**
+ * Create a new status for a board
+ */
+export async function createBoardStatus(
+  boardId: string,
+  name: string,
+  color: string
+) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  // Check if user has editor or owner access
+  const hasAccess = await hasEditorAccess(supabase, boardId, user.id)
+  if (!hasAccess) {
+    return { error: 'Only board owners and editors can create statuses' }
+  }
+
+  // Get the highest position
+  const { data: existingStatuses } = await supabase
+    .from('board_statuses')
+    .select('position')
+    .eq('board_id', boardId)
+    .order('position', { ascending: false })
+    .limit(1)
+
+  const nextPosition = existingStatuses && existingStatuses.length > 0 
+    ? existingStatuses[0].position + 1 
+    : 0
+
+  const { data, error } = await supabase
+    .from('board_statuses')
+    .insert({
+      board_id: boardId,
+      name: name.trim(),
+      color,
+      position: nextPosition
+    })
+    .select()
+    .single()
+
+  if (error) return { error: error.message }
+  
+  // Don't revalidate - use optimistic updates in components
+  return { data }
+}
+
+/**
+ * Update a board status
+ */
+export async function updateBoardStatus(
+  statusId: string,
+  updates: { name?: string; color?: string }
+) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  // Get the status with board_id
+  const { data: status, error: statusError } = await supabase
+    .from('board_statuses')
+    .select('board_id')
+    .eq('id', statusId)
+    .maybeSingle()
+
+  if (statusError) {
+    console.error('Error fetching status:', statusError)
+    return { error: 'Failed to fetch status' }
+  }
+
+  if (!status) {
+    return { error: 'Status not found' }
+  }
+
+  // Check if user has editor or owner access
+  const hasAccess = await hasEditorAccess(supabase, status.board_id, user.id)
+  if (!hasAccess) {
+    return { error: 'Only board owners and editors can update statuses' }
+  }
+
+  const updateData: any = {}
+  if (updates.name !== undefined) updateData.name = updates.name.trim()
+  if (updates.color !== undefined) updateData.color = updates.color
+
+  const { data, error } = await supabase
+    .from('board_statuses')
+    .update(updateData)
+    .eq('id', statusId)
+    .select()
+    .maybeSingle()
+
+  if (error) return { error: error.message }
+  if (!data) return { error: 'Failed to update status' }
+  
+  // Don't revalidate - use optimistic updates in components
+  return { data }
+}
+
+/**
+ * Delete a board status
+ */
+export async function deleteBoardStatus(statusId: string) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  // Get the status with board_id and position
+  const { data: status, error: statusError } = await supabase
+    .from('board_statuses')
+    .select('board_id, position')
+    .eq('id', statusId)
+    .maybeSingle()
+
+  if (statusError) {
+    console.error('Error fetching status:', statusError)
+    return { error: 'Failed to fetch status' }
+  }
+
+  if (!status) {
+    return { error: 'Status not found' }
+  }
+
+  // Check if user has editor or owner access
+  const hasAccess = await hasEditorAccess(supabase, status.board_id, user.id)
+  if (!hasAccess) {
+    return { error: 'Only board owners and editors can delete statuses' }
+  }
+
+  // Check if there are cards in this status
+  const { data: cardsInStatus } = await supabase
+    .from('cards')
+    .select('id')
+    .eq('status_id', statusId)
+    .limit(1)
+
+  if (cardsInStatus && cardsInStatus.length > 0) {
+    return { error: 'Cannot delete status with existing tasks. Move or delete tasks first.' }
+  }
+
+  // Delete the status
+  const { error } = await supabase
+    .from('board_statuses')
+    .delete()
+    .eq('id', statusId)
+
+  if (error) return { error: error.message }
+  
+  // Reindex remaining statuses - decrement position for all statuses after the deleted one
+  const { data: remainingStatuses } = await supabase
+    .from('board_statuses')
+    .select('id, position')
+    .eq('board_id', status.board_id)
+    .gt('position', status.position)
+    .order('position', { ascending: true })
+
+  if (remainingStatuses && remainingStatuses.length > 0) {
+    // Update each status to fill the gap
+    for (const remainingStatus of remainingStatuses) {
+      await supabase
+        .from('board_statuses')
+        .update({ position: remainingStatus.position - 1 })
+        .eq('id', remainingStatus.id)
+    }
+  }
+  
+  // Don't revalidate - use optimistic updates in components
+  return { success: true }
+}
+
+/**
+ * Reorder board statuses
+ */
+export async function reorderBoardStatuses(
+  boardId: string,
+  statusIds: string[]
+) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  // Check if user has editor or owner access
+  const hasAccess = await hasEditorAccess(supabase, boardId, user.id)
+  if (!hasAccess) {
+    return { error: 'Only board owners and editors can reorder statuses' }
+  }
+
+  // Update positions
+  for (let i = 0; i < statusIds.length; i++) {
+    await supabase
+      .from('board_statuses')
+      .update({ position: i })
+      .eq('id', statusIds[i])
+      .eq('board_id', boardId)
+  }
+
+  // Don't revalidate - use optimistic updates in components
+  return { success: true }
+}
+
+// ============================================
+// BOARD SHARING ACTIONS
+// ============================================
+
+/**
+ * Share a board with a user
+ */
+export async function shareBoardWithUser(
+  boardId: string,
+  userEmail: string,
+  accessLevel: 'editor' | 'viewer' = 'editor'
+) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  // Check if user has editor or owner access (editors can share too)
+  const hasAccess = await hasEditorAccess(supabase, boardId, user.id)
+  if (!hasAccess) {
+    return { error: 'Only board owners and editors can share the board' }
+  }
+
+  // Find user by email (you'll need to query auth.users or have a users table)
+  // For now, we'll assume you pass the user_id directly
+  // This is a simplified version - you may need to adjust based on your auth setup
+  
+  const { data: existingAccess } = await supabase
+    .from('board_access')
+    .select('id')
+    .eq('board_id', boardId)
+    .eq('user_id', userEmail) // This should be user_id, not email
+    .single()
+
+  if (existingAccess) {
+    return { error: 'User already has access to this board' }
+  }
+
+  const { data, error } = await supabase
+    .from('board_access')
+    .insert({
+      board_id: boardId,
+      user_id: userEmail, // This should be user_id
+      access_level: accessLevel,
+      granted_by: user.id
+    })
+    .select()
+    .single()
+
+  if (error) return { error: error.message }
+  
+  // Don't revalidate - use optimistic updates in components
+  return { data }
+}
+
+/**
+ * Remove user access from a board
+ */
+export async function removeBoardAccess(
+  boardId: string,
+  userId: string
+) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  // Check ownership
+  const { data: board } = await supabase
+    .from('boards')
+    .select('owner_id')
+    .eq('id', boardId)
+    .single()
+
+  if (!board || board.owner_id !== user.id) {
+    return { error: 'Only the board owner can remove access' }
+  }
+
+  // Prevent removing owner's access
+  if (userId === user.id) {
+    return { error: 'Cannot remove your own access as the owner' }
+  }
+
+  const { error } = await supabase
+    .from('board_access')
+    .delete()
+    .eq('board_id', boardId)
+    .eq('user_id', userId)
+
+  if (error) return { error: error.message }
+  
+  // Don't revalidate - use optimistic updates in components
+  return { success: true }
+}
+
+/**
+ * Get users with access to a board (including the owner)
+ */
+export async function getBoardAccessList(boardId: string) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  // Get the board owner
+  const { data: board, error: boardError } = await supabase
+    .from('boards')
+    .select('owner_id, created_at')
+    .eq('id', boardId)
+    .maybeSingle()
+
+  if (boardError) {
+    console.error('Error fetching board:', boardError)
+    return { error: 'Failed to fetch board' }
+  }
+
+  if (!board) {
+    return { error: 'Board not found' }
+  }
+
+  // Get other users with access (excluding owner if they're in board_access)
+  const { data: accessList, error } = await supabase
+    .from('board_access')
+    .select('id, user_id, access_level, granted_at, granted_by')
+    .eq('board_id', boardId)
+    .neq('user_id', board.owner_id) // Exclude owner from board_access results
+    .order('granted_at', { ascending: true })
+
+  if (error) return { error: error.message }
+
+  // Add the owner to the list
+  const ownerAccess = {
+    id: 'owner',
+    user_id: board.owner_id,
+    access_level: 'owner',
+    granted_at: board.created_at,
+    granted_by: board.owner_id
+  }
+
+  // Combine owner and other access (owner first)
+  const allAccess = [ownerAccess, ...(accessList || [])]
+  
+  return { data: allAccess }
+}
+
+// ============================================
+// CARD ASSIGNEE ACTIONS
+// ============================================
+
+/**
+ * Add an assignee to a card
+ */
+export async function addCardAssignee(cardId: string, userId: string) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  // Check if already assigned
+  const { data: existing } = await supabase
+    .from('card_assignees')
+    .select('id')
+    .eq('card_id', cardId)
+    .eq('user_id', userId)
+    .single()
+
+  if (existing) {
+    return { error: 'User is already assigned to this card' }
+  }
+
+  const { data, error } = await supabase
+    .from('card_assignees')
+    .insert({
+      card_id: cardId,
+      user_id: userId
+    })
+    .select()
+    .single()
+
+  if (error) return { error: error.message }
+  
+  return { data }
+}
+
+/**
+ * Remove an assignee from a card
+ */
+export async function removeCardAssignee(assigneeId: string) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const { error } = await supabase
+    .from('card_assignees')
+    .delete()
+    .eq('id', assigneeId)
+
+  if (error) return { error: error.message }
+  
+  return { success: true }
+}
+
+/**
+ * Get assignees for a card
+ */
+export async function getCardAssignees(cardId: string) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const { data, error } = await supabase
+    .from('card_assignees')
+    .select('id, user_id, assigned_at')
+    .eq('card_id', cardId)
+    .order('assigned_at', { ascending: true })
+
+  if (error) return { error: error.message }
+  
+  return { data }
+}
+
+/**
+ * Get a single card with all its data (including assignees)
+ */
+export async function getCardWithAssignees(cardId: string) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  // Get the card
+  const { data: card, error: cardError } = await supabase
+    .from('cards')
+    .select('*')
+    .eq('id', cardId)
+    .single()
+
+  if (cardError) return { error: cardError.message }
+
+  // Get assignees with user details
+  const { data: assignees, error: assigneesError } = await supabase
+    .from('card_assignees')
+    .select(`
+      id,
+      card_id,
+      user_id,
+      assigned_at,
+      users:user_id (
+        id,
+        email,
+        display_name
+      )
+    `)
+    .eq('card_id', cardId)
+
+  if (assigneesError) {
+    console.error('Error fetching card assignees:', assigneesError)
+  }
+
+  return {
+    data: {
+      ...card,
+      card_assignees: assignees || []
+    }
+  }
+}
+
+/**
+ * Get all users for assignee selection
+ */
+export async function getAllUsers() {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, email, display_name')
+    .order('display_name', { ascending: true })
+
+  if (error) return { error: error.message }
+  
+  return { data }
+}
+
+/**
+ * Get users who have access to a specific board (for assignee selection)
+ */
+export async function getBoardUsers(boardId: string) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  // Get the board owner
+  const { data: board } = await supabase
+    .from('boards')
+    .select('owner_id')
+    .eq('id', boardId)
+    .single()
+
+  if (!board) return { error: 'Board not found' }
+
+  // Get users who have access to this board (from board_access table)
+  const { data: boardAccess } = await supabase
+    .from('board_access')
+    .select('user_id')
+    .eq('board_id', boardId)
+
+  // Collect all user IDs (owner + users with access)
+  const userIds = [board.owner_id]
+  if (boardAccess) {
+    userIds.push(...boardAccess.map(ba => ba.user_id))
+  }
+
+  // Get user details for all these user IDs
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, email, display_name')
+    .in('id', userIds)
+    .order('display_name', { ascending: true })
+
+  if (error) return { error: error.message }
+  
+  return { data }
+}

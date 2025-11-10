@@ -8,10 +8,18 @@ interface ModalProps {
   onClose: () => void
   title: string
   children: React.ReactNode
+  maxWidth?: 'sm' | 'md' | 'lg' | 'xl'
 }
 
-export function Modal({ isOpen, onClose, title, children }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, maxWidth = 'md' }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
+
+  const maxWidthClasses = {
+    sm: 'max-w-sm',
+    md: 'max-w-md',
+    lg: 'max-w-2xl',
+    xl: 'max-w-4xl'
+  }
 
   // Close on Escape key
   useEffect(() => {
@@ -41,12 +49,12 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={handleBackdropClick}
     >
       <div
         ref={modalRef}
-        className="bg-[hsl(var(--color-surface))] rounded-lg shadow-xl w-full max-w-md mx-4 animate-in fade-in zoom-in duration-200"
+        className={`bg-[hsl(var(--color-surface))] rounded-lg shadow-xl w-full ${maxWidthClasses[maxWidth]} mx-4 animate-in fade-in zoom-in duration-200`}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-[hsl(var(--color-border))]">

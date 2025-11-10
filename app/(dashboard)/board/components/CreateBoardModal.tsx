@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { createBoard } from '@/app/actions/boards'
+import { createBoard } from '@/app/actions/board/core'
 
 interface CreateBoardModalProps {
   isOpen: boolean

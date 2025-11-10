@@ -2,108 +2,286 @@
 
 import { useState, useEffect } from 'react'
 import { BoardStatus, Card } from '@/types/database'
-import { getBoardCards } from '@/app/actions/boards'
+import { updateBoardStatus, deleteBoardStatus, reorderBoardStatuses } from '@/app/actions/board/statuses'
 import { CustomKanbanCard } from './CustomKanbanCard'
 import { CardModal } from './CardModal'
 
 interface CustomKanbanColumnProps {
   status: BoardStatus
+  cards: any[]
   boardId: string
-  onUpdate: () => void
+  isSharedBoard: boolean
+  onUpdate: (statusId: string, updates: Partial<BoardStatus>) => void
+  onDelete: (statusId: string) => void
+  onReorder: (fromIndex: number, toIndex: number) => void
+  allStatuses: BoardStatus[]
+  statusIndex: number
+  totalStatuses: number
+  onCardUpdate: (cardId: string, updates: Partial<any>) => void
+  onCardAdd: (newCard: any) => void
+  onCardDelete: (cardId: string) => void
+  onCardRefresh: (cardId: string) => Promise<void>
+  dragHandleProps?: any
 }
 
-export function CustomKanbanColumn({ status, boardId, onUpdate }: CustomKanbanColumnProps) {
-  const [cards, setCards] = useState<Card[]>([])
+export function CustomKanbanColumn({ 
+  status,
+  cards,
+  boardId,
+  isSharedBoard,
+  onUpdate,
+  onDelete,
+  onReorder,
+  allStatuses,
+  statusIndex,
+  totalStatuses,
+  onCardUpdate,
+  onCardAdd,
+  onCardDelete,
+  onCardRefresh,
+  dragHandleProps
+}: CustomKanbanColumnProps) {
   const [isAddingCard, setIsAddingCard] = useState(false)
   const [editingCard, setEditingCard] = useState<Card | null>(null)
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [editName, setEditName] = useState(status.name)
+  const [showColorPicker, setShowColorPicker] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+
+  // NO MORE useDroppable - the SortableContext handles everything!
 
   useEffect(() => {
-    fetchCards()
-  }, [status.id, boardId])
+    setEditName(status.name)
+  }, [status.name])
 
-  async function fetchCards() {
-    const result = await getBoardCards(boardId)
-    if (result?.data) {
-      // Filter cards for this status
-      const statusCards = result.data.filter(c => c.status_id === status.id)
-      setCards(statusCards)
+  const handleNameSave = async () => {
+    if (!editName.trim() || editName === status.name) {
+      setIsEditingName(false)
+      return
+    }
+
+    setSubmitting(true)
+    
+    // Optimistic update
+    onUpdate(status.id, { name: editName })
+    
+    const result = await updateBoardStatus(status.id, { name: editName })
+    if (result?.error) {
+      // Rollback on error
+      setEditName(status.name)
+      onUpdate(status.id, { name: status.name })
+      alert(result.error)
+    }
+    
+    setSubmitting(false)
+    setIsEditingName(false)
+  }
+
+  const handleColorChange = async (color: string) => {
+    setSubmitting(true)
+    
+    // Optimistic update
+    onUpdate(status.id, { color })
+    
+    const result = await updateBoardStatus(status.id, { color })
+    if (result?.error) {
+      // Rollback on error
+      onUpdate(status.id, { color: status.color })
+      alert(result.error)
+    }
+    
+    setSubmitting(false)
+    setShowColorPicker(false)
+  }
+
+  const handleDelete = async () => {
+    if (!confirm('Delete this status? Tasks in this status must be moved first.')) return
+
+    setSubmitting(true)
+    
+    const result = await deleteBoardStatus(status.id)
+    if (!result?.error) {
+      // Successful delete - parent will handle removal
+      onDelete(status.id)
+    } else {
+      alert(result.error)
+    }
+    
+    setSubmitting(false)
+  }
+
+  // Card update handler - refetch only this specific card
+  const handleCardUpdate = async () => {
+    if (editingCard) {
+      const cardId = editingCard.id
+      setEditingCard(null)
+      // Refresh just this card instead of the entire board
+      await onCardRefresh(cardId)
     }
   }
 
-  const handleUpdate = () => {
-    fetchCards()
-    onUpdate()
+  // Optimistic card addition
+  const handleCardAdded = (newCard?: Card) => {
+    if (newCard) {
+      onCardAdd(newCard)
+    }
   }
 
-  const statusCards = cards.filter(c => c.status_id === status.id)
+  const statusCards = cards
+
+  // Convert hex color to rgba with transparency
+  const hexToRgba = (hex: string, alpha: number) => {
+    const r = parseInt(hex.slice(1, 3), 16)
+    const g = parseInt(hex.slice(3, 5), 16)
+    const b = parseInt(hex.slice(5, 7), 16)
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`
+  }
+
+  const statusColor = status.color || '#94a3b8'
+  const glassyBackground = hexToRgba(statusColor, 0.08) // 8% opacity for subtle effect
 
   return (
     <>
-      <div className="flex-shrink-0 w-80">
-        <div className="bg-[hsl(var(--color-surface))] rounded-lg p-4 border border-[hsl(var(--color-border))]">
-          {/* Column Header */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <div 
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: status.color || '#94a3b8' }}
-              />
-              <h3 className="font-semibold text-[hsl(var(--color-text-primary))]">
-                {status.name}
-              </h3>
+      <div className="flex-shrink-0 w-56 h-full">
+        {/* This column is sortable via the wrapper - no need for droppable here */}
+        <div 
+          className="rounded-lg p-3 border h-full flex flex-col transition-all backdrop-blur-sm border-[hsl(var(--color-border))]"
+          style={{ 
+            backgroundColor: glassyBackground 
+          }}
+        >
+          {/* Column Header with Inline Editing */}
+          <div className="flex items-center justify-between mb-3 flex-shrink-0">
+            <div className="flex items-center gap-2 flex-1">
+              {/* Color Indicator - Click to change color */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowColorPicker(!showColorPicker)}
+                  className="w-4 h-4 rounded-full border-2 border-white shadow-sm cursor-pointer hover:scale-110 transition-transform"
+                  style={{ backgroundColor: status.color || '#94a3b8' }}
+                  title="Click to change color"
+                  disabled={submitting}
+                />
+                {showColorPicker && (
+                  <div className="absolute top-8 left-0 z-50 p-2 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-lg shadow-lg">
+                    <input
+                      type="color"
+                      value={status.color || '#94a3b8'}
+                      onChange={(e) => handleColorChange(e.target.value)}
+                      disabled={submitting}
+                      className="w-32 h-8 cursor-pointer"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Status Name - Click to edit */}
+              {isEditingName ? (
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  onBlur={handleNameSave}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleNameSave()
+                    if (e.key === 'Escape') {
+                      setEditName(status.name)
+                      setIsEditingName(false)
+                    }
+                  }}
+                  disabled={submitting}
+                  autoFocus
+                  className="flex-1 px-2 py-1 font-semibold bg-[hsl(var(--color-background))] border border-[hsl(var(--color-border))] rounded text-[hsl(var(--color-text-primary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-primary))]"
+                />
+              ) : (
+                <h3 
+                  onClick={() => setIsEditingName(true)}
+                  className="font-semibold text-xs text-[hsl(var(--color-text-primary))] cursor-pointer hover:text-[hsl(var(--color-primary))] transition-colors"
+                  title="Click to edit"
+                >
+                  {status.name}
+                </h3>
+              )}
+
               <span className="text-xs text-[hsl(var(--color-text-secondary))]">
                 ({statusCards.length})
               </span>
             </div>
+
+            {/* Drag Handle and Delete Button */}
+            <div className="flex items-center gap-1 ml-2">
+              {/* Drag Handle - 6 dots in 2 columns */}
+              {dragHandleProps && (
+                <div 
+                  {...dragHandleProps}
+                  className="p-1 cursor-grab active:cursor-grabbing hover:bg-[hsl(var(--color-background))] rounded transition-colors"
+                  title="Drag to reorder"
+                >
+                  <svg className="w-4 h-4 text-[hsl(var(--color-text-secondary))]" viewBox="0 0 16 16" fill="currentColor">
+                    <circle cx="4" cy="3" r="1.5"/>
+                    <circle cx="4" cy="8" r="1.5"/>
+                    <circle cx="4" cy="13" r="1.5"/>
+                    <circle cx="12" cy="3" r="1.5"/>
+                    <circle cx="12" cy="8" r="1.5"/>
+                    <circle cx="12" cy="13" r="1.5"/>
+                  </svg>
+                </div>
+              )}
+              <button
+                onClick={handleDelete}
+                disabled={submitting}
+                className="p-1 hover:bg-red-500/10 text-red-500 rounded transition-colors disabled:opacity-50"
+                title="Delete status"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           {/* Cards Container */}
-          <div className="space-y-3 min-h-[200px]">
-            {statusCards.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-sm text-[hsl(var(--color-text-secondary))]">
-                  No cards yet
-                </p>
-              </div>
-            ) : (
-              statusCards.map(card => (
-                <CustomKanbanCard
-                  key={card.id}
-                  card={card}
-                  onUpdate={handleUpdate}
-                  onEdit={setEditingCard}
-                />
-              ))
-            )}
+          <div className="space-y-3 flex-1 overflow-y-auto pr-1 scrollbar-thin">
+            {statusCards.map(card => (
+              <CustomKanbanCard
+                key={card.id}
+                card={card}
+                isSharedBoard={isSharedBoard}
+                onUpdate={handleCardUpdate}
+                onEdit={setEditingCard}
+              />
+            ))}
             
-            {/* Add Card Button */}
+            {/* Add Task Button */}
             <button 
               onClick={() => setIsAddingCard(true)}
-              className="w-full text-left px-3 py-2 text-sm text-[hsl(var(--color-text-secondary))] hover:bg-[hsl(var(--color-surface-hover))] rounded-lg transition-colors border border-dashed border-[hsl(var(--color-border))]"
+              className="w-full text-center px-3 py-2 text-xs text-[hsl(var(--color-text-secondary))] hover:bg-[hsl(var(--color-surface-hover))] rounded-lg transition-colors border border-dashed border-[hsl(var(--color-border))]"
             >
-              + Add Card
+              + Add Task
             </button>
           </div>
         </div>
       </div>
 
-      {/* Add Card Modal */}
+      {/* Add Task Modal */}
       <CardModal
         isOpen={isAddingCard}
         onClose={() => setIsAddingCard(false)}
-        onSuccess={handleUpdate}
+        onSuccess={handleCardAdded}
         boardId={boardId}
         statusId={status.id}
+        isSharedBoard={isSharedBoard}
       />
 
-      {/* Edit Card Modal */}
+      {/* Edit Task Modal */}
       <CardModal
         isOpen={!!editingCard}
         onClose={() => setEditingCard(null)}
-        onSuccess={handleUpdate}
+        onSuccess={handleCardUpdate}
         boardId={boardId}
         statusId={status.id}
         card={editingCard}
+        isSharedBoard={isSharedBoard}
       />
     </>
   )

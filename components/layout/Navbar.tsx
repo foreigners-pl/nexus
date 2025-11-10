@@ -1,10 +1,13 @@
 ﻿'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { logout } from '@/app/actions/auth'
 import { Button } from '@/components/ui/Button'
+import { createClient } from '@/lib/supabase/client'
+import type { User } from '@/types/database'
 
 const navItems = [
   { href: '/home', label: 'Home' },
@@ -16,6 +19,31 @@ const navItems = [
 
 export function Navbar() {
   const pathname = usePathname()
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function loadUser() {
+      const supabase = createClient()
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      
+      if (authUser) {
+        // Fetch user profile from public.users table
+        const { data: profile } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', authUser.id)
+          .single()
+        
+        if (profile) {
+          setCurrentUser(profile)
+        }
+      }
+      setLoading(false)
+    }
+    
+    loadUser()
+  }, [])
 
   return (
     <nav className="fixed top-0 left-0 h-screen w-64 bg-[hsl(var(--color-sidebar))] border-r border-[hsl(var(--color-border))] flex flex-col">
@@ -57,11 +85,11 @@ export function Navbar() {
       <div className="p-4 border-t border-[hsl(var(--color-border))] space-y-3">
         <div className="flex items-center gap-3 px-2">
           <div className="h-8 w-8 rounded-full bg-[hsl(var(--color-primary))] flex items-center justify-center text-white font-bold">
-            A
+            {loading ? '...' : (currentUser?.display_name?.[0] || currentUser?.email?.[0] || '?').toUpperCase()}
           </div>
           <div className="flex-1">
             <p className="text-sm font-medium text-[hsl(var(--color-text-primary))]">
-              Admin
+              {loading ? 'Loading...' : currentUser?.display_name || currentUser?.email || 'User'}
             </p>
             <p className="text-xs text-[hsl(var(--color-text-secondary))]">
               Logged in

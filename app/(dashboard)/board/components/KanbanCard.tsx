@@ -26,10 +26,10 @@ export function KanbanCard({ caseItem }: KanbanCardProps) {
     <Link href={`/cases/${caseItem.id}`}>
       <Card className="p-3 hover:shadow-lg transition-shadow cursor-pointer border border-[hsl(var(--color-border))]">
         <div className="space-y-2">
-          <div className="font-mono text-sm text-[hsl(var(--color-primary))]">
+          <div className="font-mono text-xs text-[hsl(var(--color-primary))]">
             {caseItem.case_code || 'No Code'}
           </div>
-          <div className="font-medium text-[hsl(var(--color-text-primary))]">
+          <div className="font-medium text-xs text-[hsl(var(--color-text-primary))]">
             {getClientDisplayName()}
           </div>
           <div className="text-xs text-[hsl(var(--color-text-secondary))]">

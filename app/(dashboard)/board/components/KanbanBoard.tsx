@@ -18,7 +18,7 @@ export function KanbanBoard({ statuses, cases, onUpdate }: KanbanBoardProps) {
   }
 
   return (
-    <div className="flex gap-4 overflow-x-auto pb-4">
+    <div className="flex gap-4 h-full">
       {statuses.map(status => (
         <KanbanColumn
           key={status.id}

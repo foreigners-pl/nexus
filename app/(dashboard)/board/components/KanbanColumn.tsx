@@ -1,5 +1,4 @@
 import { Status, Case, Client } from '@/types/database'
-import { Card } from '@/components/ui/Card'
 import { KanbanCard } from './KanbanCard'
 
 interface CaseWithRelations extends Case {
@@ -14,30 +13,60 @@ interface KanbanColumnProps {
 }
 
 export function KanbanColumn({ status, cases, onUpdate }: KanbanColumnProps) {
+  // Default colors for status based on common status types
+  const getStatusColor = () => {
+    const name = status.name.toLowerCase()
+    if (name.includes('todo') || name.includes('to do') || name.includes('backlog')) return '#94a3b8' // slate
+    if (name.includes('progress') || name.includes('active') || name.includes('working')) return '#3b82f6' // blue
+    if (name.includes('done') || name.includes('complete') || name.includes('finished')) return '#22c55e' // green
+    if (name.includes('review') || name.includes('testing')) return '#f59e0b' // amber
+    if (name.includes('blocked') || name.includes('hold')) return '#ef4444' // red
+    return '#6366f1' // indigo default
+  }
+
+  // Convert hex color to rgba with transparency
+  const hexToRgba = (hex: string, alpha: number) => {
+    const r = parseInt(hex.slice(1, 3), 16)
+    const g = parseInt(hex.slice(3, 5), 16)
+    const b = parseInt(hex.slice(5, 7), 16)
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`
+  }
+
+  const statusColor = getStatusColor()
+  const glassyBackground = hexToRgba(statusColor, 0.08)
+
   return (
-    <div className="flex-shrink-0 w-80">
-      <Card className="h-full flex flex-col">
-        <div className="p-4 border-b border-[hsl(var(--color-border))]">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-[hsl(var(--color-text-primary))]">
+    <div className="flex-shrink-0 w-56 h-full">
+      <div 
+        className="rounded-lg p-3 border border-[hsl(var(--color-border))] h-full flex flex-col backdrop-blur-sm"
+        style={{ backgroundColor: glassyBackground }}
+      >
+        {/* Column Header */}
+        <div className="flex items-center justify-between mb-3 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-1">
+            {/* Color indicator for status */}
+            <div 
+              className="w-4 h-4 rounded-full border-2 border-white shadow-sm"
+              style={{ backgroundColor: getStatusColor() }}
+            />
+            
+            <h3 className="font-semibold !text-[14px] text-[hsl(var(--color-text-primary))]">
               {status.name}
             </h3>
-            <span className="px-2 py-1 rounded-full text-xs bg-[hsl(var(--color-surface))] text-[hsl(var(--color-text-secondary))]">
-              {cases.length}
+
+            <span className="text-xs text-[hsl(var(--color-text-secondary))]">
+              ({cases.length})
             </span>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-[calc(100vh-280px)]">
+
+        {/* Cards Container - Matching CustomKanbanColumn styling */}
+        <div className="space-y-3 flex-1 overflow-y-auto pr-1 scrollbar-thin">
           {cases.map(caseItem => (
             <KanbanCard key={caseItem.id} caseItem={caseItem} />
           ))}
-          {cases.length === 0 && (
-            <p className="text-center text-[hsl(var(--color-text-secondary))] text-sm py-8">
-              No cases
-            </p>
-          )}
         </div>
-      </Card>
+      </div>
     </div>
   )
 }

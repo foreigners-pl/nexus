@@ -1,11 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Board, BoardAccess } from '@/types/database'
 import { Button } from '@/components/ui/Button'
-import { Card } from '@/components/ui/Card'
-import { createClient } from '@/lib/supabase/client'
 
 interface BoardWithAccess extends Board {
   board_access?: BoardAccess[]
@@ -13,75 +11,62 @@ interface BoardWithAccess extends Board {
 
 interface BoardListProps {
   boards: BoardWithAccess[]
+  currentUserId: string | null
   currentBoardId?: string
   onCreateBoard: () => void
   isCollapsed: boolean
   onToggleCollapse: () => void
+  loading?: boolean
 }
 
 type TabType = 'shared' | 'private'
 
-export function BoardList({ boards, currentBoardId, onCreateBoard, isCollapsed, onToggleCollapse }: BoardListProps) {
+export function BoardList({ boards, currentUserId, currentBoardId, onCreateBoard, isCollapsed, onToggleCollapse, loading = false }: BoardListProps) {
   const [activeTab, setActiveTab] = useState<TabType>('shared')
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
   const router = useRouter()
 
+  // Load tab preference from localStorage after mount (client-side only)
   useEffect(() => {
-    async function getCurrentUser() {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) setCurrentUserId(user.id)
+    const savedTab = localStorage.getItem('boardListActiveTab')
+    if (savedTab === 'shared' || savedTab === 'private') {
+      setActiveTab(savedTab as TabType)
     }
-    getCurrentUser()
+    setMounted(true)
   }, [])
+  
+  const handleTabClick = (tab: TabType) => {
+    setActiveTab(tab)
+    localStorage.setItem('boardListActiveTab', tab) // Save preference
+  }
 
-  // Auto-switch to the tab containing the current board
-  useEffect(() => {
-    if (!currentBoardId || !currentUserId) return
-    
-    const currentBoard = boards.find(b => b.id === currentBoardId)
-    if (!currentBoard) return
-
-    // Determine which tab this board belongs to
-    if (currentBoard.is_system) {
-      setActiveTab('shared')
-    } else {
-      const accessCount = currentBoard.board_access?.length || 0
-      const isOwner = currentBoard.owner_id === currentUserId
-      
-      if (isOwner && accessCount === 1) {
-        setActiveTab('private')
-      } else {
-        setActiveTab('shared')
+  // Categorize boards - memoized to prevent recalculation
+  const categorizedBoards = useMemo(() => {
+    return boards.reduce((acc, board) => {
+      // System boards (like Cases) always go to SHARED
+      if (board.is_system) {
+        acc.shared.push(board)
+        return acc
       }
-    }
-  }, [currentBoardId, boards, currentUserId])
 
-  // Categorize boards
-  const categorizedBoards = boards.reduce((acc, board) => {
-    // System boards (like Cases) always go to SHARED
-    if (board.is_system) {
-      acc.shared.push(board)
+      if (!currentUserId) return acc
+
+      const accessCount = board.board_access?.length || 0
+      const isOwner = board.owner_id === currentUserId
+
+      // Private: Owner and only owner has access (access count = 1)
+      // Shared: 
+      //   - Owner with others (access count > 1)
+      //   - User is not owner (someone shared it with them)
+      if (isOwner && accessCount === 1) {
+        acc.private.push(board)
+      } else if (accessCount > 1 || !isOwner) {
+        acc.shared.push(board)
+      }
+
       return acc
-    }
-
-    if (!currentUserId) return acc
-
-    const accessCount = board.board_access?.length || 0
-    const isOwner = board.owner_id === currentUserId
-
-    // Private: Owner and only owner has access (access count = 1)
-    // Shared: 
-    //   - Owner with others (access count > 1)
-    //   - User is not owner (someone shared it with them)
-    if (isOwner && accessCount === 1) {
-      acc.private.push(board)
-    } else if (accessCount > 1 || !isOwner) {
-      acc.shared.push(board)
-    }
-
-    return acc
-  }, { private: [] as BoardWithAccess[], shared: [] as BoardWithAccess[] })
+    }, { private: [] as BoardWithAccess[], shared: [] as BoardWithAccess[] })
+  }, [boards, currentUserId])
 
   const displayBoards = activeTab === 'shared' ? categorizedBoards.shared : categorizedBoards.private
 
@@ -106,9 +91,9 @@ export function BoardList({ boards, currentBoardId, onCreateBoard, isCollapsed, 
   }
 
   return (
-    <div className="space-y-4 h-full flex flex-col">
+    <div className="h-full flex flex-col">
       {/* Header with collapse button */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between p-4 pb-3 border-b border-[hsl(var(--color-border))]/50 flex-shrink-0">
         <h2 className="text-lg font-semibold text-[hsl(var(--color-text-primary))]">Boards</h2>
         <button
           onClick={onToggleCollapse}
@@ -122,47 +107,52 @@ export function BoardList({ boards, currentBoardId, onCreateBoard, isCollapsed, 
       </div>
 
       {/* Tabs - evenly split */}
-      <div className="grid grid-cols-2 border-b border-[hsl(var(--color-border))]">
+      <div className="grid grid-cols-2 gap-2 px-4 pt-4 flex-shrink-0">
         <button
-          onClick={() => setActiveTab('shared')}
-          className={`px-4 py-2 font-medium transition-colors relative text-center ${
+          onClick={() => handleTabClick('shared')}
+          className={`px-3 py-2 rounded-lg font-medium transition-all text-sm ${
             activeTab === 'shared'
-              ? 'text-[hsl(var(--color-primary))]'
-              : 'text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))]'
+              ? 'bg-[hsl(var(--color-primary))] text-white shadow-sm'
+              : 'bg-transparent text-[hsl(var(--color-text-secondary))] hover:bg-[hsl(var(--color-surface-hover))]'
           }`}
         >
           Shared
-          <span className="ml-1 text-xs">({categorizedBoards.shared.length})</span>
-          {activeTab === 'shared' && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[hsl(var(--color-primary))]" />
-          )}
+          <span className="ml-1 text-xs opacity-75">({categorizedBoards.shared.length})</span>
         </button>
         <button
-          onClick={() => setActiveTab('private')}
-          className={`px-4 py-2 font-medium transition-colors relative text-center ${
+          onClick={() => handleTabClick('private')}
+          className={`px-3 py-2 rounded-lg font-medium transition-all text-sm ${
             activeTab === 'private'
-              ? 'text-[hsl(var(--color-primary))]'
-              : 'text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))]'
+              ? 'bg-[hsl(var(--color-primary))] text-white shadow-sm'
+              : 'bg-transparent text-[hsl(var(--color-text-secondary))] hover:bg-[hsl(var(--color-surface-hover))]'
           }`}
         >
           Private
-          <span className="ml-1 text-xs">({categorizedBoards.private.length})</span>
-          {activeTab === 'private' && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[hsl(var(--color-primary))]" />
-          )}
+          <span className="ml-1 text-xs opacity-75">({categorizedBoards.private.length})</span>
         </button>
       </div>
 
       {/* Create Board Button (only on Private tab) */}
       {activeTab === 'private' && (
-        <Button onClick={onCreateBoard} className="w-full">
-          + Create Board
-        </Button>
+        <div className="px-4 pt-4 flex-shrink-0">
+          <Button onClick={onCreateBoard} className="w-full shadow-sm">
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Create Board
+          </Button>
+        </div>
       )}
 
-      {/* Board List */}
-      <div className="space-y-2 flex-1 overflow-y-auto">
-        {displayBoards.length === 0 ? (
+      {/* Board List - Scrollable with max height */}
+      <div className="flex-1 overflow-y-auto min-h-0 px-4 pt-4 pb-4 space-y-2 scrollbar-thin">
+        {loading ? (
+          <div className="text-center py-8">
+            <p className="text-[hsl(var(--color-text-secondary))] text-sm">
+              Loading boards...
+            </p>
+          </div>
+        ) : displayBoards.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-[hsl(var(--color-text-secondary))] text-sm">
               {activeTab === 'private' 
@@ -172,23 +162,23 @@ export function BoardList({ boards, currentBoardId, onCreateBoard, isCollapsed, 
           </div>
         ) : (
           displayBoards.map(board => (
-            <Card
+            <div
               key={board.id}
-              className={`p-3 cursor-pointer transition-all hover:shadow-md ${
+              className={`p-3 cursor-pointer transition-all rounded-lg ${
                 currentBoardId === board.id
-                  ? 'border-2 border-[hsl(var(--color-primary))] bg-[hsl(var(--color-primary))]/5'
-                  : 'border border-[hsl(var(--color-border))]'
+                  ? 'bg-[hsl(var(--color-primary))]/10 border-l-4 border-[hsl(var(--color-primary))] shadow-sm'
+                  : 'bg-[hsl(var(--color-background))] hover:bg-[hsl(var(--color-surface-hover))] border-l-4 border-transparent'
               }`}
               onClick={() => handleBoardClick(board.id)}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="font-medium text-[hsl(var(--color-text-primary))] truncate">
+                    <h3 className="font-medium text-[hsl(var(--color-text-primary))] truncate text-sm">
                       {board.name}
                     </h3>
                     {board.is_system && (
-                      <span className="px-2 py-0.5 text-xs bg-[hsl(var(--color-surface))] text-[hsl(var(--color-text-secondary))] rounded border border-[hsl(var(--color-border))]">
+                      <span className="px-1.5 py-0.5 text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded uppercase font-semibold">
                         System
                       </span>
                     )}
@@ -198,14 +188,19 @@ export function BoardList({ boards, currentBoardId, onCreateBoard, isCollapsed, 
                       {board.description}
                     </p>
                   )}
-                  {activeTab === 'shared' && board.board_access && board.board_access.length > 1 && (
-                    <p className="text-xs text-[hsl(var(--color-text-secondary))] mt-1">
-                      Shared with {board.board_access.length - 1} {board.board_access.length - 1 === 1 ? 'person' : 'people'}
-                    </p>
+                  {activeTab === 'shared' && board.board_access && board.board_access.length > 0 && (
+                    <div className="flex items-center gap-1 mt-1.5">
+                      <svg className="w-3 h-3 text-[hsl(var(--color-text-secondary))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                      </svg>
+                      <p className="text-xs text-[hsl(var(--color-text-secondary))]">
+                        {board.board_access.length} {board.board_access.length === 1 ? 'user' : 'users'}
+                      </p>
+                    </div>
                   )}
                 </div>
               </div>
-            </Card>
+            </div>
           ))
         )}
       </div>

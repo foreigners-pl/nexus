@@ -13,6 +13,7 @@
     /* Background Colors */
     --color-background: 240 10% 3.9%;           /* Main page background (dark) */
     --color-surface: 240 5.9% 10%;              /* Card/panel background */
+    --color-surface-secondary: 240 5.9% 6%;     /* Secondary surface (sidebar panel) */
     --color-surface-hover: 240 5.9% 15%;        /* Hover state for cards */
     
     /* Sidebar/Navigation */
@@ -75,6 +76,7 @@
   .light {
     --color-background: 0 0% 100%;
     --color-surface: 0 0% 98%;
+    --color-surface-secondary: 0 0% 96%;
     --color-text-primary: 0 0% 10%;
     --color-text-secondary: 0 0% 40%;
     /* ... add other light theme colors */
