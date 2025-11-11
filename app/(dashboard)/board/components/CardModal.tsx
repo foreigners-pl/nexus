@@ -75,7 +75,6 @@ export function CardModal({ isOpen, onClose, onSuccess, boardId, statusId, card,
 
   const loadCardAssignees = async () => {
     if (!card) return
-    
     const { data, error } = await supabase
       .from('card_assignees')
       .select(`
@@ -94,6 +93,7 @@ export function CardModal({ isOpen, onClose, onSuccess, boardId, statusId, card,
       console.error('Error loading card assignees:', error)
       setError(`Failed to load assignees: ${error.message}`)
     } else if (data) {
+      console.log('🔎 [CardModal] Assignees fetched from backend:', data)
       setAssignees(data as any)
     }
   }
@@ -104,12 +104,11 @@ export function CardModal({ isOpen, onClose, onSuccess, boardId, statusId, card,
     // If editing existing card, add to database
     if (card) {
       setAssigneeLoading(true)
-      
+      console.log('📝 [CardModal] Adding assignees to card:', card.id, 'User IDs:', selectedUsers)
       // Add all selected users
       for (const userId of selectedUsers) {
         await addCardAssignee(card.id, userId)
       }
-      
       await loadCardAssignees()
       setSelectedUsers([])
       setShowAssigneeDropdown(false)
@@ -125,6 +124,7 @@ export function CardModal({ isOpen, onClose, onSuccess, boardId, statusId, card,
         assigned_at: new Date().toISOString(),
         users: user
       }))
+      console.log('📝 [CardModal] Adding assignees to new card (local state):', newAssignees)
       setAssignees(prev => [...prev, ...newAssignees])
       setSelectedUsers([])
       setShowAssigneeDropdown(false)
