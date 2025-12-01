@@ -92,43 +92,36 @@ export function BoardList({ boards, currentUserId, currentBoardId, onCreateBoard
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header with collapse button */}
-      <div className="flex items-center justify-between p-4 pb-3 border-b border-[hsl(var(--color-border))]/50 flex-shrink-0">
-        <h2 className="text-lg font-semibold text-[hsl(var(--color-text-primary))]">Boards</h2>
-        <button
-          onClick={onToggleCollapse}
-          className="p-1.5 hover:bg-[hsl(var(--color-surface-hover))] rounded-lg transition-colors"
-          title="Collapse sidebar"
-        >
-          <svg className="w-4 h-4 text-[hsl(var(--color-text-secondary))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-          </svg>
-        </button>
-      </div>
-
-      {/* Tabs - evenly split */}
-      <div className="grid grid-cols-2 gap-2 px-4 pt-4 flex-shrink-0">
+      {/* Tabs */}
+      <div className="flex items-center border-b border-[hsl(var(--color-border))]">
         <button
           onClick={() => handleTabClick('shared')}
-          className={`px-3 py-2 rounded-lg font-medium transition-all text-sm ${
+          className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
             activeTab === 'shared'
-              ? 'bg-[hsl(var(--color-primary))] text-white shadow-sm'
-              : 'bg-transparent text-[hsl(var(--color-text-secondary))] hover:bg-[hsl(var(--color-surface-hover))]'
+              ? 'text-[hsl(var(--color-text-primary))] border-b-2 border-[hsl(var(--color-primary))]'
+              : 'text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))]'
           }`}
         >
           Shared
-          <span className="ml-1 text-xs opacity-75">({categorizedBoards.shared.length})</span>
         </button>
         <button
           onClick={() => handleTabClick('private')}
-          className={`px-3 py-2 rounded-lg font-medium transition-all text-sm ${
+          className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
             activeTab === 'private'
-              ? 'bg-[hsl(var(--color-primary))] text-white shadow-sm'
-              : 'bg-transparent text-[hsl(var(--color-text-secondary))] hover:bg-[hsl(var(--color-surface-hover))]'
+              ? 'text-[hsl(var(--color-text-primary))] border-b-2 border-[hsl(var(--color-primary))]'
+              : 'text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))]'
           }`}
         >
           Private
-          <span className="ml-1 text-xs opacity-75">({categorizedBoards.private.length})</span>
+        </button>
+        <button
+          onClick={onToggleCollapse}
+          className="p-3 hover:bg-[hsl(var(--color-surface-hover))] transition-colors border-l border-[hsl(var(--color-border))]"
+          title="Collapse sidebar"
+        >
+          <svg className="w-5 h-5 text-[hsl(var(--color-text-secondary))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+          </svg>
         </button>
       </div>
 
@@ -167,7 +160,7 @@ export function BoardList({ boards, currentUserId, currentBoardId, onCreateBoard
               className={`p-3 cursor-pointer transition-all rounded-lg ${
                 currentBoardId === board.id
                   ? 'bg-[hsl(var(--color-primary))]/10 border-l-4 border-[hsl(var(--color-primary))] shadow-sm'
-                  : 'bg-[hsl(var(--color-background))] hover:bg-[hsl(var(--color-surface-hover))] border-l-4 border-transparent'
+                  : 'bg-[hsl(var(--color-surface-hover))] hover:bg-[hsl(var(--color-background))] border-l-4 border-transparent'
               }`}
               onClick={() => handleBoardClick(board.id)}
             >

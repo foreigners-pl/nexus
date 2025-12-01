@@ -35,6 +35,7 @@ export default function WikiPage() {
   const [selectedDocument, setSelectedDocument] = useState<WikiDocument | null>(null)
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [loading, setLoading] = useState(true)
   
   // Modals
@@ -93,6 +94,21 @@ export default function WikiPage() {
       const isShared = activeTab === 'shared'
       const data = await getWikiFolders(isShared)
       setFolders(data)
+      
+      // Preload all documents for instant display
+      const documentsMap: Record<string, WikiDocument[]> = {}
+      await Promise.all(
+        data.map(async (folder) => {
+          try {
+            const docs = await getWikiDocuments(folder.id)
+            documentsMap[folder.id] = docs
+          } catch (error) {
+            console.error(`Failed to preload documents for folder ${folder.id}:`, error)
+            documentsMap[folder.id] = []
+          }
+        })
+      )
+      setAllDocuments(documentsMap)
     } catch (error) {
       console.error('Failed to load folders:', error)
     } finally {
@@ -311,10 +327,6 @@ export default function WikiPage() {
       newExpanded.delete(folderId)
     } else {
       newExpanded.add(folderId)
-      // Load documents when expanding if not already loaded
-      if (!allDocuments[folderId]) {
-        loadDocuments(folderId)
-      }
     }
     setExpandedFolders(newExpanded)
   }
@@ -323,32 +335,67 @@ export default function WikiPage() {
   const canDelete = userAccess === 'owner'
 
   return (
-    <div className="flex h-full">
+    <div className="fixed top-0 left-64 right-0 bottom-0 flex">
       {/* Sidebar */}
-      <div className="w-80 h-full border-r border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] flex flex-col">
-        {/* Tabs */}
-        <div className="flex border-b border-[hsl(var(--color-border))]">
-          <button
-            onClick={() => setActiveTab('private')}
-            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'private'
-                ? 'text-[hsl(var(--color-text-primary))] border-b-2 border-[hsl(var(--color-primary))]'
-                : 'text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))]'
-            }`}
-          >
-            Private
-          </button>
-          <button
-            onClick={() => setActiveTab('shared')}
-            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'shared'
-                ? 'text-[hsl(var(--color-text-primary))] border-b-2 border-[hsl(var(--color-primary))]'
-                : 'text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))]'
-            }`}
-          >
-            Shared
-          </button>
-        </div>
+      <div className={`${
+        isSidebarCollapsed ? 'w-16' : 'w-80'
+      } bg-[hsl(var(--color-surface))] border-r border-[hsl(var(--color-border))] flex flex-col transition-all duration-300 flex-shrink-0 h-full`}>
+        {isSidebarCollapsed ? (
+          <div className="flex items-center justify-center p-4 border-b border-[hsl(var(--color-border))]">
+            <button
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              className="p-2 hover:bg-[hsl(var(--color-surface-hover))] rounded-lg transition-colors"
+              title="Expand sidebar"
+            >
+              <svg
+                className="w-5 h-5 text-[hsl(var(--color-text-secondary))]"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Tabs */}
+            <div className="flex items-center border-b border-[hsl(var(--color-border))]">
+              <button
+                onClick={() => setActiveTab('private')}
+                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                  activeTab === 'private'
+                    ? 'text-[hsl(var(--color-text-primary))] border-b-2 border-[hsl(var(--color-primary))]'
+                    : 'text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))]'
+                }`}
+              >
+                Private
+              </button>
+              <button
+                onClick={() => setActiveTab('shared')}
+                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                  activeTab === 'shared'
+                    ? 'text-[hsl(var(--color-text-primary))] border-b-2 border-[hsl(var(--color-primary))]'
+                    : 'text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))]'
+                }`}
+              >
+                Shared
+              </button>
+              <button
+                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                className="p-3 hover:bg-[hsl(var(--color-surface-hover))] transition-colors border-l border-[hsl(var(--color-border))]"
+                title="Collapse sidebar"
+              >
+                <svg
+                  className="w-5 h-5 text-[hsl(var(--color-text-secondary))]"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                </svg>
+              </button>
+            </div>
 
         {/* Folder list */}
         <div className="flex-1 overflow-y-auto p-4">
@@ -435,6 +482,8 @@ export default function WikiPage() {
           </DndContext>
           )}
         </div>
+          </>
+        )}
       </div>
 
       {/* Main content */}
@@ -815,9 +864,6 @@ function SortableFolderItem({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
         </button>
-        <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-        </svg>
         <span onClick={(e) => { e.stopPropagation(); onSelectFolder(); }} className="flex-1 truncate text-sm">
           {folder.name}
         </span>

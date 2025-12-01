@@ -90,7 +90,7 @@ export default function BoardLayout({ children }: { children: ReactNode }) {
     <BoardRefreshContext.Provider value={refreshContext}>
       <div className="fixed top-0 left-64 right-0 bottom-0 flex">
         {/* Sidebar with Board List - PERSISTS across route changes */}
-        <div className={`${isSidebarCollapsed ? 'w-16' : 'w-80'} bg-[hsl(var(--color-surface-secondary))] border-r border-[hsl(var(--color-border))] flex flex-col transition-all duration-300 flex-shrink-0 h-full`}>
+        <div className={`${isSidebarCollapsed ? 'w-16' : 'w-80'} bg-[hsl(var(--color-surface))] border-r border-[hsl(var(--color-border))] flex flex-col transition-all duration-300 flex-shrink-0 h-full`}>
           <BoardList
             boards={boards}
             currentUserId={currentUserId}
