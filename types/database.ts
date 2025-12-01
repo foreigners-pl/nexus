@@ -211,6 +211,30 @@ export interface CardAssignee {
   assigned_at: string
 }
 
+export interface WikiDocument {
+  id: string
+  title: string
+  content: any // jsonb - Rich text editor output, table data, or whiteboard data
+  document_type?: 'rich-text' | 'table' | 'whiteboard' // Type of document
+  owner_id?: string
+  folder_id?: string // The folder/wiki this document belongs to
+  created_at: string
+  updated_at: string
+  is_shared: boolean
+  shared_with?: string[] // Array of user IDs
+}
+
+export interface WikiFolder {
+  id: string
+  name: string
+  owner_id?: string
+  is_shared: boolean
+  shared_with?: string[] // Array of user IDs
+  position: number
+  created_at: string
+  updated_at: string
+}
+
 // Extended types with relations
 export interface BoardWithRelations extends Board {
   owner?: User
@@ -222,4 +246,15 @@ export interface CardWithRelations extends Card {
   board_statuses?: BoardStatus
   created_by_user?: User
   card_assignees?: (CardAssignee & { users?: User })[]
+}
+
+export interface WikiFolderWithRelations extends WikiFolder {
+  owner?: User
+  documents?: WikiDocument[] // Documents in this folder
+  document_count?: number // Number of documents
+}
+
+export interface WikiDocumentWithRelations extends WikiDocument {
+  owner?: User
+  folder?: WikiFolder // The folder this document belongs to
 }

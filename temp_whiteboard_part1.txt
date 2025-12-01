@@ -1,0 +1,250 @@
+﻿'use client'
+
+import { useState, useEffect, useRef } from 'react'
+import { WikiDocument } from '@/types/database'
+import { updateWikiDocument } from '@/app/actions/wiki'
+import { Button } from '@/components/ui/Button'
+
+interface WhiteboardEditorProps {
+  document: WikiDocument
+  canEdit: boolean
+  onUpdate: () => void
+}
+
+interface Box {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  text: string
+  color: string
+  fontSize?: number
+  fontWeight?: 'normal' | 'bold'
+  textAlign?: 'left' | 'center' | 'right'
+  verticalAlign?: 'top' | 'middle' | 'bottom'
+}
+
+interface Connection {
+  id: string
+  from: string
+  to: string
+}
+
+export function WhiteboardEditor({ document, canEdit, onUpdate }: WhiteboardEditorProps) {
+  const [title, setTitle] = useState(document.title)
+  const [boxes, setBoxes] = useState<Box[]>([])
+  const [connections, setConnections] = useState<Connection[]>([])
+  const [selectedBox, setSelectedBox] = useState<string | null>(null)
+  const [dragging, setDragging] = useState<{ id: string, offsetX: number, offsetY: number } | null>(null)
+  const [resizing, setResizing] = useState<{ id: string, edge: 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw', startX: number, startY: number, startWidth: number, startHeight: number, startBoxX: number, startBoxY: number } | null>(null)
+  const [draggingConnection, setDraggingConnection] = useState<{ fromBoxId: string, startX: number, startY: number, currentX: number, currentY: number } | null>(null)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [isPanning, setIsPanning] = useState(false)
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [boxIdCounter, setBoxIdCounter] = useState(1)
+  const canvasRef = useRef<HTMLDivElement>(null)
+  const saveTimeoutRef = useRef<NodeJS.Timeout>()
+  const titleTimeoutRef = useRef<NodeJS.Timeout>()
+
+  useEffect(() => {
+    setTitle(document.title)
+    if (document.content && typeof document.content === 'object') {
+      const content = document.content as any
+      if (content.boxes) setBoxes(content.boxes)
+      if (content.connections) setConnections(content.connections)
+      if (content.boxIdCounter) setBoxIdCounter(content.boxIdCounter)
+    }
+  }, [document.id])
+
+  const saveWhiteboard = () => {
+    if (!canEdit) return
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
+    saveTimeoutRef.current = setTimeout(async () => {
+      await updateWikiDocument(document.id, {
+        content: { boxes, connections, boxIdCounter }
+      })
+    }, 2000)
+  }
+
+  useEffect(() => {
+    saveWhiteboard()
+  }, [boxes, connections])
+
+  const saveTitle = async (newTitle: string) => {
+    if (!canEdit) return
+    await updateWikiDocument(document.id, { title: newTitle })
+    onUpdate()
+  }
+
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTitle = e.target.value
+    setTitle(newTitle)
+    if (titleTimeoutRef.current) clearTimeout(titleTimeoutRef.current)
+    titleTimeoutRef.current = setTimeout(() => saveTitle(newTitle), 500)
+  }
+
+  const addBox = () => {
+    const newBox: Box = {
+      id: `box-${boxIdCounter}`,
+      x: 100 - pan.x,
+      y: 100 - pan.y,
+      width: 200,
+      height: 100,
+      text: 'New box',
+      color: '#000000',
+      fontSize: 14,
+      fontWeight: 'normal',
+      textAlign: 'center',
+      verticalAlign: 'middle'
+    }
+    setBoxes([...boxes, newBox])
+    setBoxIdCounter(boxIdCounter + 1)
+  }
+
+  const updateBox = (id: string, updates: Partial<Box>) => {
+    setBoxes(boxes.map(box => box.id === id ? { ...box, ...updates } : box))
+  }
+
+  const deleteBox = (id: string) => {
+    setBoxes(boxes.filter(box => box.id !== id))
+    setConnections(connections.filter(conn => conn.from !== id && conn.to !== id))
+    if (selectedBox === id) setSelectedBox(null)
+  }
+
+  const handleMouseDown = (e: React.MouseEvent, boxId: string) => {
+    if (!canEdit || resizing) return
+    e.stopPropagation()
+    const box = boxes.find(b => b.id === boxId)
+    if (box) {
+      setSelectedBox(boxId)
+      setDragging({
+        id: boxId,
+        offsetX: e.clientX - box.x * zoom - pan.x,
+        offsetY: e.clientY - box.y * zoom - pan.y
+      })
+    }
+  }
+
+  const handleCanvasMouseDown = (e: React.MouseEvent) => {
+    if (e.button === 0 && !e.shiftKey) {
+      setSelectedBox(null)
+      setIsPanning(true)
+      setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
+    }
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (dragging && canEdit) {
+      const newX = (e.clientX - dragging.offsetX - pan.x) / zoom
+      const newY = (e.clientY - dragging.offsetY - pan.y) / zoom
+      updateBox(dragging.id, { x: newX, y: newY })
+    } else if (resizing && canEdit) {
+      const deltaX = (e.clientX - resizing.startX) / zoom
+      const deltaY = (e.clientY - resizing.startY) / zoom
+      
+      let newWidth = resizing.startWidth
+      let newHeight = resizing.startHeight
+      let newX = resizing.startBoxX
+      let newY = resizing.startBoxY
+      
+      // Handle resizing based on edge
+      if (resizing.edge.includes('e')) {
+        newWidth = Math.max(100, resizing.startWidth + deltaX)
+      }
+      if (resizing.edge.includes('w')) {
+        const widthChange = Math.min(deltaX, resizing.startWidth - 100)
+        newWidth = resizing.startWidth - widthChange
+        newX = resizing.startBoxX + widthChange
+      }
+      if (resizing.edge.includes('s')) {
+        newHeight = Math.max(50, resizing.startHeight + deltaY)
+      }
+      if (resizing.edge.includes('n')) {
+        const heightChange = Math.min(deltaY, resizing.startHeight - 50)
+        newHeight = resizing.startHeight - heightChange
+        newY = resizing.startBoxY + heightChange
+      }
+      
+      updateBox(resizing.id, {
+        width: newWidth,
+        height: newHeight,
+        x: newX,
+        y: newY
+      })
+    } else if (draggingConnection) {
+      const currentX = (e.clientX - pan.x) / zoom
+      const currentY = (e.clientY - pan.y) / zoom
+      setDraggingConnection({ ...draggingConnection, currentX, currentY })
+    } else if (isPanning) {
+      setPan({
+        x: e.clientX - panStart.x,
+        y: e.clientY - panStart.y
+      })
+    }
+  }
+
+  const handleMouseUp = (e: React.MouseEvent) => {
+    if (draggingConnection) {
+      // Check if dropped on a box
+      const dropX = (e.clientX - pan.x) / zoom
+      const dropY = (e.clientY - pan.y) / zoom
+      
+      let targetBox = boxes.find(box => 
+        box.id !== draggingConnection.fromBoxId &&
+        dropX >= box.x && dropX <= box.x + box.width &&
+        dropY >= box.y && dropY <= box.y + box.height
+      )
+      
+      if (targetBox) {
+        // Connect to existing box
+        const newConnection: Connection = {
+          id: `conn-${Date.now()}`,
+          from: draggingConnection.fromBoxId,
+          to: targetBox.id
+        }
+        setConnections([...connections, newConnection])
+      } else {
+        // Create new box at drop location
+        const newBox: Box = {
+          id: `box-${boxIdCounter}`,
+          x: dropX - 100,
+          y: dropY - 50,
+          width: 200,
+          height: 100,
+          text: 'New box',
+          color: '#000000',
+          fontSize: 14,
+          fontWeight: 'normal',
+          textAlign: 'center',
+          verticalAlign: 'middle'
+        }
+        setBoxes([...boxes, newBox])
+        const newConnection: Connection = {
+          id: `conn-${Date.now()}`,
+          from: draggingConnection.fromBoxId,
+          to: newBox.id
+        }
+        setConnections([...connections, newConnection])
+        setBoxIdCounter(boxIdCounter + 1)
+      }
+      setDraggingConnection(null)
+    }
+    setDragging(null)
+    setResizing(null)
+    setIsPanning(false)
+  }
+
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault()
+    const delta = e.deltaY > 0 ? 0.9 : 1.1
+    setZoom(Math.min(Math.max(zoom * delta, 0.1), 3))
+  }
+
+  return (
+    <div className="h-full flex flex-col">
+      <input
+        type="text"
+        value={title}
+        onChange={handleTitleChange}
