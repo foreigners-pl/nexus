@@ -94,24 +94,30 @@ export default function WikiPage() {
       const isShared = activeTab === 'shared'
       const data = await getWikiFolders(isShared)
       setFolders(data)
+      setLoading(false) // Show folders immediately
       
-      // Preload all documents for instant display
-      const documentsMap: Record<string, WikiDocument[]> = {}
-      await Promise.all(
-        data.map(async (folder) => {
-          try {
-            const docs = await getWikiDocuments(folder.id)
-            documentsMap[folder.id] = docs
-          } catch (error) {
-            console.error(`Failed to preload documents for folder ${folder.id}:`, error)
-            documentsMap[folder.id] = []
-          }
-        })
-      )
-      setAllDocuments(documentsMap)
+      // Preload all documents in the background with batched updates
+      const loadDocumentsInBackground = async () => {
+        const documentsMap: Record<string, WikiDocument[]> = {}
+        await Promise.all(
+          data.map(async (folder) => {
+            try {
+              const docs = await getWikiDocuments(folder.id)
+              documentsMap[folder.id] = docs
+            } catch (error) {
+              console.error(`Failed to preload documents for folder ${folder.id}:`, error)
+              documentsMap[folder.id] = []
+            }
+          })
+        )
+        // Single state update with all documents
+        setAllDocuments(documentsMap)
+      }
+      
+      // Run in background without blocking
+      loadDocumentsInBackground().catch(err => console.error('Error preloading documents:', err))
     } catch (error) {
       console.error('Failed to load folders:', error)
-    } finally {
       setLoading(false)
     }
   }

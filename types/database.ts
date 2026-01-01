@@ -10,6 +10,7 @@ export interface Client {
   contact_email?: string
   country_of_origin?: string  // UUID reference to countries table
   city_in_poland?: string      // UUID reference to cities table
+  stripe_customer_id?: string  // Stripe Customer ID for invoicing
 }
 
 export interface ContactNumber {
@@ -50,12 +51,16 @@ export interface Case {
   status_id?: string
   assigned_to?: string
   attachments?: string
+  due_date?: string            // Optional due date for the case
+  position?: number            // Position within status column for ordering
+  case_assignees?: (CaseAssignee & { users?: User })[]  // Assignees with user details
 }
 
 export interface CaseService {
   id: string
   case_id: string
   service_id: string
+  custom_price?: number  // For services with individual pricing
   created_at: string
 }
 
@@ -71,12 +76,14 @@ export interface Installment {
   case_id: string
   amount: number
   due_date?: string
-  automatic_invoice: boolean
+  automatic_invoice: boolean  // If true, auto-send invoice on due_date
   is_down_payment: boolean
   position: number
   paid: boolean
   created_at: string
   updated_at: string
+  parent_installment_id?: string  // For refunds: references original installment
+  refund_reason?: string          // Reason for refund
 }
 
 export interface CaseAttachment {
@@ -147,7 +154,7 @@ export interface Invoice {
   invoice_number?: string
   invoice_name: string
   amount: number
-  status: 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'cancelled'
+  status: 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'cancelled' | 'void' | 'uncollectible'
   stripe_invoice_id?: string
   stripe_payment_intent_id?: string
   payment_link?: string
@@ -156,6 +163,14 @@ export interface Invoice {
   due_date?: string
   created_at: string
   updated_at: string
+  // Stripe integration fields
+  currency?: string                    // ISO 4217 currency code (default: 'pln')
+  collection_method?: 'send_invoice' | 'charge_automatically'
+  stripe_hosted_invoice_url?: string   // URL for customer to pay
+  stripe_invoice_pdf?: string          // URL to PDF version
+  voided_at?: string                   // When invoice was voided
+  payment_method?: string              // How payment was made
+  notes?: string                       // Internal notes
 }
 
 // ============================================

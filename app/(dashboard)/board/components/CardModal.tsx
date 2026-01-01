@@ -22,9 +22,10 @@ interface CardModalProps {
   statusId: string
   card?: CardWithAssignees | null
   isSharedBoard?: boolean // Whether the board has other users
+  userAccessLevel?: 'owner' | 'editor' | 'viewer' | null
 }
 
-export function CardModal({ isOpen, onClose, onSuccess, boardId, statusId, card, isSharedBoard = false }: CardModalProps) {
+export function CardModal({ isOpen, onClose, onSuccess, boardId, statusId, card, isSharedBoard = false, userAccessLevel }: CardModalProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [dueDate, setDueDate] = useState('')
@@ -39,6 +40,7 @@ export function CardModal({ isOpen, onClose, onSuccess, boardId, statusId, card,
   const supabase = createClient()
 
   const isEdit = !!card
+  const isViewOnly = userAccessLevel === 'viewer'
 
   useEffect(() => {
     if (card) {
@@ -99,7 +101,12 @@ export function CardModal({ isOpen, onClose, onSuccess, boardId, statusId, card,
   }
 
   const handleAddAssignee = async () => {
-    if (!selectedUsers || selectedUsers.length === 0) return
+    console.log('🎯 [CardModal] handleAddAssignee called', { selectedUsers, hasCard: !!card })
+    console.log('🔍 [CardModal] addCardAssignee function type:', typeof addCardAssignee)
+    if (!selectedUsers || selectedUsers.length === 0) {
+      console.log('⚠️ [CardModal] No users selected')
+      return
+    }
 
     // If editing existing card, add to database
     if (card) {
@@ -107,8 +114,20 @@ export function CardModal({ isOpen, onClose, onSuccess, boardId, statusId, card,
       console.log('📝 [CardModal] Adding assignees to card:', card.id, 'User IDs:', selectedUsers)
       // Add all selected users
       for (const userId of selectedUsers) {
-        await addCardAssignee(card.id, userId)
+        console.log('➕ [CardModal] Calling addCardAssignee for user:', userId)
+        try {
+          const result = await addCardAssignee(card.id, userId)
+          console.log('📦 [CardModal] addCardAssignee result:', result)
+          if (result?.error) {
+            console.error('❌ [CardModal] Server action returned error:', result.error)
+            setError(result.error)
+          }
+        } catch (err) {
+          console.error('💥 [CardModal] Exception calling addCardAssignee:', err)
+          setError('Failed to add assignee')
+        }
       }
+      console.log('🔄 [CardModal] Loading updated assignees...')
       await loadCardAssignees()
       setSelectedUsers([])
       setShowAssigneeDropdown(false)
@@ -241,7 +260,7 @@ export function CardModal({ isOpen, onClose, onSuccess, boardId, statusId, card,
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title={isEdit ? 'Edit Task' : 'Add Task'} maxWidth="lg">
+    <Modal isOpen={isOpen} onClose={handleClose} title={isViewOnly ? 'View Task' : (isEdit ? 'Edit Task' : 'Add Task')} maxWidth="lg">
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
           <div className="p-3 bg-red-500/10 border border-red-500 rounded text-red-500 text-sm">
@@ -251,45 +270,66 @@ export function CardModal({ isOpen, onClose, onSuccess, boardId, statusId, card,
 
         <div>
           <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-2">
-            Title *
+            Title {!isViewOnly && '*'}
           </label>
-          <Input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Enter task title..."
-            required
-            disabled={submitting}
-            autoFocus
-          />
+          {isViewOnly ? (
+            <p className="text-[hsl(var(--color-text-primary))]">{title || 'No title'}</p>
+          ) : (
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Enter task title..."
+              required
+              disabled={submitting}
+              autoFocus
+            />
+          )}
         </div>
 
         <div>
           <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-2">
-            Description (optional)
+            Description {!isViewOnly && '(optional)'}
           </label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Add more details..."
-            disabled={submitting}
-            rows={4}
-            className="w-full px-3 py-2 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-lg text-[hsl(var(--color-text-primary))] placeholder:text-[hsl(var(--color-text-secondary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-primary))] disabled:opacity-50"
-          />
+          {isViewOnly ? (
+            <p className="text-[hsl(var(--color-text-primary))] whitespace-pre-wrap">{description || 'No description'}</p>
+          ) : (
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Add more details..."
+              disabled={submitting}
+              rows={4}
+              className="w-full px-3 py-2 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-lg text-[hsl(var(--color-text-primary))] placeholder:text-[hsl(var(--color-text-secondary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-primary))] disabled:opacity-50"
+            />
+          )}
         </div>
 
         <div>
           <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-2">
-            Due Date (optional)
+            Due Date {!isViewOnly && '(optional)'}
           </label>
-          <Input
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-            disabled={submitting}
-          />
+          {isViewOnly ? (
+            <p className="text-[hsl(var(--color-text-primary))]">
+              {dueDate 
+                ? new Date(dueDate + 'T00:00:00').toLocaleDateString('en-US', { 
+                    weekday: 'short', 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric' 
+                  })
+                : 'No due date'}
+            </p>
+          ) : (
+            <Input
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              disabled={submitting}
+            />
+          )}
         </div>
 
-        {/* Assignees Section - Always visible for shared boards */}
+        {/* Assignees Section */}
         <div>
           <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-2">
             Assignees
@@ -306,95 +346,115 @@ export function CardModal({ isOpen, onClose, onSuccess, boardId, statusId, card,
                     <span className="text-[hsl(var(--color-text-primary))] text-sm">
                       {assignee.users?.display_name || assignee.users?.email || 'Unknown User'}
                     </span>
-                    <Button 
-                      type="button"
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => handleRemoveAssignee(assignee.id)}
-                      disabled={assigneeLoading || submitting}
-                      className="text-red-500 hover:text-red-600"
-                    >
-                      Remove
-                    </Button>
+                    {!isViewOnly && (
+                      <Button 
+                        type="button"
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => handleRemoveAssignee(assignee.id)}
+                        disabled={assigneeLoading || submitting}
+                        className="text-red-500 hover:text-red-600"
+                      >
+                        Remove
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>
             )}
 
-            {!showAssigneeDropdown ? (
-              <Button 
-                type="button"
-                size="sm" 
-                variant="outline" 
-                onClick={() => setShowAssigneeDropdown(true)} 
-                className="w-full"
-                disabled={getUnassignedUsers().length === 0 || submitting}
-              >
-                {getUnassignedUsers().length === 0 ? 'All users assigned' : '+ Add Assignees'}
-              </Button>
-            ) : (
-              <div className="space-y-3">
-                {/* Multi-select checkbox list */}
-                <div className="max-h-48 overflow-y-auto space-y-2 border border-[hsl(var(--color-border))] rounded-lg p-3 bg-[hsl(var(--color-surface))]">
-                  {getUnassignedUsers().map(user => (
-                    <label
-                      key={user.id}
-                      className="flex items-center gap-2 cursor-pointer hover:bg-[hsl(var(--color-background))] p-2 rounded transition-colors"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedUsers.includes(user.id)}
-                        onChange={() => toggleUserSelection(user.id)}
+            {/* Add Assignees - hidden for viewers */}
+            {!isViewOnly && (
+              <>
+                {!showAssigneeDropdown ? (
+                  <Button 
+                    type="button"
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => setShowAssigneeDropdown(true)} 
+                    className="w-full"
+                    disabled={getUnassignedUsers().length === 0 || submitting}
+                  >
+                    {getUnassignedUsers().length === 0 ? 'All users assigned' : '+ Add Assignees'}
+                  </Button>
+                ) : (
+                  <div className="space-y-3">
+                    {/* Multi-select checkbox list */}
+                    <div className="max-h-48 overflow-y-auto space-y-2 border border-[hsl(var(--color-border))] rounded-lg p-3 bg-[hsl(var(--color-surface))]">
+                      {getUnassignedUsers().map(user => (
+                        <label
+                          key={user.id}
+                          className="flex items-center gap-2 cursor-pointer hover:bg-[hsl(var(--color-background))] p-2 rounded transition-colors"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedUsers.includes(user.id)}
+                            onChange={() => toggleUserSelection(user.id)}
+                            disabled={assigneeLoading || submitting}
+                            className="w-4 h-4 rounded border-[hsl(var(--color-border))] text-[hsl(var(--color-primary))] focus:ring-2 focus:ring-[hsl(var(--color-primary))]"
+                          />
+                          <span className="text-sm text-[hsl(var(--color-text-primary))]">
+                            {user.display_name || user.email}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    
+                    {/* Action buttons */}
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleAddAssignee}
+                        disabled={selectedUsers.length === 0 || assigneeLoading || submitting}
+                        className="flex-1"
+                      >
+                        {assigneeLoading ? 'Adding...' : `Add ${selectedUsers.length > 0 ? `(${selectedUsers.length})` : ''}`}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setShowAssigneeDropdown(false)
+                          setSelectedUsers([])
+                        }}
                         disabled={assigneeLoading || submitting}
-                        className="w-4 h-4 rounded border-[hsl(var(--color-border))] text-[hsl(var(--color-primary))] focus:ring-2 focus:ring-[hsl(var(--color-primary))]"
-                      />
-                      <span className="text-sm text-[hsl(var(--color-text-primary))]">
-                        {user.display_name || user.email}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-                
-                {/* Action buttons */}
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={handleAddAssignee}
-                    disabled={selectedUsers.length === 0 || assigneeLoading || submitting}
-                    className="flex-1"
-                  >
-                    {assigneeLoading ? 'Adding...' : `Add ${selectedUsers.length > 0 ? `(${selectedUsers.length})` : ''}`}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      setShowAssigneeDropdown(false)
-                      setSelectedUsers([])
-                    }}
-                    disabled={assigneeLoading || submitting}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
+        {/* Action buttons - only Close for viewers */}
         <div className="flex justify-end gap-3 pt-4">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={handleClose}
-            disabled={submitting}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" disabled={submitting || !title.trim()}>
-            {submitting ? (isEdit ? 'Saving...' : 'Adding...') : (isEdit ? 'Save' : 'Add Task')}
-          </Button>
+          {isViewOnly ? (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleClose}
+            >
+              Close
+            </Button>
+          ) : (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={handleClose}
+                disabled={submitting}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={submitting || !title.trim()}>
+                {submitting ? (isEdit ? 'Saving...' : 'Adding...') : (isEdit ? 'Save' : 'Add Task')}
+              </Button>
+            </>
+          )}
         </div>
       </form>
     </Modal>

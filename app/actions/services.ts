@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
-export async function addServiceToCase(caseId: string, serviceId: string) {
+export async function addServiceToCase(caseId: string, serviceId: string, customPrice?: number) {
   const supabase = await createClient()
 
   // Get the service details to get the price
@@ -18,12 +18,16 @@ export async function addServiceToCase(caseId: string, serviceId: string) {
     return { error: 'Failed to fetch service details' }
   }
 
+  // Determine the price to use (custom price or service's gross price)
+  const priceToUse = customPrice ?? service?.gross_price
+
   // Add the service to the case
   const { error } = await supabase
     .from('case_services')
     .insert({
       case_id: caseId,
       service_id: serviceId,
+      custom_price: customPrice ?? null,
     })
 
   if (error) {
@@ -31,8 +35,8 @@ export async function addServiceToCase(caseId: string, serviceId: string) {
     return { error: 'Failed to add service' }
   }
 
-  // If the service has a price, add it to the down payment installment
-  if (service?.gross_price && service.gross_price > 0) {
+  // If we have a price (custom or from service), add it to the down payment installment
+  if (priceToUse && priceToUse > 0) {
     // Get the down payment installment
     const { data: downPayment, error: dpError } = await supabase
       .from('installments')
@@ -44,7 +48,7 @@ export async function addServiceToCase(caseId: string, serviceId: string) {
     if (!dpError && downPayment) {
       // Update the down payment amount
       const currentAmount = downPayment.amount || 0
-      const newAmount = currentAmount + service.gross_price
+      const newAmount = currentAmount + priceToUse
 
       await supabase
         .from('installments')
@@ -60,10 +64,10 @@ export async function addServiceToCase(caseId: string, serviceId: string) {
 export async function removeServiceFromCase(caseServiceId: string, caseId: string) {
   const supabase = await createClient()
 
-  // Get the case service to get the service details
+  // Get the case service to get the service details and custom price
   const { data: caseService, error: csError } = await supabase
     .from('case_services')
-    .select('service_id, services(gross_price)')
+    .select('service_id, custom_price, services(gross_price)')
     .eq('id', caseServiceId)
     .single()
 
@@ -83,9 +87,9 @@ export async function removeServiceFromCase(caseServiceId: string, caseId: strin
     return { error: 'Failed to remove service' }
   }
 
-  // If the service had a price, subtract it from the down payment
-  const servicePrice = (caseService as any)?.services?.gross_price
-  if (servicePrice && servicePrice > 0) {
+  // If the service had a price (custom or gross), subtract it from the down payment
+  const priceToSubtract = caseService?.custom_price ?? (caseService as any)?.services?.gross_price
+  if (priceToSubtract && priceToSubtract > 0) {
     // Get the down payment installment
     const { data: downPayment, error: dpError } = await supabase
       .from('installments')
@@ -97,7 +101,7 @@ export async function removeServiceFromCase(caseServiceId: string, caseId: strin
     if (!dpError && downPayment) {
       // Update the down payment amount
       const currentAmount = downPayment.amount || 0
-      const newAmount = Math.max(0, currentAmount - servicePrice)
+      const newAmount = Math.max(0, currentAmount - priceToSubtract)
 
       await supabase
         .from('installments')

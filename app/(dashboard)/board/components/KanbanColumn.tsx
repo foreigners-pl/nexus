@@ -1,5 +1,6 @@
 import { Status, Case, Client } from '@/types/database'
 import { KanbanCard } from './KanbanCard'
+import { useDroppable } from '@dnd-kit/core'
 
 interface CaseWithRelations extends Case {
   clients?: Client
@@ -13,6 +14,13 @@ interface KanbanColumnProps {
 }
 
 export function KanbanColumn({ status, cases, onUpdate }: KanbanColumnProps) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: status.id,
+  })
+
+  // Sort cases by position
+  const sortedCases = [...cases].sort((a, b) => (a.position || 0) - (b.position || 0))
+
   // Default colors for status based on common status types
   const getStatusColor = () => {
     const name = status.name.toLowerCase()
@@ -38,8 +46,13 @@ export function KanbanColumn({ status, cases, onUpdate }: KanbanColumnProps) {
   return (
     <div className="flex-shrink-0 w-56 h-full">
       <div 
-        className="rounded-lg p-3 border border-[hsl(var(--color-border))] h-full flex flex-col backdrop-blur-sm"
-        style={{ backgroundColor: glassyBackground }}
+        ref={setNodeRef}
+        className={`rounded-lg p-3 border h-full flex flex-col backdrop-blur-sm transition-colors ${
+          isOver 
+            ? 'border-[hsl(var(--color-primary))] border-2 bg-[hsl(var(--color-primary))]/5' 
+            : 'border-[hsl(var(--color-border))]'
+        }`}
+        style={{ backgroundColor: isOver ? undefined : glassyBackground }}
       >
         {/* Column Header */}
         <div className="flex items-center justify-between mb-3 flex-shrink-0">
@@ -55,14 +68,14 @@ export function KanbanColumn({ status, cases, onUpdate }: KanbanColumnProps) {
             </h3>
 
             <span className="text-xs text-[hsl(var(--color-text-secondary))]">
-              ({cases.length})
+              ({sortedCases.length})
             </span>
           </div>
         </div>
 
         {/* Cards Container - Matching CustomKanbanColumn styling */}
         <div className="space-y-3 flex-1 overflow-y-auto pr-1 scrollbar-thin">
-          {cases.map(caseItem => (
+          {sortedCases.map(caseItem => (
             <KanbanCard key={caseItem.id} caseItem={caseItem} />
           ))}
         </div>

@@ -11,6 +11,17 @@ export async function addCardAssignee(cardId: string, userId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
 
+  console.log('🔧 [addCardAssignee] Adding assignee:', { cardId, userId, currentUser: user.id })
+
+  // Debug: Check if user has access to the card's board
+  const { data: cardData } = await supabase
+    .from('cards')
+    .select('board_id, boards!inner(owner_id, is_system)')
+    .eq('id', cardId)
+    .single()
+  
+  console.log('🔍 [addCardAssignee] Card board info:', cardData)
+
   // Check if already assigned
   const { data: existing } = await supabase
     .from('card_assignees')
@@ -20,6 +31,7 @@ export async function addCardAssignee(cardId: string, userId: string) {
     .single()
 
   if (existing) {
+    console.log('⚠️ [addCardAssignee] User already assigned')
     return { error: 'User is already assigned to this card' }
   }
 
@@ -27,13 +39,18 @@ export async function addCardAssignee(cardId: string, userId: string) {
     .from('card_assignees')
     .insert({
       card_id: cardId,
-      user_id: userId
+      user_id: userId,
+      assigned_at: new Date().toISOString()
     })
     .select()
     .single()
 
-  if (error) return { error: error.message }
+  if (error) {
+    console.error('❌ [addCardAssignee] Insert error:', error)
+    return { error: error.message }
+  }
   
+  console.log('✅ [addCardAssignee] Assignee added successfully:', data)
   return { data }
 }
 

@@ -69,7 +69,8 @@ export async function createCard(
     title: title.trim(),
     description: description?.trim(),
     due_date: dueDate || null,
-    position: nextPosition
+    position: nextPosition,
+    created_by: user.id
   }
   
   console.log('💾 Inserting card:', cardData)

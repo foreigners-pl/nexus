@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { getBoardWithData, getCasesBoardData, deleteBoard } from '@/app/actions/board/core'
+import { getUserBoardAccessLevel } from '@/app/actions/board/helpers'
 import { BoardHeader } from '../components/BoardHeader'
 import { KanbanBoard } from '../components/KanbanBoard'
 import { CustomKanbanBoard } from '../components/CustomKanbanBoard'
@@ -29,6 +30,7 @@ export default function IndividualBoardPage() {
 
   const [board, setBoard] = useState<BoardWithAccess | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [userAccessLevel, setUserAccessLevel] = useState<'owner' | 'editor' | 'viewer' | null>(null)
   const [isCasesBoard, setIsCasesBoard] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -37,6 +39,7 @@ export default function IndividualBoardPage() {
   // Cases board data
   const [cases, setCases] = useState<CaseWithRelations[]>([])
   const [statuses, setStatuses] = useState<Status[]>([])
+  const [showOnlyMyTasks, setShowOnlyMyTasks] = useState(false)
 
   // Custom board data
   const [customStatuses, setCustomStatuses] = useState<BoardStatus[]>([])
@@ -63,6 +66,10 @@ export default function IndividualBoardPage() {
   async function fetchBoardData() {
     setLoading(true)
     setError(null)
+
+    // Fetch user's access level for this board
+    const accessLevel = await getUserBoardAccessLevel(boardId)
+    setUserAccessLevel(accessLevel)
 
     // Check if this is the Cases board
     if (boardId === CASES_BOARD_ID) {
@@ -144,11 +151,15 @@ export default function IndividualBoardPage() {
 
   // Refresh a single card (for assignee updates, etc.)
   const handleCardRefresh = async (cardId: string) => {
+    console.log('🔄 [Page] handleCardRefresh called for card:', cardId)
     const { getCardWithAssignees } = await import('@/app/actions/card/core')
     const result = await getCardWithAssignees(cardId)
     
+    console.log('📦 [Page] getCardWithAssignees result:', result)
+    
     if (result?.data) {
       // Update just this card in the state
+      console.log('✅ [Page] Updating card in state with assignees:', result.data.card_assignees?.length || 0)
       setCustomCards(prevCards =>
         prevCards.map(c => c.id === cardId ? result.data : c)
       )
@@ -162,6 +173,32 @@ export default function IndividualBoardPage() {
   const handleCardDelete = (cardId: string) => {
     setCustomCards(prevCards => prevCards.filter(c => c.id !== cardId))
   }
+
+  // Optimistic case status update
+  const handleCaseStatusUpdate = (caseId: string, newStatusId: string) => {
+    setCases(prevCases => 
+      prevCases.map(c => {
+        if (c.id === caseId) {
+          // Find the new status
+          const newStatus = statuses.find(s => s.id === newStatusId)
+          return { ...c, status: newStatus, status_id: newStatusId }
+        }
+        return c
+      })
+    )
+  }
+
+  // Optimistic case update
+  const handleCaseUpdate = (caseId: string, updates: Partial<Case>) => {
+    setCases(prevCases =>
+      prevCases.map(c => c.id === caseId ? { ...c, ...updates } : c)
+    )
+  }
+
+  // Filter cases based on "Me" mode
+  const filteredCases = showOnlyMyTasks && currentUserId
+    ? cases.filter(c => c.assigned_to === currentUserId)
+    : cases
 
   // Handle board deletion
   const handleDeleteBoard = async () => {
@@ -201,25 +238,46 @@ export default function IndividualBoardPage() {
           <>
             {/* Board Header - Fixed at top */}
             <div className="flex-shrink-0 p-6 pb-4 border-b border-[hsl(var(--color-border))]">
-              <BoardHeader 
-                boardId={isCasesBoard ? undefined : boardId}
-                boardName={isCasesBoard ? 'Cases' : board?.name}
-                boardDescription={isCasesBoard ? 'System board displaying all cases with their current status' : board?.description}
-                isSystem={isCasesBoard}
-                isOwner={!isCasesBoard && currentUserId === board?.owner_id}
-                onUpdate={handleBoardUpdate}
-                onShareClick={!isCasesBoard ? () => setIsShareModalOpen(true) : undefined}
-                onDeleteClick={!isCasesBoard && currentUserId === board?.owner_id ? handleDeleteBoard : undefined}
-              />
+              <div className="flex items-center justify-between gap-4">
+                <BoardHeader 
+                  boardId={isCasesBoard ? undefined : boardId}
+                  boardName={isCasesBoard ? 'Cases' : board?.name}
+                  boardDescription={isCasesBoard ? 'System board displaying all cases with their current status' : board?.description}
+                  isSystem={isCasesBoard}
+                  isOwner={!isCasesBoard && currentUserId === board?.owner_id}
+                  onUpdate={handleBoardUpdate}
+                  onShareClick={!isCasesBoard ? () => setIsShareModalOpen(true) : undefined}
+                  onDeleteClick={!isCasesBoard && currentUserId === board?.owner_id ? handleDeleteBoard : undefined}
+                />
+                {/* "Me" mode toggle for Cases board */}
+                {isCasesBoard && (
+                  <button
+                    onClick={() => setShowOnlyMyTasks(!showOnlyMyTasks)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                      showOnlyMyTasks
+                        ? 'bg-[hsl(var(--color-primary))] text-white'
+                        : 'bg-[hsl(var(--color-surface-hover))] text-[hsl(var(--color-text-secondary))] hover:bg-[hsl(var(--color-surface-hover))]/80'
+                    }`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    <span className="text-sm font-medium">Me</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Kanban Board - Scrollable area */}
             <div className="flex-1 overflow-x-auto overflow-y-hidden scrollbar-thin p-6 pt-4">
               {isCasesBoard ? (
                 <KanbanBoard 
-                  cases={cases}
+                  cases={filteredCases}
                   statuses={statuses}
                   onUpdate={handleFullRefresh}
+                  onCaseStatusUpdate={handleCaseStatusUpdate}
+                  onCaseUpdate={handleCaseUpdate}
+                  userAccessLevel={userAccessLevel}
                 />
               ) : (
                 <CustomKanbanBoard 
@@ -227,6 +285,7 @@ export default function IndividualBoardPage() {
                   cards={customCards}
                   boardId={boardId}
                   isSharedBoard={(board?.board_access?.length ?? 0) > 1}
+                  userAccessLevel={userAccessLevel}
                   onStatusUpdate={handleStatusUpdate}
                   onStatusDelete={handleStatusDelete}
                   onStatusReorder={handleStatusReorder}

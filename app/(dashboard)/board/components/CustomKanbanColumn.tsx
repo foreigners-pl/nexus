@@ -5,12 +5,15 @@ import { BoardStatus, Card } from '@/types/database'
 import { updateBoardStatus, deleteBoardStatus, reorderBoardStatuses } from '@/app/actions/board/statuses'
 import { CustomKanbanCard } from './CustomKanbanCard'
 import { CardModal } from './CardModal'
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { useDroppable } from '@dnd-kit/core'
 
 interface CustomKanbanColumnProps {
   status: BoardStatus
   cards: any[]
   boardId: string
   isSharedBoard: boolean
+  userAccessLevel?: 'owner' | 'editor' | 'viewer' | null
   onUpdate: (statusId: string, updates: Partial<BoardStatus>) => void
   onDelete: (statusId: string) => void
   onReorder: (fromIndex: number, toIndex: number) => void
@@ -31,6 +34,7 @@ export function CustomKanbanColumn({
   cards,
   boardId,
   isSharedBoard,
+  userAccessLevel,
   onUpdate,
   onDelete,
   onReorder,
@@ -46,12 +50,16 @@ export function CustomKanbanColumn({
   // Modal state now handled at board level
   // Props for modal triggers
   const { onAddCard, onEditCard } = arguments[0]
+  const isViewOnly = userAccessLevel === 'viewer'
   const [isEditingName, setIsEditingName] = useState(false)
   const [editName, setEditName] = useState(status.name)
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
-  // NO MORE useDroppable - the SortableContext handles everything!
+  // Make the column a drop target for cards
+  const { setNodeRef: setDroppableRef } = useDroppable({
+    id: `status-${status.id}`,
+  })
 
   useEffect(() => {
     setEditName(status.name)
@@ -127,7 +135,8 @@ export function CustomKanbanColumn({
     }
   }
 
-  const statusCards = cards
+  // Sort cards by position
+  const statusCards = [...cards].sort((a, b) => (a.position || 0) - (b.position || 0))
 
   // Convert hex color to rgba with transparency
   const hexToRgba = (hex: string, alpha: number) => {
@@ -142,8 +151,7 @@ export function CustomKanbanColumn({
 
   return (
     <>
-      <div className="flex-shrink-0 w-56 h-full">
-        {/* This column is sortable via the wrapper - no need for droppable here */}
+      <div className="flex-shrink-0 w-56 h-full" ref={setDroppableRef}>
         <div 
           className="rounded-lg p-3 border h-full flex flex-col transition-all backdrop-blur-sm border-[hsl(var(--color-border))]"
           style={{ 
@@ -153,15 +161,22 @@ export function CustomKanbanColumn({
           {/* Column Header with Inline Editing */}
           <div className="flex items-center justify-between mb-3 flex-shrink-0">
             <div className="flex items-center gap-2 flex-1">
-              {/* Color Indicator - Click to change color */}
+              {/* Color Indicator - Click to change color (not for viewers) */}
               <div className="relative">
-                <button
-                  onClick={() => setShowColorPicker(!showColorPicker)}
-                  className="w-4 h-4 rounded-full border-2 border-white shadow-sm cursor-pointer hover:scale-110 transition-transform"
-                  style={{ backgroundColor: status.color || '#94a3b8' }}
-                  title="Click to change color"
-                  disabled={submitting}
-                />
+                {isViewOnly ? (
+                  <div
+                    className="w-4 h-4 rounded-full border-2 border-white shadow-sm"
+                    style={{ backgroundColor: status.color || '#94a3b8' }}
+                  />
+                ) : (
+                  <button
+                    onClick={() => setShowColorPicker(!showColorPicker)}
+                    className="w-4 h-4 rounded-full border-2 border-white shadow-sm cursor-pointer hover:scale-110 transition-transform"
+                    style={{ backgroundColor: status.color || '#94a3b8' }}
+                    title="Click to change color"
+                    disabled={submitting}
+                  />
+                )}
                 {showColorPicker && (
                   <div className="absolute top-8 left-0 z-50 p-2 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-lg shadow-lg">
                     <input
@@ -175,8 +190,8 @@ export function CustomKanbanColumn({
                 )}
               </div>
 
-              {/* Status Name - Click to edit */}
-              {isEditingName ? (
+              {/* Status Name - Click to edit (not for viewers) */}
+              {isEditingName && !isViewOnly ? (
                 <input
                   type="text"
                   value={editName}
@@ -195,9 +210,9 @@ export function CustomKanbanColumn({
                 />
               ) : (
                 <h3 
-                  onClick={() => setIsEditingName(true)}
-                  className="font-semibold text-xs text-[hsl(var(--color-text-primary))] cursor-pointer hover:text-[hsl(var(--color-primary))] transition-colors"
-                  title="Click to edit"
+                  onClick={() => !isViewOnly && setIsEditingName(true)}
+                  className={`font-semibold text-xs text-[hsl(var(--color-text-primary))] ${!isViewOnly ? 'cursor-pointer hover:text-[hsl(var(--color-primary))]' : ''} transition-colors`}
+                  title={isViewOnly ? status.name : "Click to edit"}
                 >
                   {status.name}
                 </h3>
@@ -208,58 +223,66 @@ export function CustomKanbanColumn({
               </span>
             </div>
 
-            {/* Drag Handle and Delete Button */}
-            <div className="flex items-center gap-1 ml-2">
-              {/* Drag Handle - 6 dots in 2 columns */}
-              {dragHandleProps && (
-                <div 
-                  {...dragHandleProps}
-                  className="p-1 cursor-grab active:cursor-grabbing hover:bg-[hsl(var(--color-background))] rounded transition-colors"
-                  title="Drag to reorder"
+            {/* Drag Handle and Delete Button - hidden for viewers */}
+            {!isViewOnly && (
+              <div className="flex items-center gap-1 ml-2">
+                {/* Drag Handle - 6 dots in 2 columns */}
+                {dragHandleProps && (
+                  <div 
+                    {...dragHandleProps}
+                    className="p-1 cursor-grab active:cursor-grabbing hover:bg-[hsl(var(--color-background))] rounded transition-colors"
+                    title="Drag to reorder"
+                  >
+                    <svg className="w-4 h-4 text-[hsl(var(--color-text-secondary))]" viewBox="0 0 16 16" fill="currentColor">
+                      <circle cx="4" cy="3" r="1.5"/>
+                      <circle cx="4" cy="8" r="1.5"/>
+                      <circle cx="4" cy="13" r="1.5"/>
+                      <circle cx="12" cy="3" r="1.5"/>
+                      <circle cx="12" cy="8" r="1.5"/>
+                      <circle cx="12" cy="13" r="1.5"/>
+                    </svg>
+                  </div>
+                )}
+                <button
+                  onClick={handleDelete}
+                  disabled={submitting}
+                  className="p-1 hover:bg-red-500/10 text-red-500 rounded transition-colors disabled:opacity-50"
+                  title="Delete status"
                 >
-                  <svg className="w-4 h-4 text-[hsl(var(--color-text-secondary))]" viewBox="0 0 16 16" fill="currentColor">
-                    <circle cx="4" cy="3" r="1.5"/>
-                    <circle cx="4" cy="8" r="1.5"/>
-                    <circle cx="4" cy="13" r="1.5"/>
-                    <circle cx="12" cy="3" r="1.5"/>
-                    <circle cx="12" cy="8" r="1.5"/>
-                    <circle cx="12" cy="13" r="1.5"/>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
-                </div>
-              )}
-              <button
-                onClick={handleDelete}
-                disabled={submitting}
-                className="p-1 hover:bg-red-500/10 text-red-500 rounded transition-colors disabled:opacity-50"
-                title="Delete status"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* Add Task Button - always at the top */}
-          <button 
-            onClick={() => onAddCard && onAddCard()}
-            className="w-full text-center px-3 py-2 text-xs text-[hsl(var(--color-text-secondary))] hover:bg-[hsl(var(--color-surface-hover))] rounded-lg transition-colors border border-dashed border-[hsl(var(--color-border))] mb-3"
-          >
-            + Add Task
-          </button>
+          {/* Add Task Button - hidden for viewers */}
+          {!isViewOnly && (
+            <button 
+              onClick={() => onAddCard && onAddCard()}
+              className="w-full text-center px-3 py-2 text-xs text-[hsl(var(--color-text-secondary))] hover:bg-[hsl(var(--color-surface-hover))] rounded-lg transition-colors border border-dashed border-[hsl(var(--color-border))] mb-3"
+            >
+              + Add Task
+            </button>
+          )}
 
           {/* Cards Container */}
-          <div className="space-y-3 flex-1 overflow-y-auto pr-1 scrollbar-thin">
-            {statusCards.map(card => (
-              <CustomKanbanCard
-                key={card.id}
-                card={card}
-                isSharedBoard={isSharedBoard}
-                onUpdate={() => handleCardUpdate(card.id)}
-                onEdit={() => onEditCard && onEditCard(card)}
-              />
-            ))}
-          </div>
+          <SortableContext items={statusCards.map(c => c.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-3 flex-1 overflow-y-auto pr-1 scrollbar-thin">
+              {statusCards.map(card => (
+                <CustomKanbanCard
+                  key={card.id}
+                  card={card}
+                  isSharedBoard={isSharedBoard}
+                  onUpdate={() => handleCardUpdate(card.id)}
+                  onEdit={() => onEditCard && onEditCard(card)}
+                  onDelete={onCardDelete}
+                  userAccessLevel={userAccessLevel}
+                />
+              ))}
+            </div>
+          </SortableContext>
         </div>
       </div>
 

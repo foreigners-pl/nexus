@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { BoardStatus } from '@/types/database'
 import { CustomKanbanColumn } from './CustomKanbanColumn'
 import { CustomKanbanCard } from './CustomKanbanCard'
@@ -15,12 +15,17 @@ import {
   PointerSensor, 
   useSensor, 
   useSensors, 
-  closestCenter,
-  DragOverEvent
+  closestCorners,
+  DragOverEvent,
+  rectIntersection,
+  pointerWithin,
+  getFirstCollision,
+  CollisionDetection,
+  UniqueIdentifier
 } from '@dnd-kit/core'
-import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
+import { SortableContext, horizontalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { updateCard as updateCardAction } from '@/app/actions/card/core'
+import { updateCard as updateCardAction, moveCard } from '@/app/actions/card/core'
 import { reorderBoardStatuses } from '@/app/actions/board/statuses'
 
 interface CustomKanbanBoardProps {
@@ -28,6 +33,7 @@ interface CustomKanbanBoardProps {
   cards: any[]
   boardId: string
   isSharedBoard: boolean
+  userAccessLevel: 'owner' | 'editor' | 'viewer' | null
   onStatusUpdate: (statusId: string, updates: Partial<BoardStatus>) => void
   onStatusDelete: (statusId: string) => void
   onStatusReorder: (fromIndex: number, toIndex: number) => void
@@ -43,6 +49,7 @@ export function CustomKanbanBoard({
   cards,
   boardId,
   isSharedBoard,
+  userAccessLevel,
   onStatusUpdate,
   onStatusDelete,
   onStatusReorder,
@@ -76,6 +83,55 @@ export function CustomKanbanBoard({
   // Sort statuses by position
   const sortedStatuses = [...statuses].sort((a, b) => a.position - b.position)
 
+  // Track last over ID for collision detection
+  const lastOverId = useRef<UniqueIdentifier | null>(null)
+  const recentlyMovedToNewContainer = useRef(false)
+
+  // Custom collision detection for multi-container
+  const collisionDetectionStrategy: CollisionDetection = useCallback(
+    (args) => {
+      // Start by finding any intersecting droppable
+      const pointerIntersections = pointerWithin(args)
+      const intersections =
+        pointerIntersections.length > 0
+          ? pointerIntersections
+          : rectIntersection(args)
+
+      let overId = getFirstCollision(intersections, 'id')
+
+      if (overId != null) {
+        // If it's a status column ID
+        if (overId.toString().startsWith('status-')) {
+          const statusId = overId.toString().replace('status-', '')
+          const cardsInStatus = cards.filter(c => c.status_id === statusId)
+
+          // If column has items, find the closest card
+          if (cardsInStatus.length > 0) {
+            overId = closestCorners({
+              ...args,
+              droppableContainers: args.droppableContainers.filter(
+                (container) => 
+                  container.id !== overId &&
+                  cardsInStatus.some(c => c.id === container.id)
+              ),
+            })[0]?.id
+          }
+        }
+
+        lastOverId.current = overId
+        return [{ id: overId }]
+      }
+
+      // Handle newly moved to container
+      if (recentlyMovedToNewContainer.current) {
+        lastOverId.current = args.active.id
+      }
+
+      return lastOverId.current ? [{ id: lastOverId.current }] : []
+    },
+    [cards]
+  )
+
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
@@ -103,8 +159,64 @@ export function CustomKanbanBoard({
   }
 
   const handleDragOver = (event: DragOverEvent) => {
-    // This handles card dragging over different statuses
-    // Status reordering is handled in handleDragEnd
+    const { active, over } = event
+    if (!over) return
+
+    const activeId = active.id as string
+    const overId = over.id as string
+
+    if (activeId === overId) return
+    if (activeId.startsWith('status-')) return
+
+    const activeCard = cards.find(c => c.id === activeId)
+    if (!activeCard) return
+
+    const overCard = cards.find(c => c.id === overId)
+    let overStatusId: string | null = null
+
+    if (overCard) {
+      overStatusId = overCard.status_id
+    } else if (overId.startsWith('status-')) {
+      overStatusId = overId.replace('status-', '')
+    }
+
+    if (!overStatusId) return
+
+    const activeStatusId = activeCard.status_id
+
+    // Same status - reorder within column using arrayMove
+    if (activeStatusId === overStatusId && overCard) {
+      const cardsInStatus = cards
+        .filter(c => c.status_id === activeStatusId)
+        .sort((a, b) => (a.position || 0) - (b.position || 0))
+      
+      const oldIndex = cardsInStatus.findIndex(c => c.id === activeId)
+      const newIndex = cardsInStatus.findIndex(c => c.id === overId)
+
+      if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+        // Reorder the cards in this status
+        const reordered = arrayMove(cardsInStatus, oldIndex, newIndex)
+        
+        // Update positions for all cards in this status
+        reordered.forEach((card, idx) => {
+          onCardUpdate(card.id, { position: idx })
+        })
+      }
+    }
+    // Cross-container move
+    else if (activeStatusId !== overStatusId) {
+      recentlyMovedToNewContainer.current = true
+      
+      // Move card to new status at the end
+      const cardsInTargetStatus = cards.filter(c => c.status_id === overStatusId)
+      const newPosition = cardsInTargetStatus.length
+      
+      onCardUpdate(activeId, { status_id: overStatusId, position: newPosition })
+      
+      setTimeout(() => {
+        recentlyMovedToNewContainer.current = false
+      }, 500)
+    }
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
@@ -172,48 +284,20 @@ export function CustomKanbanBoard({
       return
     }
 
-    // Handle card dragging to different status
-    // Cards are dropped on status-{statusId} now (same as sortable items)
-    console.log('🃏 Checking for CARD MOVE...')
+    // Handle card move/reorder
     const cardId = active.id as string
-    let newStatusId = over.id as string
-
-    // Extract status ID - it will be in format status-{uuid}
-    if (newStatusId.startsWith('status-')) {
-      newStatusId = newStatusId.replace('status-', '')
-      console.log(`   Card dropped on status column: ${newStatusId}`)
-    } else {
-      // Shouldn't happen, but handle direct ID
-      console.log(`   Card dropped with direct ID: ${newStatusId}`)
-    }
-
-    // Find the card being moved
     const card = cards.find(c => c.id === cardId)
-    if (!card) {
-      console.log('❌ Card not found:', cardId)
-      return
-    }
+    
+    if (!card) return
 
-    console.log(`🃏 CARD MOVE detected: "${card.title}" → status ${newStatusId}`)
-
-    // If dropped on same status, do nothing
-    if (card.status_id === newStatusId) {
-      console.log('❌ Same status - no move needed')
-      return
-    }
-
-    // Optimistic update
-    onCardUpdate(cardId, { status_id: newStatusId })
-
-    // Update in database
-    const result = await updateCardAction(cardId, { status_id: newStatusId })
-    if (result?.error) {
-      console.error('❌ Card move FAILED:', result.error)
-      // Rollback on error
-      onCardUpdate(cardId, { status_id: card.status_id })
-      alert(result.error)
-    } else {
-      console.log('✅ Card move SUCCESS')
+    // Save final positions for all cards in the target status
+    const cardsInStatus = cards
+      .filter(c => c.status_id === card.status_id)
+      .sort((a, b) => (a.position || 0) - (b.position || 0))
+    
+    // Update database with final positions
+    for (let i = 0; i < cardsInStatus.length; i++) {
+      await moveCard(cardsInStatus[i].id, card.status_id, i)
     }
   }
 
@@ -239,7 +323,7 @@ export function CustomKanbanBoard({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={collisionDetectionStrategy}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
@@ -256,6 +340,7 @@ export function CustomKanbanBoard({
               cards={cards.filter(c => c.status_id === status.id)}
               boardId={boardId}
               isSharedBoard={isSharedBoard}
+              userAccessLevel={userAccessLevel}
               onUpdate={onStatusUpdate}
               onDelete={onStatusDelete}
               onReorder={onStatusReorder}
@@ -285,12 +370,19 @@ export function CustomKanbanBoard({
         <CardModal
           isOpen={isCardModalOpen}
           onClose={() => setIsCardModalOpen(false)}
-          onSuccess={(card) => {
+          onSuccess={async (card) => {
+            console.log('🎯 [CustomKanbanBoard] onSuccess called', { hasCard: !!card, hasModalCard: !!modalCard })
             if (modalCard && card) {
-              // Edit success
+              // Edit success with card data - update card
+              console.log('📝 [CustomKanbanBoard] Updating card with data', card)
               onCardUpdate(modalCard.id, card)
+            } else if (modalCard) {
+              // Edit success without card data (assignees only changed) - refresh from server
+              console.log('🔄 [CustomKanbanBoard] Refreshing card from server', modalCard.id)
+              await onCardRefresh(modalCard.id)
             } else if (card) {
               // Add success
+              console.log('➕ [CustomKanbanBoard] Adding new card', card)
               onCardAdd(card)
             }
             setIsCardModalOpen(false)
@@ -301,70 +393,73 @@ export function CustomKanbanBoard({
           statusId={modalStatusId || ''}
           card={modalCard}
           isSharedBoard={isSharedBoard}
+          userAccessLevel={userAccessLevel}
         />
       )}
 
-        {/* Add Status Column */}
-        <div className="flex-shrink-0 w-80">
-          {isAddingStatus ? (
-          <div className="bg-[hsl(var(--color-surface))] rounded-lg p-4 border border-dashed border-[hsl(var(--color-border))]">
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={newStatusColor}
-                  onChange={(e) => setNewStatusColor(e.target.value)}
-                  disabled={submitting}
-                  className="w-8 h-8 rounded cursor-pointer"
-                />
-                <input
-                  type="text"
-                  value={newStatusName}
-                  onChange={(e) => setNewStatusName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleAddStatus()
-                    if (e.key === 'Escape') {
+        {/* Add Status Column - hidden for viewers */}
+        {userAccessLevel !== 'viewer' && (
+          <div className="flex-shrink-0 w-80">
+            {isAddingStatus ? (
+            <div className="bg-[hsl(var(--color-surface))] rounded-lg p-4 border border-dashed border-[hsl(var(--color-border))]">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={newStatusColor}
+                    onChange={(e) => setNewStatusColor(e.target.value)}
+                    disabled={submitting}
+                    className="w-8 h-8 rounded cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={newStatusName}
+                    onChange={(e) => setNewStatusName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddStatus()
+                      if (e.key === 'Escape') {
+                        setIsAddingStatus(false)
+                        setNewStatusName('')
+                      }
+                    }}
+                    placeholder="Status name..."
+                    disabled={submitting}
+                    autoFocus
+                    className="flex-1 px-3 py-2 bg-[hsl(var(--color-background))] border border-[hsl(var(--color-border))] rounded text-[hsl(var(--color-text-primary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-primary))]"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={handleAddStatus} disabled={submitting || !newStatusName.trim()} className="flex-1">
+                    Add
+                  </Button>
+                  <Button
+                    onClick={() => {
                       setIsAddingStatus(false)
                       setNewStatusName('')
-                    }
-                  }}
-                  placeholder="Status name..."
-                  disabled={submitting}
-                  autoFocus
-                  className="flex-1 px-3 py-2 bg-[hsl(var(--color-background))] border border-[hsl(var(--color-border))] rounded text-[hsl(var(--color-text-primary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-primary))]"
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button onClick={handleAddStatus} disabled={submitting || !newStatusName.trim()} className="flex-1">
-                  Add
-                </Button>
-                <Button
-                  onClick={() => {
-                    setIsAddingStatus(false)
-                    setNewStatusName('')
-                  }}
-                  variant="ghost"
-                  disabled={submitting}
-                >
-                  Cancel
-                </Button>
+                    }}
+                    variant="ghost"
+                    disabled={submitting}
+                  >
+                    Cancel
+                  </Button>
+                </div>
               </div>
             </div>
+          ) : (
+            <button
+              onClick={() => setIsAddingStatus(true)}
+              className="w-full h-full min-h-[200px] border-2 border-dashed border-[hsl(var(--color-border))] rounded-lg hover:border-[hsl(var(--color-primary))] hover:bg-[hsl(var(--color-surface))] transition-colors flex items-center justify-center text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-primary))]"
+            >
+              <div className="text-center">
+                <svg className="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <p className="font-medium">Add Status</p>
+              </div>
+            </button>
+          )}
           </div>
-        ) : (
-          <button
-            onClick={() => setIsAddingStatus(true)}
-            className="w-full h-full min-h-[200px] border-2 border-dashed border-[hsl(var(--color-border))] rounded-lg hover:border-[hsl(var(--color-primary))] hover:bg-[hsl(var(--color-surface))] transition-colors flex items-center justify-center text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-primary))]"
-          >
-            <div className="text-center">
-              <svg className="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              <p className="font-medium">Add Status</p>
-            </div>
-          </button>
         )}
-        </div>
       </div>
       </SortableContext>
 
@@ -415,6 +510,7 @@ interface SortableStatusColumnProps {
   cards: any[]
   boardId: string
   isSharedBoard: boolean
+  userAccessLevel?: 'owner' | 'editor' | 'viewer' | null
   onUpdate: (statusId: string, updates: Partial<BoardStatus>) => void
   onDelete: (statusId: string) => void
   onReorder: (fromIndex: number, toIndex: number) => void

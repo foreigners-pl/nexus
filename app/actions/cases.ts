@@ -67,6 +67,7 @@ export async function updateCase(formData: FormData) {
   const caseId = formData.get('caseId') as string
   const statusId = formData.get('statusId') as string | null
   const assignedTo = formData.get('assignedTo') as string | null
+  const dueDate = formData.get('dueDate') as string | null
 
   if (!caseId) {
     return { error: 'Case ID is required' }
@@ -75,6 +76,7 @@ export async function updateCase(formData: FormData) {
   const updateData: any = {}
   if (statusId !== null) updateData.status_id = statusId
   if (assignedTo !== null) updateData.assigned_to = assignedTo
+  if (dueDate !== undefined) updateData.due_date = dueDate || null
 
   const { error } = await supabase
     .from('cases')
@@ -106,6 +108,45 @@ export async function deleteCase(caseId: string) {
   }
 
   revalidatePath('/cases')
+  
+  return { success: true }
+}
+
+export async function updateCaseStatus(caseId: string, statusId: string) {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('cases')
+    .update({ status_id: statusId })
+    .eq('id', caseId)
+
+  if (error) {
+    console.error('Error updating case status:', error)
+    return { error: 'Failed to update case status' }
+  }
+
+  revalidatePath('/cases')
+  revalidatePath(`/cases/${caseId}`)
+  revalidatePath('/board/00000000-0000-0000-0000-000000000001')
+  
+  return { success: true }
+}
+
+export async function moveCase(caseId: string, newStatusId: string, newPosition: number) {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('cases')
+    .update({ 
+      status_id: newStatusId,
+      position: newPosition
+    })
+    .eq('id', caseId)
+
+  if (error) {
+    console.error('Error moving case:', error)
+    return { error: 'Failed to move case' }
+  }
   
   return { success: true }
 }

@@ -214,7 +214,14 @@ export default function CasePage({ params }: CasePageProps) {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 divide-x divide-[hsl(var(--color-border))]">
             {/* Left: Services */}
             <div className="pr-6">
-              <h3 className="text-lg font-semibold mb-4">Services</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Services</h3>
+                {caseServices.length > 0 && (
+                  <span className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">
+                    Total: {caseServices.reduce((sum, cs) => sum + ((cs as any).custom_price ?? cs.services?.gross_price ?? 0), 0).toFixed(2)} PLN
+                  </span>
+                )}
+              </div>
               <ServicesSection 
                 caseId={caseData.id} 
                 caseServices={caseServices} 
@@ -228,7 +235,8 @@ export default function CasePage({ params }: CasePageProps) {
               <PaymentPanel 
                 caseId={caseData.id} 
                 installments={installments} 
-                services={caseServices} 
+                services={caseServices}
+                client={client}
                 onUpdate={handleInstallmentsUpdate} 
               />
             </div>

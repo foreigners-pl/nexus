@@ -76,6 +76,18 @@ export function CaseInfo({ caseData, client, status, assignees, onUpdate, onAssi
     }
   }
 
+  const handleUpdateDueDate = async (newDueDate: string) => {
+    const formData = new FormData()
+    formData.set('caseId', caseData.id)
+    formData.set('dueDate', newDueDate)
+    
+    const result = await updateCase(formData)
+
+    if (!result?.error) {
+      onUpdate()
+    }
+  }
+
   const handleAddAssignee = async () => {
     if (!selectedUser) return
 
@@ -106,7 +118,7 @@ export function CaseInfo({ caseData, client, status, assignees, onUpdate, onAssi
 
   return (
     <>
-      <div className="grid grid-cols-3 divide-x divide-[hsl(var(--color-border))]">
+      <div className="grid grid-cols-4 divide-x divide-[hsl(var(--color-border))]">
         {/* Left: Client Info */}
         <div className="pr-6">
           <label className="block text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-1">Client</label>
@@ -116,7 +128,7 @@ export function CaseInfo({ caseData, client, status, assignees, onUpdate, onAssi
           )}
         </div>
 
-        {/* Center: Status */}
+        {/* Center-Left: Status */}
         <div className="px-6">
           <label className="block text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-1">Status</label>
           <Select
@@ -125,6 +137,17 @@ export function CaseInfo({ caseData, client, status, assignees, onUpdate, onAssi
             onChange={(value) => handleUpdateStatus(value)}
             placeholder="Select status..."
             searchPlaceholder="Search statuses..."
+          />
+        </div>
+
+        {/* Center-Right: Due Date */}
+        <div className="px-6">
+          <label className="block text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-1">Due Date</label>
+          <input
+            type="date"
+            value={caseData.due_date || ''}
+            onChange={(e) => handleUpdateDueDate(e.target.value)}
+            className="w-full px-3 py-1.5 text-sm bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-lg text-[hsl(var(--color-text-primary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-primary))] transition-colors"
           />
         </div>
 

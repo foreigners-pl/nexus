@@ -8,7 +8,7 @@ export default function DashboardLayout({
   return (
     <div className="h-screen bg-[hsl(var(--color-background))] flex flex-col">
       <Navbar />
-      <main className="ml-64 p-8 flex-1 overflow-hidden">
+      <main className="ml-64 p-8 flex-1 overflow-y-auto">
         {children}
       </main>
     </div>

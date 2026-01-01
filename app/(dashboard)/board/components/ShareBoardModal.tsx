@@ -70,13 +70,17 @@ export function ShareBoardModal({ isOpen, onClose, boardId, boardName, boardOwne
   const handleAddUser = async () => {
     if (!selectedUser) return
 
+    console.log('[ShareBoardModal] Starting share process...')
     setSubmitting(true)
     setError(null)
     const result = await shareBoardWithUser(boardId, selectedUser, accessLevel)
+    console.log('[ShareBoardModal] Share result:', result)
 
     if (result?.error) {
+      console.error('[ShareBoardModal] Error occurred:', result.error)
       setError(result.error)
     } else {
+      console.log('[ShareBoardModal] Share successful!')
       setSelectedUser('')
       setAccessLevel('editor')
       setShowAddUser(false)
@@ -175,8 +179,8 @@ export function ShareBoardModal({ isOpen, onClose, boardId, boardName, boardOwne
           )}
         </div>
 
-        {/* Add User Section - Show for owners AND editors */}
-        {currentUserId && (
+        {/* Add User Section - Show ONLY for board owners (after migration 38) */}
+        {currentUserId && currentUserId === boardOwnerId && (
           <div className="pt-4 border-t border-[hsl(var(--color-border))]">
             <h3 className="font-medium text-[hsl(var(--color-text-primary))] mb-2">Add User</h3>
           

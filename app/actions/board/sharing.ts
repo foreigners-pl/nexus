@@ -1,10 +1,11 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { hasEditorAccess } from './helpers'
+import { isBoardOwner } from './helpers'
 
 /**
  * Share a board with a user
+ * Note: After migration 38, only board OWNERS can share (not editors)
  */
 export async function shareBoardWithUser(
   boardId: string,
@@ -16,10 +17,20 @@ export async function shareBoardWithUser(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
 
-  // Check if user has editor or owner access (editors can share too)
-  const hasAccess = await hasEditorAccess(supabase, boardId, user.id)
-  if (!hasAccess) {
-    return { error: 'Only board owners and editors can share the board' }
+  console.log('[shareBoardWithUser] Starting share process:', {
+    boardId,
+    userEmail,
+    accessLevel,
+    currentUserId: user.id
+  })
+
+  // Check if user is the board owner (only owners can share after migration 38)
+  const isOwner = await isBoardOwner(supabase, boardId, user.id)
+  console.log('[shareBoardWithUser] Ownership check:', { isOwner })
+  
+  if (!isOwner) {
+    console.error('[shareBoardWithUser] User is not the owner')
+    return { error: 'Only board owners can share the board' }
   }
 
   // Find user by email (you'll need to query auth.users or have a users table)
@@ -34,8 +45,16 @@ export async function shareBoardWithUser(
     .single()
 
   if (existingAccess) {
+    console.warn('[shareBoardWithUser] User already has access')
     return { error: 'User already has access to this board' }
   }
+
+  console.log('[shareBoardWithUser] Attempting to insert:', {
+    board_id: boardId,
+    user_id: userEmail,
+    access_level: accessLevel,
+    granted_by: user.id
+  })
 
   const { data, error } = await supabase
     .from('board_access')
@@ -48,8 +67,17 @@ export async function shareBoardWithUser(
     .select()
     .single()
 
-  if (error) return { error: error.message }
+  if (error) {
+    console.error('[shareBoardWithUser] INSERT failed:', {
+      error: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint
+    })
+    return { error: error.message }
+  }
   
+  console.log('[shareBoardWithUser] Successfully shared board:', data)
   // Don't revalidate - use optimistic updates in components
   return { data }
 }
@@ -146,6 +174,7 @@ export async function getBoardAccessList(boardId: string) {
 
 /**
  * Get users who have access to a specific board (for assignee selection)
+ * Uses database function to bypass RLS and see all board users
  */
 export async function getBoardUsers(boardId: string) {
   const supabase = await createClient()
@@ -153,25 +182,17 @@ export async function getBoardUsers(boardId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
 
-  // Get the board owner
-  const { data: board } = await supabase
-    .from('boards')
-    .select('owner_id')
-    .eq('id', boardId)
-    .single()
-
-  if (!board) return { error: 'Board not found' }
-
-  // Get users who have access to this board (from board_access table)
-  const { data: boardAccess } = await supabase
-    .from('board_access')
-    .select('user_id')
-    .eq('board_id', boardId)
-
-  // Collect all user IDs (owner + users with access)
-  const userIds = [board.owner_id]
-  if (boardAccess) {
-    userIds.push(...boardAccess.map(ba => ba.user_id))
+  // Get all user IDs for this board using SECURITY DEFINER function
+  const { data: userIds, error: rpcError } = await supabase
+    .rpc('get_board_user_ids', { board_uuid: boardId })
+  
+  if (rpcError) {
+    console.error('Error getting board user IDs:', rpcError)
+    return { error: rpcError.message }
+  }
+  
+  if (!userIds || userIds.length === 0) {
+    return { data: [] }
   }
 
   // Get user details for all these user IDs

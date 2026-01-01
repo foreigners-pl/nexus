@@ -30,7 +30,8 @@ export async function getUserBoards() {
 
   // Get ALL access data for all boards in ONE query
   const boardIds = boards.map(b => b.id)
-  const { data: allAccessData } = await supabase
+  
+  const { data: allAccessData, error: accessError } = await supabase
     .from('board_access')
     .select('id, board_id, user_id, access_level')
     .in('board_id', boardIds)
@@ -147,9 +148,6 @@ export async function updateBoard(boardId: string, updates: { name?: string; des
 
   // Check if user has editor or owner access
   const hasAccess = await hasEditorAccess(supabase, boardId, user.id)
-  
-  console.log(`[updateBoard] User ${user.id} attempting to update board ${boardId}`)
-  console.log(`[updateBoard] Has editor access: ${hasAccess}`)
   
   if (!hasAccess) {
     return { error: 'Only board owners and editors can update board details' }
@@ -331,6 +329,15 @@ export async function getCasesBoardData() {
       status (
         id,
         name
+      ),
+      case_assignees (
+        id,
+        user_id,
+        users (
+          id,
+          email,
+          display_name
+        )
       )
     `)
     .order('created_at', { ascending: false })

@@ -66,15 +66,27 @@ export async function updateInstallment(installmentId: string, caseId: string, f
 export async function deleteInstallment(installmentId: string, caseId: string) {
   const supabase = await createClient()
 
-  // Check if it's a down payment
+  // Check if it's a down payment (refunds have negative amounts, so check that too)
   const { data: installment } = await supabase
     .from('installments')
-    .select('is_down_payment, position')
+    .select('is_down_payment, position, amount')
     .eq('id', installmentId)
     .single()
 
-  if (installment?.is_down_payment) {
+  // Only block deletion of down payments with positive amounts (not refunds)
+  if (installment?.is_down_payment && (installment?.amount || 0) >= 0) {
     return { error: 'Cannot delete down payment' }
+  }
+
+  // Delete associated invoices first (before installment deletion sets them to NULL)
+  const { error: invoiceDeleteError } = await supabase
+    .from('invoices')
+    .delete()
+    .eq('installment_id', installmentId)
+
+  if (invoiceDeleteError) {
+    console.error('Error deleting associated invoices:', invoiceDeleteError)
+    // Continue anyway - invoice foreign key is SET NULL so installment delete will still work
   }
 
   const { error } = await supabase
@@ -174,4 +186,62 @@ export async function createDownPayment(caseId: string, amount: number, dueDate?
 
   revalidatePath(`/cases/${caseId}`)
   return { success: true }
+}
+
+/**
+ * Clear automatic_invoice after an invoice has been sent
+ * This prevents the cron job from sending duplicate invoices
+ */
+export async function clearAutomaticInvoice(installmentId: string) {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('installments')
+    .update({ automatic_invoice: false })
+    .eq('id', installmentId)
+
+  if (error) {
+    console.error('Error clearing automatic_invoice:', error)
+    return { error: 'Failed to clear automatic invoice flag' }
+  }
+
+  return { success: true }
+}
+
+/**
+ * Get all installments that need auto-invoicing today
+ * Uses automatic_invoice = true AND due_date <= today
+ */
+export async function getInstallmentsForAutoInvoice() {
+  const supabase = await createClient()
+  
+  const today = new Date().toISOString().split('T')[0]
+
+  const { data, error } = await supabase
+    .from('installments')
+    .select(`
+      *,
+      cases (
+        id,
+        client_id,
+        clients (
+          id,
+          first_name,
+          last_name,
+          contact_email,
+          stripe_customer_id
+        )
+      )
+    `)
+    .eq('paid', false)
+    .eq('automatic_invoice', true)
+    .lte('due_date', today)
+    .not('due_date', 'is', null)
+
+  if (error) {
+    console.error('Error fetching auto-invoice installments:', error)
+    return { error: 'Failed to fetch installments', installments: [] }
+  }
+
+  return { installments: data || [] }
 }

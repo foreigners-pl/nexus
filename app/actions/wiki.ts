@@ -8,7 +8,7 @@ export async function getWikiFolders(isShared: boolean = false) {
   const supabase = await createClient()
   
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
+  if (!user) return []  // Return empty array if not authenticated (graceful handling)
 
   if (isShared) {
     // Get folders where user has been granted folder-level access OR owns and are shared
@@ -254,7 +254,7 @@ export async function getWikiDocuments(folderId: string) {
   const supabase = await createClient()
   
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
+  if (!user) return []  // Return empty array if not authenticated (graceful handling)
 
   const { data, error } = await supabase
     .from('wiki_documents')
