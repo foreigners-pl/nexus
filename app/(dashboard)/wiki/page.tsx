@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { DndContext, DragEndEvent, closestCenter, PointerSensor, useSensor, useSensors, DragStartEvent, DragOverEvent } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -801,6 +802,49 @@ export default function WikiPage() {
   )
 }
 
+// Portal-based dropdown to escape overflow:hidden containers
+interface DropdownPortalProps {
+  isOpen: boolean
+  onClose: () => void
+  triggerRef: React.RefObject<HTMLButtonElement | null>
+  children: React.ReactNode
+}
+
+function DropdownPortal({ isOpen, onClose, triggerRef, children }: DropdownPortalProps) {
+  const [position, setPosition] = useState({ top: 0, left: 0 })
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (isOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect()
+      // Position dropdown below and to the right of the trigger button
+      setPosition({
+        top: rect.bottom + 4,
+        left: rect.right - 192, // 192px = w-48 (menu width)
+      })
+    }
+  }, [isOpen, triggerRef])
+
+  if (!mounted || !isOpen) return null
+
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-[9998]" onClick={onClose} />
+      <div
+        className="fixed z-[9999] bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl shadow-lg overflow-hidden min-w-[192px]"
+        style={{ top: position.top, left: Math.max(8, position.left) }}
+      >
+        {children}
+      </div>
+    </>,
+    document.body
+  )
+}
+
 interface SortableFolderItemProps {
   folder: WikiFolder
   isExpanded: boolean
@@ -863,6 +907,7 @@ function SortableFolderItem({
   }
 
   const [showMenu, setShowMenu] = useState(false)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
 
   // Always call hooks unconditionally - move sensors to top level
   const documentSensors = useSensors(
@@ -905,6 +950,7 @@ function SortableFolderItem({
         </span>
         <div className="relative">
           <button
+            ref={menuButtonRef}
             onClick={(e) => {
               e.stopPropagation()
               setShowMenu(!showMenu)
@@ -915,51 +961,44 @@ function SortableFolderItem({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
             </svg>
           </button>
-          {showMenu && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-              <div 
-                className="absolute right-0 mt-1 w-48 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl shadow-lg z-50 overflow-hidden"
-              >
-                <button
-                  onClick={() => {
-                    onShare()
-                    setShowMenu(false)
-                  }}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-[hsl(var(--color-surface-hover))] flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                  </svg>
-                  Share
-                </button>
-                <button
-                  onClick={() => {
-                    onRename()
-                    setShowMenu(false)
-                  }}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-[hsl(var(--color-surface-hover))] flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                  </svg>
-                  Rename
-                </button>
-                <button
-                  onClick={() => {
-                    onDelete()
-                    setShowMenu(false)
-                  }}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-[hsl(var(--color-surface-hover))] text-red-500 flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                  Delete
-                </button>
-              </div>
-            </>
-          )}
+          <DropdownPortal isOpen={showMenu} onClose={() => setShowMenu(false)} triggerRef={menuButtonRef}>
+            <button
+              onClick={() => {
+                onShare()
+                setShowMenu(false)
+              }}
+              className="w-full px-4 py-2 text-left text-sm hover:bg-[hsl(var(--color-surface-hover))] flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+              Share
+            </button>
+            <button
+              onClick={() => {
+                onRename()
+                setShowMenu(false)
+              }}
+              className="w-full px-4 py-2 text-left text-sm hover:bg-[hsl(var(--color-surface-hover))] flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+              Rename
+            </button>
+            <button
+              onClick={() => {
+                onDelete()
+                setShowMenu(false)
+              }}
+              className="w-full px-4 py-2 text-left text-sm hover:bg-[hsl(var(--color-surface-hover))] text-red-500 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Delete
+            </button>
+          </DropdownPortal>
         </div>
       </div>
       {isExpanded && (
@@ -1014,6 +1053,7 @@ interface SortableDocumentItemProps {
 
 function SortableDocumentItem({ document, isSelected, onSelect, onRename, onMove, onDelete }: SortableDocumentItemProps) {
   const [showMenu, setShowMenu] = useState(false)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
   const {
     attributes,
     listeners,
@@ -1074,6 +1114,7 @@ function SortableDocumentItem({ document, isSelected, onSelect, onRename, onMove
         <span className="flex-1 truncate">{document.title}</span>
         <div className="relative flex-shrink-0">
           <button
+            ref={menuButtonRef}
             onClick={(e) => {
               e.stopPropagation()
               setShowMenu(!showMenu)
@@ -1084,51 +1125,44 @@ function SortableDocumentItem({ document, isSelected, onSelect, onRename, onMove
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
             </svg>
           </button>
-          {showMenu && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)}></div>
-              <div 
-                className="absolute right-0 top-8 z-50 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl shadow-lg py-1 min-w-[150px] overflow-hidden"
-              >
-                <button
-                  onClick={() => {
-                    onRename()
-                    setShowMenu(false)
-                  }}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-[hsl(var(--color-surface-hover))] flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                  Rename
-                </button>
-                <button
-                  onClick={() => {
-                    onMove()
-                    setShowMenu(false)
-                  }}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-[hsl(var(--color-surface-hover))] flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                  </svg>
-                  Move to...
-                </button>
-                <button
-                  onClick={() => {
-                    onDelete()
-                    setShowMenu(false)
-                  }}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-[hsl(var(--color-surface-hover))] text-red-500 flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                  Delete
-                </button>
-              </div>
-            </>
-          )}
+          <DropdownPortal isOpen={showMenu} onClose={() => setShowMenu(false)} triggerRef={menuButtonRef}>
+            <button
+              onClick={() => {
+                onRename()
+                setShowMenu(false)
+              }}
+              className="w-full px-4 py-2 text-left text-sm hover:bg-[hsl(var(--color-surface-hover))] flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Rename
+            </button>
+            <button
+              onClick={() => {
+                onMove()
+                setShowMenu(false)
+              }}
+              className="w-full px-4 py-2 text-left text-sm hover:bg-[hsl(var(--color-surface-hover))] flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+              Move to...
+            </button>
+            <button
+              onClick={() => {
+                onDelete()
+                setShowMenu(false)
+              }}
+              className="w-full px-4 py-2 text-left text-sm hover:bg-[hsl(var(--color-surface-hover))] text-red-500 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Delete
+            </button>
+          </DropdownPortal>
         </div>
       </div>
     </div>
