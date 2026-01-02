@@ -198,7 +198,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     
     try {
       if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as Window & { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
+        const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+        audioContextRef.current = new AudioContextClass()
       }
       
       const audioContext = audioContextRef.current
@@ -300,7 +301,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     
     try {
       if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as Window & { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
+        const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+        audioContextRef.current = new AudioContextClass()
       }
       
       const audioContext = audioContextRef.current

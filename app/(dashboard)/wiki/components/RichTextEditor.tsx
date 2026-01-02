@@ -30,8 +30,8 @@ export function RichTextEditor({ document, canEdit, onUpdate }: RichTextEditorPr
   const [documentFontSize, setDocumentFontSize] = useState('16px')
   const [showDocFontDropdown, setShowDocFontDropdown] = useState(false)
   const [showDocFontSizeDropdown, setShowDocFontSizeDropdown] = useState(false)
-  const saveTimeoutRef = useRef<NodeJS.Timeout>()
-  const titleSaveTimeoutRef = useRef<NodeJS.Timeout>()
+  const saveTimeoutRef = useRef<NodeJS.Timeout>(undefined)
+  const titleSaveTimeoutRef = useRef<NodeJS.Timeout>(undefined)
 
   const editor = useEditor({
     extensions: [

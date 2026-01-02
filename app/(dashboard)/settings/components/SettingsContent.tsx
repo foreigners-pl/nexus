@@ -193,11 +193,13 @@ export function SettingsContent({ initialProfile, initialPreferences }: Settings
   const entityColors: Record<EntityType, string> = {
     cases: 'from-blue-500/20 to-blue-600/10 border-blue-500/30',
     tasks: 'from-purple-500/20 to-purple-600/10 border-purple-500/30',
+    other: 'from-gray-500/20 to-gray-600/10 border-gray-500/30',
   }
   
   const entityIconColors: Record<EntityType, string> = {
     cases: 'text-blue-400',
     tasks: 'text-purple-400',
+    other: 'text-gray-400',
   }
 
   const categoryColors: Record<CategoryType, string> = {
@@ -205,6 +207,7 @@ export function SettingsContent({ initialProfile, initialPreferences }: Settings
     updates: 'text-purple-400',
     payments: 'text-green-400',
     reminders: 'text-orange-400',
+    messages: 'text-cyan-400',
   }
 
   // Render entity section (header + categories)

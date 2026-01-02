@@ -97,6 +97,7 @@ export const DEFAULT_EMAIL: ActivityType[] = []
 export const ENTITY_INFO = {
   cases: { label: 'Cases', icon: 'briefcase', color: 'blue' },
   tasks: { label: 'Tasks', icon: 'check-square', color: 'purple' },
+  other: { label: 'Other', icon: 'more-horizontal', color: 'gray' },
 } as const
 
 export const CATEGORY_INFO = {
@@ -104,6 +105,7 @@ export const CATEGORY_INFO = {
   updates: { label: 'Updates', icon: 'refresh', color: 'purple' },
   payments: { label: 'Payments', icon: 'dollar', color: 'green' },
   reminders: { label: 'Reminders', icon: 'bell', color: 'orange' },
+  messages: { label: 'Messages', icon: 'message', color: 'cyan' },
 } as const
 
 // Helper to get activities by entity and category

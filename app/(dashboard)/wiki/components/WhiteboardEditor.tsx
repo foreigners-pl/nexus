@@ -21,6 +21,7 @@ interface Box {
   color: string
   fontSize?: number
   fontWeight?: 'normal' | 'bold'
+  fontStyle?: 'normal' | 'italic'
   textAlign?: 'left' | 'center' | 'right'
   verticalAlign?: 'top' | 'middle' | 'bottom'
 }
@@ -45,8 +46,8 @@ export function WhiteboardEditor({ document, canEdit, onUpdate }: WhiteboardEdit
   const [zoom, setZoom] = useState(1)
   const [boxIdCounter, setBoxIdCounter] = useState(1)
   const canvasRef = useRef<HTMLDivElement>(null)
-  const saveTimeoutRef = useRef<NodeJS.Timeout>()
-  const titleTimeoutRef = useRef<NodeJS.Timeout>()
+  const saveTimeoutRef = useRef<NodeJS.Timeout>(undefined)
+  const titleTimeoutRef = useRef<NodeJS.Timeout>(undefined)
 
   useEffect(() => {
     setTitle(document.title)
@@ -333,9 +334,9 @@ export function WhiteboardEditor({ document, canEdit, onUpdate }: WhiteboardEdit
                 B
               </button>
               <button
-                onClick={() => updateBox(selectedBox, { fontWeight: box.fontWeight === 'italic' ? 'normal' : 'italic' })}
+                onClick={() => updateBox(selectedBox, { fontStyle: box.fontStyle === 'italic' ? 'normal' : 'italic' })}
                 className={`h-7 px-2 rounded text-xs italic pointer-events-auto ${
-                  box.fontWeight === 'italic' ? 'bg-[#AB1604] text-white' : 'bg-neutral-700 text-neutral-200'
+                  box.fontStyle === 'italic' ? 'bg-[#AB1604] text-white' : 'bg-neutral-700 text-neutral-200'
                 }`}
                 title="Italic"
               >
@@ -463,6 +464,7 @@ export function WhiteboardEditor({ document, canEdit, onUpdate }: WhiteboardEdit
                     pointerEvents: canEdit ? 'auto' : 'none',
                     fontSize: `${box.fontSize || 14}px`,
                     fontWeight: box.fontWeight || 'normal',
+                    fontStyle: box.fontStyle || 'normal',
                     textAlign: box.textAlign || 'center'
                   }}
                 />

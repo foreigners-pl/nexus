@@ -458,7 +458,12 @@ export async function sendInvoiceReceipt(invoiceId: string): Promise<{ success?:
 
   try {
     // Get the Stripe invoice to find the charge
-    const stripeInvoice = await getStripe().invoices.retrieve(invoice.stripe_invoice_id)
+    const stripeInvoiceResponse = await getStripe().invoices.retrieve(invoice.stripe_invoice_id)
+    const stripeInvoice = stripeInvoiceResponse as unknown as {
+      charge: string | null
+      hosted_invoice_url: string | null
+      customer_email: string | null
+    }
     
     // Get the charge associated with the invoice
     // For invoices, the charge ID is in the charge field
@@ -526,7 +531,11 @@ export async function getInvoiceReceiptUrl(invoiceId: string): Promise<{ receipt
   }
 
   try {
-    const stripeInvoice = await getStripe().invoices.retrieve(invoice.stripe_invoice_id)
+    const stripeInvoiceResponse = await getStripe().invoices.retrieve(invoice.stripe_invoice_id)
+    const stripeInvoice = stripeInvoiceResponse as unknown as {
+      charge: string | null
+      hosted_invoice_url: string | null
+    }
     
     const chargeId = stripeInvoice.charge as string | null
     

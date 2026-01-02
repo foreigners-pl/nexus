@@ -16,7 +16,7 @@ export function getStripe(): Stripe {
   }
   if (!stripeInstance) {
     stripeInstance = new Stripe(stripeSecretKey, {
-      apiVersion: '2024-10-28.acacia',
+      apiVersion: '2025-12-15.clover',
       typescript: true,
     })
   }
@@ -25,7 +25,7 @@ export function getStripe(): Stripe {
 
 // For backwards compatibility - but prefer getStripe()
 export const stripe = stripeSecretKey 
-  ? new Stripe(stripeSecretKey, { apiVersion: '2024-10-28.acacia', typescript: true })
+  ? new Stripe(stripeSecretKey, { apiVersion: '2025-12-15.clover', typescript: true })
   : (null as unknown as Stripe)
 
 // Check if Stripe is configured

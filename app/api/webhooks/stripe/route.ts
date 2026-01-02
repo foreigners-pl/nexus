@@ -94,15 +94,19 @@ async function handleInvoicePaid(supabase: any, stripeInvoice: Stripe.Invoice) {
     return
   }
 
+  // Get payment_intent from invoice (with type assertion for SDK compatibility)
+  const invoiceData = stripeInvoice as unknown as { payment_intent: string | { id: string } | null }
+  const paymentIntentId = typeof invoiceData.payment_intent === 'string' 
+    ? invoiceData.payment_intent 
+    : invoiceData.payment_intent?.id
+
   // Update invoice status
   const { data: invoice, error } = await supabase
     .from('invoices')
     .update({
       status: 'paid',
       paid_at: new Date().toISOString(),
-      stripe_payment_intent_id: typeof stripeInvoice.payment_intent === 'string' 
-        ? stripeInvoice.payment_intent 
-        : stripeInvoice.payment_intent?.id,
+      stripe_payment_intent_id: paymentIntentId,
     })
     .eq('id', invoiceId)
     .select('installment_id')
