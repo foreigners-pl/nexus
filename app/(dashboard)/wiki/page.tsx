@@ -169,12 +169,20 @@ export default function WikiPage() {
   const handleCreateDocument = async () => {
     if (!selectedFolder || !newDocTitle.trim()) return
     setSubmitting(true)
-    const result = await createWikiDocument(selectedFolder.id, newDocTitle, newDocType)
-    if (!result?.error) {
-      setNewDocTitle('')
-      setNewDocType('rich-text')
-      setShowNewDocModal(false)
-      loadDocuments(selectedFolder.id)
+    try {
+      const result = await createWikiDocument(selectedFolder.id, newDocTitle, newDocType)
+      if (result?.error) {
+        console.error('Error creating document:', result.error)
+        alert('Failed to create document: ' + result.error)
+      } else {
+        setNewDocTitle('')
+        setNewDocType('rich-text')
+        setShowNewDocModal(false)
+        loadDocuments(selectedFolder.id)
+      }
+    } catch (err) {
+      console.error('Exception creating document:', err)
+      alert('Failed to create document')
     }
     setSubmitting(false)
   }
@@ -478,6 +486,7 @@ export default function WikiPage() {
                         setDocToDelete(doc)
                         setShowDeleteDocModal(true)
                       }}
+                      canCreateDocument={activeTab === 'private'}
                       onShare={() => {
                         setFolderToShare(folder)
                         setShowShareWikiModal(true)
@@ -811,6 +820,7 @@ interface SortableFolderItemProps {
   onShare: () => void
   onRename: () => void
   onDelete: () => void
+  canCreateDocument?: boolean
 }
 
 function SortableFolderItem({
@@ -831,7 +841,8 @@ function SortableFolderItem({
   onDocumentDelete,
   onShare,
   onRename,
-  onDelete
+  onDelete,
+  canCreateDocument = true
 }: SortableFolderItemProps) {
   const {
     attributes,
@@ -906,9 +917,9 @@ function SortableFolderItem({
           </button>
           {showMenu && (
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
+              <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
               <div 
-                className="absolute right-0 mt-1 w-48 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl shadow-lg z-20 overflow-hidden"
+                className="absolute right-0 mt-1 w-48 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl shadow-lg z-50 overflow-hidden"
               >
                 <button
                   onClick={() => {
@@ -975,15 +986,17 @@ function SortableFolderItem({
               </SortableContext>
             </DndContext>
           )}
-          <button
-            onClick={onNewDocument}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left text-sm transition-colors bg-[hsl(var(--color-surface-hover))]/30 hover:bg-[hsl(var(--color-surface-hover))] border border-transparent hover:border-[hsl(var(--color-border))] text-[hsl(var(--color-text-secondary))]"
-          >
-            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            <span>New Document</span>
-          </button>
+          {canCreateDocument && (
+            <button
+              onClick={onNewDocument}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left text-sm transition-colors bg-[hsl(var(--color-surface-hover))]/30 hover:bg-[hsl(var(--color-surface-hover))] border border-transparent hover:border-[hsl(var(--color-border))] text-[hsl(var(--color-text-secondary))]"
+            >
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span>New Document</span>
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -1073,9 +1086,9 @@ function SortableDocumentItem({ document, isSelected, onSelect, onRename, onMove
           </button>
           {showMenu && (
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)}></div>
+              <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)}></div>
               <div 
-                className="absolute right-0 top-8 z-20 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl shadow-lg py-1 min-w-[150px] overflow-hidden"
+                className="absolute right-0 top-8 z-50 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl shadow-lg py-1 min-w-[150px] overflow-hidden"
               >
                 <button
                   onClick={() => {
