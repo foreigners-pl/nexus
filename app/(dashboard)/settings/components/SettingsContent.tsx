@@ -15,11 +15,11 @@ import {
   type ActivityPreferences,
   type EntityType,
   type CategoryType,
-  DEFAULT_FEED,
-  DEFAULT_EMAIL
+  DEFAULT_FEED
 } from '@/lib/activity-types'
 import { User } from '@/types/database'
 import { createClient } from '@/lib/supabase/client'
+import { useNotifications, SOUND_TYPES, type SoundType } from '@/lib/notifications/NotificationContext'
 
 interface SettingsContentProps {
   initialProfile: User | null
@@ -27,6 +27,9 @@ interface SettingsContentProps {
 }
 
 export function SettingsContent({ initialProfile, initialPreferences }: SettingsContentProps) {
+  // Notification context
+  const { soundEnabled, setSoundEnabled, soundType, setSoundType, testSound } = useNotifications()
+  
   // Profile state
   const [displayName, setDisplayName] = useState(initialProfile?.display_name ?? '')
   const [contactNumber, setContactNumber] = useState(initialProfile?.contact_number ?? '')
@@ -34,6 +37,7 @@ export function SettingsContent({ initialProfile, initialPreferences }: Settings
   const [profileMessage, setProfileMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
   // Password state
+  const [oldPassword, setOldPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [savingPassword, setSavingPassword] = useState(false)
@@ -54,20 +58,8 @@ export function SettingsContent({ initialProfile, initialPreferences }: Settings
     // Validate and return
     return feed as ActivityType[]
   }
-  
-  const computeInitialEmail = (): ActivityType[] => {
-    if (!initialPreferences) return [...DEFAULT_EMAIL]
-    
-    const email = initialPreferences.email_notifications
-    if (!email || !Array.isArray(email) || email.length === 0) {
-      return [...DEFAULT_EMAIL]
-    }
-    
-    return email as ActivityType[]
-  }
 
   const [feedPreferences, setFeedPreferences] = useState<ActivityType[]>(() => computeInitialFeed())
-  const [emailPreferences, setEmailPreferences] = useState<ActivityType[]>(() => computeInitialEmail())
   const [savingActivity, setSavingActivity] = useState<string | null>(null)
 
   const handleSaveProfile = async () => {
@@ -90,6 +82,10 @@ export function SettingsContent({ initialProfile, initialPreferences }: Settings
   }
 
   const handleChangePassword = async () => {
+    if (!oldPassword) {
+      setPasswordMessage({ type: 'error', text: 'Please enter your current password' })
+      return
+    }
     if (newPassword !== confirmPassword) {
       setPasswordMessage({ type: 'error', text: 'Passwords do not match' })
       return
@@ -103,12 +99,34 @@ export function SettingsContent({ initialProfile, initialPreferences }: Settings
     setPasswordMessage(null)
     
     const supabase = createClient()
+    
+    // First verify old password by re-authenticating
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user?.email) {
+      setPasswordMessage({ type: 'error', text: 'Unable to verify user' })
+      setSavingPassword(false)
+      return
+    }
+    
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: oldPassword
+    })
+    
+    if (signInError) {
+      setPasswordMessage({ type: 'error', text: 'Current password is incorrect' })
+      setSavingPassword(false)
+      return
+    }
+    
+    // Now update to new password
     const { error } = await supabase.auth.updateUser({ password: newPassword })
 
     if (error) {
       setPasswordMessage({ type: 'error', text: error.message })
     } else {
       setPasswordMessage({ type: 'success', text: 'Password updated!' })
+      setOldPassword('')
       setNewPassword('')
       setConfirmPassword('')
       setTimeout(() => setPasswordMessage(null), 3000)
@@ -134,29 +152,6 @@ export function SettingsContent({ initialProfile, initialPreferences }: Settings
         setFeedPreferences(prev => prev.filter(t => t !== activityType))
       } else {
         setFeedPreferences(prev => [...prev, activityType])
-      }
-    }
-    
-    setSavingActivity(null)
-  }
-
-  const handleToggleEmail = async (activityType: ActivityType) => {
-    const enabled = !emailPreferences.includes(activityType)
-    setSavingActivity(`email-${activityType}`)
-    
-    if (enabled) {
-      setEmailPreferences(prev => [...prev, activityType])
-    } else {
-      setEmailPreferences(prev => prev.filter(t => t !== activityType))
-    }
-
-    const result = await toggleActivityPreference(activityType, 'email_notifications', enabled)
-    
-    if (result.error) {
-      if (enabled) {
-        setEmailPreferences(prev => prev.filter(t => t !== activityType))
-      } else {
-        setEmailPreferences(prev => [...prev, activityType])
       }
     }
     
@@ -198,13 +193,11 @@ export function SettingsContent({ initialProfile, initialPreferences }: Settings
   const entityColors: Record<EntityType, string> = {
     cases: 'from-blue-500/20 to-blue-600/10 border-blue-500/30',
     tasks: 'from-purple-500/20 to-purple-600/10 border-purple-500/30',
-    other: 'from-gray-500/20 to-gray-600/10 border-gray-500/30',
   }
   
   const entityIconColors: Record<EntityType, string> = {
     cases: 'text-blue-400',
     tasks: 'text-purple-400',
-    other: 'text-gray-400',
   }
 
   const categoryColors: Record<CategoryType, string> = {
@@ -212,7 +205,6 @@ export function SettingsContent({ initialProfile, initialPreferences }: Settings
     updates: 'text-purple-400',
     payments: 'text-green-400',
     reminders: 'text-orange-400',
-    messages: 'text-cyan-400',
   }
 
   // Render entity section (header + categories)
@@ -236,11 +228,6 @@ export function SettingsContent({ initialProfile, initialPreferences }: Settings
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                 </svg>
               )}
-              {entity === 'other' && (
-                <svg className={`w-5 h-5 ${entityIconColors[entity]}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-              )}
             </div>
             <span className={`text-lg font-semibold ${entityIconColors[entity]}`}>
               {ENTITY_INFO[entity].label}
@@ -251,11 +238,8 @@ export function SettingsContent({ initialProfile, initialPreferences }: Settings
               </span>
             )}
           </div>
-          {/* Column headers */}
-          <div className="flex items-center gap-3">
-            <span className="w-11 text-xs font-semibold text-[hsl(var(--color-text-secondary))] text-center uppercase tracking-wide">Feed</span>
-            <span className="w-11 text-xs font-semibold text-[hsl(var(--color-text-secondary))] text-center uppercase tracking-wide">Email</span>
-          </div>
+          {/* Column header */}
+          <span className="text-xs font-semibold text-[hsl(var(--color-text-secondary))] uppercase tracking-wide">Off/On</span>
         </div>
 
         {/* Categories and Activities */}
@@ -274,20 +258,12 @@ export function SettingsContent({ initialProfile, initialPreferences }: Settings
                     <span className="flex-1 text-[15px] text-[hsl(var(--color-text-primary))] group-hover:text-white transition-colors">
                       {label}
                     </span>
-                    <div className="flex items-center gap-3">
-                      <Toggle
-                        checked={feedPreferences.includes(id)}
-                        onChange={() => !isComingSoon && handleToggleFeed(id)}
-                        disabled={isComingSoon || savingActivity === `feed-${id}`}
-                        label={`${label} in feed`}
-                      />
-                      <Toggle
-                        checked={emailPreferences.includes(id)}
-                        onChange={() => !isComingSoon && handleToggleEmail(id)}
-                        disabled={isComingSoon || savingActivity === `email-${id}`}
-                        label={`${label} email`}
-                      />
-                    </div>
+                    <Toggle
+                      checked={feedPreferences.includes(id)}
+                      onChange={() => !isComingSoon && handleToggleFeed(id)}
+                      disabled={isComingSoon || savingActivity === `feed-${id}`}
+                      label={`${label} notifications`}
+                    />
                   </div>
                 ))}
               </div>
@@ -371,6 +347,13 @@ export function SettingsContent({ initialProfile, initialPreferences }: Settings
             
             <div className="space-y-4">
               <Input
+                label="Current Password"
+                type="password"
+                value={oldPassword}
+                onChange={(e) => setOldPassword(e.target.value)}
+                placeholder="Enter current password"
+              />
+              <Input
                 label="New Password"
                 type="password"
                 value={newPassword}
@@ -378,7 +361,7 @@ export function SettingsContent({ initialProfile, initialPreferences }: Settings
                 placeholder="Enter new password"
               />
               <Input
-                label="Confirm Password"
+                label="Confirm New Password"
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
@@ -397,7 +380,7 @@ export function SettingsContent({ initialProfile, initialPreferences }: Settings
               
               <Button 
                 onClick={handleChangePassword} 
-                disabled={savingPassword || !newPassword || !confirmPassword}
+                disabled={savingPassword || !oldPassword || !newPassword || !confirmPassword}
                 variant="secondary"
                 className="w-full"
               >
@@ -407,6 +390,61 @@ export function SettingsContent({ initialProfile, initialPreferences }: Settings
           </div>
         </Card>
       </div>
+
+      {/* Sound Settings */}
+      <Card>
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/30 flex items-center justify-center">
+                <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-[hsl(var(--color-text-primary))]">Notification Sound</h3>
+                <p className="text-sm text-[hsl(var(--color-text-secondary))]">Play a sound when new notifications arrive</p>
+              </div>
+            </div>
+            <Toggle
+              checked={soundEnabled}
+              onChange={() => setSoundEnabled(!soundEnabled)}
+              label="Notification sound"
+            />
+          </div>
+          
+          {soundEnabled && (
+            <div className="flex items-center gap-3 pt-3 border-t border-[hsl(var(--color-border))]">
+              <span className="text-sm text-[hsl(var(--color-text-secondary))]">Sound:</span>
+              <div className="flex gap-2 flex-wrap flex-1">
+                {(Object.keys(SOUND_TYPES) as SoundType[]).map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => {
+                      setSoundType(type)
+                      // Auto-play when selecting
+                      setTimeout(testSound, 50)
+                    }}
+                    className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                      soundType === type
+                        ? 'bg-[hsl(var(--color-primary))] text-white'
+                        : 'bg-[hsl(var(--color-surface-hover))] text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))] hover:bg-[hsl(var(--color-surface-active))]'
+                    }`}
+                  >
+                    {SOUND_TYPES[type]}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={testSound}
+                className="text-xs px-3 py-1.5 rounded-lg bg-[hsl(var(--color-surface-hover))] text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))] hover:bg-[hsl(var(--color-surface-active))] transition-colors"
+              >
+                Test
+              </button>
+            </div>
+          )}
+        </div>
+      </Card>
 
       {/* Activity Notifications Section */}
       <Card>
@@ -430,10 +468,9 @@ export function SettingsContent({ initialProfile, initialPreferences }: Settings
               {renderEntitySection('cases')}
             </div>
             
-            {/* Right Column - Tasks + Other */}
-            <div className="space-y-8 md:pl-2">
+            {/* Right Column - Tasks */}
+            <div className="md:pl-2">
               {renderEntitySection('tasks')}
-              {renderEntitySection('other', true)}
             </div>
           </div>
         </div>

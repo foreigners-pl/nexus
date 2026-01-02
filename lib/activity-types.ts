@@ -7,32 +7,25 @@ export type ActivityType =
   // Cases
   | 'case_assigned'
   | 'case_unassigned'
-  | 'case_created'
   | 'case_comment'
   | 'case_status_changed'
   | 'case_due_date_changed'
   | 'case_attachment_added'
   | 'case_attachment_removed'
-  | 'case_deleted'
   | 'case_payment_received'
-  | 'case_installment_due'
+  | 'case_payment_overdue'
   | 'case_due_today'
   | 'case_one_week_overdue'
   | 'case_one_month_overdue'
   // Tasks
   | 'task_assigned'
   | 'task_unassigned'
-  | 'task_comment'
   | 'task_status_changed'
+  | 'task_completed'
   | 'task_due_date_changed'
-  | 'task_deleted'
   | 'task_due_today'
   | 'task_one_week_overdue'
   | 'task_one_month_overdue'
-  // Other (future)
-  | 'new_conversation'
-  | 'no_response_24h'
-  | 'no_response_48h'
 
 export interface ActivityTypeInfo {
   id: ActivityType
@@ -43,21 +36,19 @@ export interface ActivityTypeInfo {
 
 export const ACTIVITY_TYPES: ActivityTypeInfo[] = [
   // Cases - Assignments
-  { id: 'case_assigned', label: 'Assigned to You', entity: 'cases', category: 'assignments' },
+  { id: 'case_assigned', label: 'Assigned', entity: 'cases', category: 'assignments' },
   { id: 'case_unassigned', label: 'Unassigned', entity: 'cases', category: 'assignments' },
-  { id: 'case_created', label: 'New Case Created', entity: 'cases', category: 'assignments' },
   
   // Cases - Updates
-  { id: 'case_comment', label: 'New Comment', entity: 'cases', category: 'updates' },
+  { id: 'case_comment', label: 'Comment Added', entity: 'cases', category: 'updates' },
   { id: 'case_status_changed', label: 'Status Changed', entity: 'cases', category: 'updates' },
   { id: 'case_due_date_changed', label: 'Due Date Changed', entity: 'cases', category: 'updates' },
   { id: 'case_attachment_added', label: 'Attachment Added', entity: 'cases', category: 'updates' },
   { id: 'case_attachment_removed', label: 'Attachment Removed', entity: 'cases', category: 'updates' },
-  { id: 'case_deleted', label: 'Deleted', entity: 'cases', category: 'updates' },
   
   // Cases - Payments
   { id: 'case_payment_received', label: 'Payment Received', entity: 'cases', category: 'payments' },
-  { id: 'case_installment_due', label: 'Installment Due', entity: 'cases', category: 'payments' },
+  { id: 'case_payment_overdue', label: 'Payment Overdue', entity: 'cases', category: 'payments' },
   
   // Cases - Reminders
   { id: 'case_due_today', label: 'Due Today', entity: 'cases', category: 'reminders' },
@@ -65,24 +56,18 @@ export const ACTIVITY_TYPES: ActivityTypeInfo[] = [
   { id: 'case_one_month_overdue', label: '1 Month Overdue', entity: 'cases', category: 'reminders' },
   
   // Tasks - Assignments
-  { id: 'task_assigned', label: 'Assigned to You', entity: 'tasks', category: 'assignments' },
+  { id: 'task_assigned', label: 'Assigned', entity: 'tasks', category: 'assignments' },
   { id: 'task_unassigned', label: 'Unassigned', entity: 'tasks', category: 'assignments' },
   
   // Tasks - Updates
-  { id: 'task_comment', label: 'New Comment', entity: 'tasks', category: 'updates' },
   { id: 'task_status_changed', label: 'Status Changed', entity: 'tasks', category: 'updates' },
+  { id: 'task_completed', label: 'Completed', entity: 'tasks', category: 'updates' },
   { id: 'task_due_date_changed', label: 'Due Date Changed', entity: 'tasks', category: 'updates' },
-  { id: 'task_deleted', label: 'Deleted', entity: 'tasks', category: 'updates' },
   
   // Tasks - Reminders
   { id: 'task_due_today', label: 'Due Today', entity: 'tasks', category: 'reminders' },
   { id: 'task_one_week_overdue', label: '1 Week Overdue', entity: 'tasks', category: 'reminders' },
   { id: 'task_one_month_overdue', label: '1 Month Overdue', entity: 'tasks', category: 'reminders' },
-  
-  // Other - Messages (future)
-  { id: 'new_conversation', label: 'New Conversation', entity: 'other', category: 'messages' },
-  { id: 'no_response_24h', label: 'No Response (24h)', entity: 'other', category: 'messages' },
-  { id: 'no_response_48h', label: 'No Response (48h)', entity: 'other', category: 'messages' },
 ]
 
 export interface ActivityPreferences {
@@ -94,25 +79,24 @@ export interface ActivityPreferences {
   updated_at: string
 }
 
-// Default: all case/task notifications in feed
+// Default: all notifications in feed
 export const DEFAULT_FEED: ActivityType[] = [
-  'case_assigned', 'case_unassigned', 'case_created',
+  'case_assigned', 'case_unassigned',
   'case_comment', 'case_status_changed', 'case_due_date_changed',
-  'case_attachment_added', 'case_attachment_removed', 'case_deleted',
-  'case_payment_received', 'case_installment_due',
+  'case_attachment_added', 'case_attachment_removed',
+  'case_payment_received', 'case_payment_overdue',
   'case_due_today', 'case_one_week_overdue', 'case_one_month_overdue',
   'task_assigned', 'task_unassigned',
-  'task_comment', 'task_status_changed', 'task_due_date_changed', 'task_deleted',
+  'task_status_changed', 'task_completed', 'task_due_date_changed',
   'task_due_today', 'task_one_week_overdue', 'task_one_month_overdue',
 ]
 
-// Default: important ones via email (none by default)
+// Default: no email notifications
 export const DEFAULT_EMAIL: ActivityType[] = []
 
 export const ENTITY_INFO = {
   cases: { label: 'Cases', icon: 'briefcase', color: 'blue' },
   tasks: { label: 'Tasks', icon: 'check-square', color: 'purple' },
-  other: { label: 'Other', icon: 'more-horizontal', color: 'gray' },
 } as const
 
 export const CATEGORY_INFO = {
@@ -120,7 +104,6 @@ export const CATEGORY_INFO = {
   updates: { label: 'Updates', icon: 'refresh', color: 'purple' },
   payments: { label: 'Payments', icon: 'dollar', color: 'green' },
   reminders: { label: 'Reminders', icon: 'bell', color: 'orange' },
-  messages: { label: 'Messages', icon: 'message', color: 'cyan' },
 } as const
 
 // Helper to get activities by entity and category

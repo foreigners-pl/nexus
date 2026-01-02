@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { createClient } from '@/lib/supabase/client'
 import { addCase } from '@/app/actions/cases'
+import { PageHeader } from '@/components/shared/PageHeader'
 import type { Case, Client, Status, User } from '@/types/database'
 
 interface CaseWithRelations extends Case {
@@ -232,17 +233,20 @@ export default function CasesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-[hsl(var(--color-text-primary))]">
-            Cases
-          </h1>
-          <p className="text-[hsl(var(--color-text-secondary))] mt-2">
-            Manage client cases and track their progress
-          </p>
-        </div>
-        <Button onClick={() => setIsModalOpen(true)}>+ Add Case</Button>
-      </div>
+      <PageHeader 
+        title="Cases"
+        subtitle="Manage client cases and track their progress"
+        icon={
+          <svg className="w-6 h-6 text-[hsl(var(--color-primary))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+          </svg>
+        }
+        action={{
+          label: 'Add Case',
+          onClick: () => setIsModalOpen(true),
+          icon: <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+        }}
+      />
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add New Case">
         <form onSubmit={handleSubmit} className="space-y-4">

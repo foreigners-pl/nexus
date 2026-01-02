@@ -2,9 +2,11 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { logActivity, logActivityForUsers } from './dashboard'
 
 export async function addCase(formData: FormData) {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
   const clientId = formData.get('clientId') as string
   let statusId = formData.get('statusId') as string | null
@@ -34,7 +36,10 @@ export async function addCase(formData: FormData) {
       status_id: statusId,
       assigned_to: assignedTo,
     })
-    .select()
+    .select(`
+      *,
+      clients(first_name, last_name)
+    `)
     .single()
 
   if (error) {
@@ -114,6 +119,26 @@ export async function deleteCase(caseId: string) {
 
 export async function updateCaseStatus(caseId: string, statusId: string) {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // Get current case info before update
+  const { data: caseData } = await supabase
+    .from('cases')
+    .select(`
+      case_code,
+      status_id,
+      status:status_id(name),
+      clients(first_name, last_name)
+    `)
+    .eq('id', caseId)
+    .single()
+
+  // Get new status name
+  const { data: newStatus } = await supabase
+    .from('status')
+    .select('name')
+    .eq('id', statusId)
+    .single()
 
   const { error } = await supabase
     .from('cases')
@@ -123,6 +148,37 @@ export async function updateCaseStatus(caseId: string, statusId: string) {
   if (error) {
     console.error('Error updating case status:', error)
     return { error: 'Failed to update case status' }
+  }
+
+  // Log status change for all assignees
+  if (caseData && newStatus) {
+    const { data: assignees } = await supabase
+      .from('case_assignees')
+      .select('user_id')
+      .eq('case_id', caseId)
+
+    const assigneeIds = assignees?.map(a => a.user_id) || []
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const client = caseData.clients as any
+    const clientName = client 
+      ? `${client.first_name || ''} ${client.last_name || ''}`.trim() || 'Unknown'
+      : 'Unknown'
+    const oldStatusName = (caseData.status as any)?.name || 'Unknown'
+
+    await logActivityForUsers({
+      userIds: assigneeIds,
+      actorId: user?.id,
+      actionType: 'case_status_changed',
+      entityType: 'case',
+      entityId: caseId,
+      message: `Case ${caseData.case_code || ''} moved to "${newStatus.name}"`,
+      metadata: {
+        case_code: caseData.case_code,
+        client_name: clientName,
+        old_status: oldStatusName,
+        new_status: newStatus.name,
+      }
+    })
   }
 
   revalidatePath('/cases')

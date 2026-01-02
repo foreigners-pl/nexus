@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { logActivityForUsers } from '../dashboard'
 
 /**
  * Get cards for a specific board
@@ -170,6 +171,13 @@ export async function moveCard(cardId: string, newStatusId: string, newPosition:
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
 
+  // Get card info before update
+  const { data: cardBefore } = await supabase
+    .from('cards')
+    .select('title, status_id, board_id')
+    .eq('id', cardId)
+    .single()
+
   const { data, error } = await supabase
     .from('cards')
     .update({ 
@@ -181,6 +189,45 @@ export async function moveCard(cardId: string, newStatusId: string, newPosition:
     .single()
 
   if (error) return { error: error.message }
+
+  // Log task status change if status actually changed
+  if (cardBefore && cardBefore.status_id !== newStatusId) {
+    const { data: newStatus } = await supabase
+      .from('board_statuses')
+      .select('name')
+      .eq('id', newStatusId)
+      .single()
+
+    const { data: assignees } = await supabase
+      .from('card_assignees')
+      .select('user_id')
+      .eq('card_id', cardId)
+
+    const { data: actorProfile } = await supabase
+      .from('users')
+      .select('display_name, email')
+      .eq('id', user.id)
+      .single()
+
+    const actorName = actorProfile?.display_name || actorProfile?.email || 'Someone'
+    const assigneeIds = assignees?.map(a => a.user_id) || []
+
+    if (assigneeIds.length > 0) {
+      await logActivityForUsers({
+        userIds: assigneeIds,
+        actorId: user.id,
+        actionType: 'task_status_changed',
+        entityType: 'card',
+        entityId: cardId,
+        message: `${actorName} moved task "${cardBefore.title}" to "${newStatus?.name || 'Unknown'}"`,
+        metadata: {
+          card_title: cardBefore.title,
+          new_status: newStatus?.name,
+          actor_name: actorName,
+        }
+      })
+    }
+  }
   
   // Don't revalidate - use optimistic updates in components
   return { success: true }

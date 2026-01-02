@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { logActivity } from '../dashboard'
 
 /**
  * Add an assignee to a card
@@ -51,6 +52,40 @@ export async function addCardAssignee(cardId: string, userId: string) {
   }
   
   console.log('✅ [addCardAssignee] Assignee added successfully:', data)
+
+  // Log task assigned notification (only if assigning someone else)
+  if (userId !== user.id) {
+    const { data: card } = await supabase
+      .from('cards')
+      .select('title, boards(name)')
+      .eq('id', cardId)
+      .single()
+
+    const { data: actorProfile } = await supabase
+      .from('users')
+      .select('display_name, email')
+      .eq('id', user.id)
+      .single()
+
+    const actorName = actorProfile?.display_name || actorProfile?.email || 'Someone'
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const boardName = (card?.boards as any)?.name || 'Unknown'
+
+    await logActivity({
+      userId: userId,
+      actorId: user.id,
+      actionType: 'task_assigned',
+      entityType: 'card',
+      entityId: cardId,
+      message: `${actorName} assigned you to task "${card?.title || 'Unknown'}"`,
+      metadata: {
+        card_title: card?.title,
+        board_name: boardName,
+        actor_name: actorName,
+      }
+    })
+  }
+
   return { data }
 }
 

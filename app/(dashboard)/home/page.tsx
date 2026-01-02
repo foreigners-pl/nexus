@@ -9,6 +9,7 @@ import {
   getUnassignedCases,
   type DashboardData
 } from '@/app/actions/dashboard'
+import { createClient } from '@/lib/supabase/client'
 import type { User, ActivityLog, Case } from '@/types/database'
 
 interface UnassignedCase extends Case {
@@ -38,6 +39,34 @@ export default function HomePage() {
   useEffect(() => {
     loadDashboardData()
   }, [])
+
+  // Real-time subscription for activity updates
+  useEffect(() => {
+    if (!dashboardData?.user?.id) return
+
+    const supabase = createClient()
+    
+    const channel = supabase
+      .channel('activity-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'activity_log',
+          filter: `user_id=eq.${dashboardData.user.id}`
+        },
+        () => {
+          // Refresh activities when new one is inserted for this user
+          refreshActivities()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [dashboardData?.user?.id])
 
   async function loadDashboardData() {
     setLoading(true)
@@ -76,13 +105,20 @@ export default function HomePage() {
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden">
       {/* Header */}
-      <div className="flex-shrink-0 pb-4">
-        <h1 className="text-2xl font-bold text-[hsl(var(--color-text-primary))]">
-          {getGreeting()}, <span className="bg-gradient-to-r from-[hsl(var(--color-primary))] to-[hsl(var(--color-primary-hover))] bg-clip-text text-transparent">{dashboardData.user?.display_name || dashboardData.user?.email?.split('@')[0] || 'there'}</span>!
-        </h1>
-        <p className="text-sm text-[hsl(var(--color-text-secondary))]">
-          {formatDate()}
-        </p>
+      <div className="flex-shrink-0 pb-4 flex items-center gap-4">
+        <div className="p-3 rounded-2xl bg-[hsl(var(--color-primary))]/20 backdrop-blur-sm border border-[hsl(var(--color-primary))]/30 shadow-[0_0_20px_hsl(var(--color-primary)/0.2)]">
+          <svg className="w-6 h-6 text-[hsl(var(--color-primary))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+          </svg>
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-[hsl(var(--color-text-primary))]">
+            {getGreeting()}, <span className="bg-gradient-to-r from-[hsl(var(--color-primary))] to-[hsl(var(--color-primary-hover))] bg-clip-text text-transparent">{dashboardData.user?.display_name || dashboardData.user?.email?.split('@')[0] || 'there'}</span>
+          </h1>
+          <p className="text-sm text-[hsl(var(--color-text-secondary))] mt-0.5">
+            {formatDate()}
+          </p>
+        </div>
       </div>
 
       {/* Main Content - Fills remaining space */}
@@ -95,6 +131,7 @@ export default function HomePage() {
             myPayments={dashboardData.myPayments}
             myOverdue={dashboardData.myOverdue}
             todayCount={dashboardData.todayCount}
+            todayCounts={dashboardData.todayCounts}
           />
         </div>
 

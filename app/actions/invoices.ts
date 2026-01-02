@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { logActivityForUsers } from './dashboard'
 
 export async function createInvoice(
   caseId: string,
@@ -114,7 +115,7 @@ export async function updateInvoiceStatus(
   if (status === 'paid') {
     const { data: invoice } = await supabase
       .from('invoices')
-      .select('installment_id')
+      .select('installment_id, amount')
       .eq('id', invoiceId)
       .single()
 
@@ -123,6 +124,45 @@ export async function updateInvoiceStatus(
         .from('installments')
         .update({ paid: true })
         .eq('id', invoice.installment_id)
+    }
+
+    // Log payment received notification
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: caseData } = await supabase
+      .from('cases')
+      .select('case_code, id')
+      .eq('id', caseId)
+      .single()
+
+    const { data: assignees } = await supabase
+      .from('case_assignees')
+      .select('user_id')
+      .eq('case_id', caseId)
+
+    const { data: actorProfile } = await supabase
+      .from('users')
+      .select('display_name, email')
+      .eq('id', user?.id)
+      .single()
+
+    const actorName = actorProfile?.display_name || actorProfile?.email || 'Someone'
+    const assigneeIds = assignees?.map(a => a.user_id) || []
+    const amount = invoice?.amount || 0
+
+    if (assigneeIds.length > 0) {
+      await logActivityForUsers({
+        userIds: assigneeIds,
+        actorId: user?.id,
+        actionType: 'case_payment_received',
+        entityType: 'case',
+        entityId: caseId,
+        message: `Payment of $${amount.toFixed(2)} received for case ${caseData?.case_code || ''}`,
+        metadata: {
+          case_code: caseData?.case_code,
+          amount: amount,
+          actor_name: actorName,
+        }
+      })
     }
   }
 

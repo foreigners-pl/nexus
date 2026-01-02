@@ -3,21 +3,132 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { ActivityLog, Case, Card, Installment, User } from '@/types/database'
+import type { ActivityType } from '@/lib/activity-types'
+import { DEFAULT_FEED } from '@/lib/activity-types'
 
 // ============================================
 // ACTIVITY LOG ACTIONS
 // ============================================
 
+/**
+ * Log an activity event for a user
+ * This should be called from server actions when events happen
+ */
+export async function logActivity(params: {
+  userId: string           // Who this activity is FOR
+  actorId?: string | null  // Who performed the action (null for system)
+  actionType: ActivityType // The type of action (case_assigned, task_comment, etc.)
+  entityType: 'case' | 'card' | 'installment' | 'invoice'
+  entityId: string
+  message: string
+  metadata?: Record<string, any>
+}): Promise<{ id?: string; error?: string }> {
+  console.log('🔔 logActivity called:', params)
+  
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('activity_log')
+    .insert({
+      user_id: params.userId,
+      actor_id: params.actorId || null,
+      action_type: params.actionType,
+      entity_type: params.entityType,
+      entity_id: params.entityId,
+      message: params.message,
+      metadata: params.metadata || {},
+    })
+    .select('id')
+    .single()
+
+  if (error) {
+    console.error('❌ Error logging activity:', error)
+    return { error: error.message }
+  }
+
+  console.log('✅ Activity logged:', data?.id)
+  
+  // Revalidate home page to show new activity
+  revalidatePath('/home')
+  
+  return { id: data?.id }
+}
+
+/**
+ * Log activity for multiple users at once (e.g., all assignees on a case)
+ */
+export async function logActivityForUsers(params: {
+  userIds: string[]
+  actorId?: string | null
+  actionType: ActivityType
+  entityType: 'case' | 'card' | 'installment' | 'invoice'
+  entityId: string
+  message: string
+  metadata?: Record<string, any>
+}): Promise<{ count: number; error?: string }> {
+  if (params.userIds.length === 0) return { count: 0 }
+  
+  const supabase = await createClient()
+  
+  // Filter out the actor from notifications (don't notify yourself)
+  const usersToNotify = params.actorId 
+    ? params.userIds.filter(id => id !== params.actorId)
+    : params.userIds
+
+  if (usersToNotify.length === 0) return { count: 0 }
+
+  const records = usersToNotify.map(userId => ({
+    user_id: userId,
+    actor_id: params.actorId || null,
+    action_type: params.actionType,
+    entity_type: params.entityType,
+    entity_id: params.entityId,
+    message: params.message,
+    metadata: params.metadata || {},
+  }))
+
+  const { data, error } = await supabase
+    .from('activity_log')
+    .insert(records)
+    .select('id')
+
+  if (error) {
+    console.error('Error logging activities:', error)
+    return { count: 0, error: error.message }
+  }
+
+  // Revalidate home page to show new activities
+  revalidatePath('/home')
+
+  return { count: data?.length || 0 }
+}
+
+/**
+ * Get activities for the current user, filtered by their feed preferences
+ */
 export async function getMyActivities(limit = 20): Promise<{ activities: ActivityLog[]; error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   
   if (!user) return { activities: [], error: 'Not authenticated' }
 
+  // Get user's feed preferences
+  const { data: prefs } = await supabase
+    .from('user_activity_preferences')
+    .select('show_in_feed')
+    .eq('user_id', user.id)
+    .single()
+
+  // Use preferences or default (all on)
+  const allowedTypes = (prefs?.show_in_feed && prefs.show_in_feed.length > 0) 
+    ? prefs.show_in_feed 
+    : DEFAULT_FEED
+
   const { data, error } = await supabase
     .from('activity_log')
     .select('*')
     .eq('user_id', user.id)
+    .in('action_type', allowedTypes)
     .order('created_at', { ascending: false })
     .limit(limit)
 
@@ -970,6 +1081,7 @@ export interface DashboardData {
   myPayments: any[]
   myOverdue: { cases: any[]; tasks: any[]; payments: any[] }
   todayCount: number
+  todayCounts: { cases: number; tasks: number; payments: number }
 }
 
 export async function getAllDashboardData(): Promise<{ data: DashboardData; error?: string }> {
@@ -986,18 +1098,20 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
         myTasks: [],
         myPayments: [],
         myOverdue: { cases: [], tasks: [], payments: [] },
-        todayCount: 0
+        todayCount: 0,
+        todayCounts: { cases: 0, tasks: 0, payments: 0 }
       },
       error: 'Not authenticated' 
     }
   }
 
+  // Use local date formatting to avoid timezone issues
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  const todayStr = today.toISOString().split('T')[0]
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
   const tomorrow = new Date(today)
   tomorrow.setDate(tomorrow.getDate() + 1)
-  const tomorrowStr = tomorrow.toISOString().split('T')[0]
+  const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`
 
   // Fetch user profile, case assignments, and card assignments in parallel
   const [
@@ -1169,7 +1283,10 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
   })
 
   // Calculate today count
-  const todayCount = (todayCasesResult.count || 0) + (todayCardsResult.count || 0) + (todayInstallmentsResult.count || 0)
+  const todayCasesCount = todayCasesResult.count || 0
+  const todayTasksCount = todayCardsResult.count || 0
+  const todayPaymentsCount = todayInstallmentsResult.count || 0
+  const todayCount = todayCasesCount + todayTasksCount + todayPaymentsCount
 
   return {
     data: {
@@ -1180,7 +1297,8 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
       myTasks,
       myPayments,
       myOverdue: { cases: overdueCases, tasks: overdueTasks, payments: overduePayments },
-      todayCount
+      todayCount,
+      todayCounts: { cases: todayCasesCount, tasks: todayTasksCount, payments: todayPaymentsCount }
     }
   }
 }

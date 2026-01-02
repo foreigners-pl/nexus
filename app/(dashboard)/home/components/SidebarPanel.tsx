@@ -37,31 +37,19 @@ function formatTimeAgo(dateString: string): string {
 }
 
 const actionIcons: Record<string, React.ReactNode> = {
-  assigned: (
+  // Case icon - briefcase
+  case: (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
     </svg>
   ),
-  comment: (
+  // Task icon - clipboard with check
+  card: (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
     </svg>
   ),
-  payment_received: (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  ),
-  claimed: (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-    </svg>
-  ),
-  status_change: (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-    </svg>
-  ),
+  // Default/fallback
   default: (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -69,14 +57,68 @@ const actionIcons: Record<string, React.ReactNode> = {
   )
 }
 
-const actionColors: Record<string, string> = {
-  assigned: 'text-blue-500 bg-blue-500/10',
-  comment: 'text-purple-500 bg-purple-500/10',
-  payment_received: 'text-green-500 bg-green-500/10',
-  claimed: 'text-emerald-500 bg-emerald-500/10',
-  overdue: 'text-red-500 bg-red-500/10',
-  status_change: 'text-orange-500 bg-orange-500/10',
-  default: 'text-gray-500 bg-gray-500/10'
+// Map action types to categories
+const actionToCategory: Record<string, string> = {
+  // Assignments
+  assigned: 'assignments',
+  case_assigned: 'assignments',
+  case_unassigned: 'assignments',
+  task_assigned: 'assignments',
+  task_unassigned: 'assignments',
+  // Updates
+  comment: 'updates',
+  case_comment: 'updates',
+  task_comment: 'updates',
+  status_change: 'updates',
+  case_status_changed: 'updates',
+  task_status_changed: 'updates',
+  task_completed: 'updates',
+  case_due_date_changed: 'updates',
+  task_due_date_changed: 'updates',
+  case_attachment_added: 'updates',
+  case_attachment_removed: 'updates',
+  // Payments
+  payment_received: 'payments',
+  case_payment_received: 'payments',
+  case_payment_overdue: 'payments',
+  claimed: 'payments',
+  // Reminders
+  overdue: 'reminders',
+  case_due_today: 'reminders',
+  case_one_week_overdue: 'reminders',
+  case_one_month_overdue: 'reminders',
+  task_due_today: 'reminders',
+  task_one_week_overdue: 'reminders',
+  task_one_month_overdue: 'reminders',
+}
+
+// Category colors for icons and unread backgrounds
+const categoryColors = {
+  assignments: {
+    icon: 'text-blue-400 bg-blue-400/20',
+    unread: 'bg-blue-500/15 border border-blue-500/30'
+  },
+  updates: {
+    icon: 'text-purple-400 bg-purple-400/20',
+    unread: 'bg-purple-500/15 border border-purple-500/30'
+  },
+  payments: {
+    icon: 'text-green-400 bg-green-400/20',
+    unread: 'bg-green-500/15 border border-green-500/30'
+  },
+  reminders: {
+    icon: 'text-orange-400 bg-orange-400/20',
+    unread: 'bg-orange-500/15 border border-orange-500/30'
+  },
+  default: {
+    icon: 'text-gray-400 bg-gray-400/20',
+    unread: 'bg-gray-500/15 border border-gray-500/30'
+  }
+} as const
+
+function getCategoryColors(actionType: string) {
+  const category = actionToCategory[actionType] || 'default'
+  return categoryColors[category as keyof typeof categoryColors] || categoryColors.default
 }
 
 export function SidebarPanel({ activities, cases, onRefreshActivities, onRefreshCases }: SidebarPanelProps) {
@@ -294,23 +336,31 @@ export function SidebarPanel({ activities, cases, onRefreshActivities, onRefresh
                 No recent activity
               </p>
             ) : (
-              activities.map((activity) => (
+              activities.map((activity) => {
+                const colors = getCategoryColors(activity.action_type)
+                const entityLabel = activity.entity_type === 'case' ? 'Case' : activity.entity_type === 'card' ? 'Task' : null
+                return (
                 <div
                   key={activity.id}
                   onClick={() => handleActivityClick(activity)}
                   className={cn(
                     "flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200",
-                    "hover:bg-[hsl(var(--color-surface-hover))] hover:scale-[1.01]",
-                    !activity.is_read && "bg-[hsl(var(--color-primary))]/10 border border-[hsl(var(--color-primary))]/20"
+                    "hover:scale-[1.01]",
+                    colors.unread
                   )}
                 >
                   <div className={cn(
                     "p-2 rounded-full flex-shrink-0",
-                    actionColors[activity.action_type] || actionColors.default
+                    colors.icon
                   )}>
-                    {actionIcons[activity.action_type] || actionIcons.default}
+                    {actionIcons[activity.entity_type] || actionIcons.default}
                   </div>
                   <div className="flex-1 min-w-0">
+                    {entityLabel && (
+                      <span className="text-[10px] font-medium text-[hsl(var(--color-text-secondary))] uppercase tracking-wide">
+                        {entityLabel}
+                      </span>
+                    )}
                     <p className="text-sm text-[hsl(var(--color-text-primary))]">
                       {activity.message}
                     </p>
@@ -319,10 +369,10 @@ export function SidebarPanel({ activities, cases, onRefreshActivities, onRefresh
                     </p>
                   </div>
                   {!activity.is_read && (
-                    <div className="w-2 h-2 rounded-full bg-[hsl(var(--color-primary))] flex-shrink-0 mt-1.5" />
+                    <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 mt-1.5" />
                   )}
                 </div>
-              ))
+              )})
             )}
           </div>
         )}

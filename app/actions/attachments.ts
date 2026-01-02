@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { logActivityForUsers } from './dashboard'
 
 export async function uploadAttachment(caseId: string, formData: FormData) {
   const supabase = await createClient()
@@ -62,6 +63,43 @@ export async function uploadAttachment(caseId: string, formData: FormData) {
       return { error: `Failed to save attachment metadata: ${dbError.message}` }
     }
 
+    // Log activity for case assignees
+    const { data: caseData } = await supabase
+      .from('cases')
+      .select('case_code')
+      .eq('id', caseId)
+      .single()
+
+    const { data: assignees } = await supabase
+      .from('case_assignees')
+      .select('user_id')
+      .eq('case_id', caseId)
+
+    const { data: actorProfile } = await supabase
+      .from('users')
+      .select('display_name, email')
+      .eq('id', user?.id)
+      .single()
+
+    const actorName = actorProfile?.display_name || actorProfile?.email || 'Someone'
+    const assigneeIds = assignees?.map(a => a.user_id) || []
+
+    if (assigneeIds.length > 0) {
+      await logActivityForUsers({
+        userIds: assigneeIds,
+        actorId: user?.id,
+        actionType: 'case_attachment_added',
+        entityType: 'case',
+        entityId: caseId,
+        message: `${actorName} added attachment "${file.name}" to case ${caseData?.case_code || ''}`,
+        metadata: {
+          case_code: caseData?.case_code,
+          file_name: file.name,
+          actor_name: actorName,
+        }
+      })
+    }
+
     revalidatePath(`/cases/${caseId}`)
     return { success: true, data: attachment }
   } catch (error) {
@@ -112,8 +150,18 @@ export async function getAttachmentUrl(filePath: string) {
   return data.publicUrl
 }
 
-export async function deleteAttachment(attachmentId: string, filePath: string) {
+export async function deleteAttachment(attachmentId: string, filePath: string, caseId?: string) {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // Get attachment info before deletion
+  const { data: attachmentData } = await supabase
+    .from('case_attachments')
+    .select('file_name, case_id')
+    .eq('id', attachmentId)
+    .single()
+
+  const actualCaseId = caseId || attachmentData?.case_id
 
   // Delete from storage
   const { error: storageError } = await supabase.storage
@@ -134,6 +182,45 @@ export async function deleteAttachment(attachmentId: string, filePath: string) {
   if (dbError) {
     console.error('Database delete error:', dbError)
     return { error: 'Failed to delete attachment record' }
+  }
+
+  // Log activity for case assignees
+  if (actualCaseId) {
+    const { data: caseData } = await supabase
+      .from('cases')
+      .select('case_code')
+      .eq('id', actualCaseId)
+      .single()
+
+    const { data: assignees } = await supabase
+      .from('case_assignees')
+      .select('user_id')
+      .eq('case_id', actualCaseId)
+
+    const { data: actorProfile } = await supabase
+      .from('users')
+      .select('display_name, email')
+      .eq('id', user?.id)
+      .single()
+
+    const actorName = actorProfile?.display_name || actorProfile?.email || 'Someone'
+    const assigneeIds = assignees?.map(a => a.user_id) || []
+
+    if (assigneeIds.length > 0) {
+      await logActivityForUsers({
+        userIds: assigneeIds,
+        actorId: user?.id,
+        actionType: 'case_attachment_removed',
+        entityType: 'case',
+        entityId: actualCaseId,
+        message: `${actorName} removed attachment "${attachmentData?.file_name || 'file'}" from case ${caseData?.case_code || ''}`,
+        metadata: {
+          case_code: caseData?.case_code,
+          file_name: attachmentData?.file_name,
+          actor_name: actorName,
+        }
+      })
+    }
   }
 
   return { success: true }

@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { logout } from '@/app/actions/auth'
 import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
+import { useNotifications } from '@/lib/notifications/NotificationContext'
 import type { User } from '@/types/database'
 
 // Icons as simple SVG components
@@ -73,6 +74,15 @@ export function Navbar() {
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [isCollapsed, setIsCollapsed] = useState(false)
+  
+  // Get notification count - wrapped in try/catch in case context is not available
+  let unreadCount = 0
+  try {
+    const notifications = useNotifications()
+    unreadCount = notifications.unreadCount
+  } catch {
+    // Context not available yet
+  }
 
   useEffect(() => {
     // Load collapsed state from localStorage
@@ -138,6 +148,7 @@ export function Navbar() {
           {navItems.map((item) => {
             const isActive = pathname === item.href || 
                            (item.href !== '/' && pathname.startsWith(item.href))
+            const showBadge = item.href === '/home' && unreadCount > 0
             
             return (
               <li key={item.href}>
@@ -145,7 +156,7 @@ export function Navbar() {
                   href={item.href}
                   title={isCollapsed ? item.label : undefined}
                   className={cn(
-                    'flex items-center rounded-lg cursor-pointer',
+                    'flex items-center rounded-lg cursor-pointer relative',
                     'text-sm font-medium transition-all duration-200',
                     isCollapsed ? 'px-3 py-3 justify-center' : 'px-4 py-3 gap-3',
                     isActive
@@ -153,8 +164,24 @@ export function Navbar() {
                       : 'text-[hsl(var(--color-text-secondary))] hover:bg-[hsl(var(--color-surface-hover))] hover:text-[hsl(var(--color-text-primary))]'
                   )}
                 >
-                  <span className="flex-shrink-0">{icons[item.icon]}</span>
-                  {!isCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
+                  <span className="flex-shrink-0 relative">
+                    {icons[item.icon]}
+                    {showBadge && isCollapsed && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
+                  </span>
+                  {!isCollapsed && (
+                    <>
+                      <span className="whitespace-nowrap flex-1">{item.label}</span>
+                      {showBadge && (
+                        <span className="px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] text-center">
+                          {unreadCount > 99 ? '99+' : unreadCount}
+                        </span>
+                      )}
+                    </>
+                  )}
                 </Link>
               </li>
             )

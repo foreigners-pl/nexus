@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Navbar } from '@/components/layout/Navbar'
+import { NotificationProvider } from '@/lib/notifications/NotificationContext'
 import { cn } from '@/lib/utils'
 
 export default function DashboardLayout({
@@ -28,14 +29,16 @@ export default function DashboardLayout({
   }, [])
 
   return (
-    <div className="h-screen bg-[hsl(var(--color-background))] flex flex-col">
-      <Navbar />
-      <main className={cn(
-        "p-8 flex-1 overflow-y-auto transition-all duration-300",
-        isNavCollapsed ? "ml-16" : "ml-64"
-      )}>
-        {children}
-      </main>
-    </div>
+    <NotificationProvider>
+      <div className="h-screen bg-[hsl(var(--color-background))] flex flex-col">
+        <Navbar />
+        <main className={cn(
+          "px-6 py-6 flex-1 overflow-y-auto transition-all duration-300",
+          isNavCollapsed ? "ml-16" : "ml-56"
+        )}>
+          {children}
+        </main>
+      </div>
+    </NotificationProvider>
   )
 }

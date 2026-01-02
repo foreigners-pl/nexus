@@ -88,9 +88,10 @@ interface DashboardPanelProps {
   myPayments: any[]
   myOverdue: { cases: any[]; tasks: any[]; payments: any[] }
   todayCount: number
+  todayCounts: { cases: number; tasks: number; payments: number }
 }
 
-export function DashboardPanel({ myCases, myTasks, myPayments, myOverdue, todayCount }: DashboardPanelProps) {
+export function DashboardPanel({ myCases, myTasks, myPayments, myOverdue, todayCount, todayCounts }: DashboardPanelProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabType>('timeline')
 
@@ -215,7 +216,7 @@ export function DashboardPanel({ myCases, myTasks, myPayments, myOverdue, todayC
       </CardHeader>
 
       <CardContent className="flex-1 min-h-0 overflow-hidden pt-0 px-3 pb-3">
-        {activeTab === 'timeline' && <TimelineTab />}
+        {activeTab === 'timeline' && <TimelineTab todayCounts={todayCounts} />}
         {activeTab === 'cases' && <MyCasesTab cases={myCases} />}
         {activeTab === 'tasks' && <OpenTasksTab tasks={myTasks} />}
         {activeTab === 'payments' && <PendingPaymentsTab cases={myPayments} />}
@@ -240,7 +241,7 @@ interface TimelineItem {
   color?: string
 }
 
-function TimelineTab() {
+function TimelineTab({ todayCounts }: { todayCounts: { cases: number; tasks: number; payments: number } }) {
   const router = useRouter()
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => getStartOfWeek(new Date()))
   const [timelineFilter, setTimelineFilter] = useState<'cases' | 'tasks' | 'payments'>('cases')
@@ -328,10 +329,16 @@ function TimelineTab() {
   }
 
   const filterButtons = [
-    { id: 'cases' as const, label: 'Cases', icon: '' },
-    { id: 'tasks' as const, label: 'Tasks', icon: '' },
-    { id: 'payments' as const, label: 'Payments', icon: '' }
+    { id: 'cases' as const, label: 'Cases', count: todayCounts.cases, color: 'blue' },
+    { id: 'tasks' as const, label: 'Tasks', count: todayCounts.tasks, color: 'purple' },
+    { id: 'payments' as const, label: 'Payments', count: todayCounts.payments, color: 'green' }
   ]
+
+  const filterColors = {
+    cases: { active: 'bg-blue-500 shadow-[0_2px_12px_rgb(59_130_246/0.4)]', badge: 'bg-blue-500', badgeActive: 'bg-white/20' },
+    tasks: { active: 'bg-purple-500 shadow-[0_2px_12px_rgb(168_85_247/0.4)]', badge: 'bg-purple-500', badgeActive: 'bg-white/20' },
+    payments: { active: 'bg-green-500 shadow-[0_2px_12px_rgb(34_197_94/0.4)]', badge: 'bg-green-500', badgeActive: 'bg-white/20' }
+  }
 
   return (
     <div className="h-full flex flex-col">
@@ -365,20 +372,28 @@ function TimelineTab() {
           </Button>
         </div>
 
-        {/* Filter Buttons - Glass Style */}
+        {/* Filter Buttons - Glass Style with Colors */}
         <div className="flex gap-1 bg-[hsl(var(--color-surface))] backdrop-blur-sm p-1 rounded-xl border border-[hsl(var(--color-border))]">
           {filterButtons.map(f => (
             <button
               key={f.id}
               onClick={() => setTimelineFilter(f.id)}
               className={cn(
-                "flex items-center justify-center px-4 py-2 text-sm font-medium rounded-lg transition-all duration-300 cursor-pointer min-w-[80px]",
+                "flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-300 cursor-pointer",
                 timelineFilter === f.id
-                  ? "bg-[hsl(var(--color-primary))] text-white shadow-[0_2px_12px_hsl(var(--color-primary)/0.4)]"
+                  ? `${filterColors[f.id].active} text-white`
                   : "text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))] hover:bg-[hsl(var(--color-surface-hover))]"
               )}
             >
               {f.label}
+              {f.count > 0 && (
+                <span className={cn(
+                  "px-1.5 py-0.5 text-xs font-bold rounded-full",
+                  timelineFilter === f.id ? filterColors[f.id].badgeActive + " text-white" : filterColors[f.id].badge + " text-white"
+                )}>
+                  {f.count}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -446,10 +461,8 @@ function TimelineTab() {
                               ? "bg-red-900/50 hover:bg-red-900/70 border-red-500/40"
                               : today
                                 ? "bg-[hsl(var(--color-surface))] hover:bg-[hsl(var(--color-surface-active))] border-[hsl(var(--color-border-hover))]"
-                                : "bg-[hsl(var(--color-surface-hover))] hover:bg-[hsl(var(--color-surface-active))] border-[hsl(var(--color-border))]",
-                            item.color && "border-l-2"
+                                : "bg-[hsl(var(--color-surface-hover))] hover:bg-[hsl(var(--color-surface-active))] border-[hsl(var(--color-border))]"
                           )}
-                          style={item.color ? { borderLeftColor: item.color } : undefined}
                         >
                           <div className={cn("font-semibold truncate", past && !today ? "text-red-300" : "text-white")}>
                             {item.title}
@@ -719,15 +732,21 @@ function OverdueTab({ items }: { items: { cases: any[]; tasks: any[]; payments: 
   }
 
   const sections = [
-    { id: 'cases' as const, label: 'Cases', count: items.cases.length },
-    { id: 'tasks' as const, label: 'Tasks', count: items.tasks.length },
-    { id: 'payments' as const, label: 'Payments', count: items.payments.length }
+    { id: 'cases' as const, label: 'Cases', count: items.cases.length, color: 'blue' },
+    { id: 'tasks' as const, label: 'Tasks', count: items.tasks.length, color: 'purple' },
+    { id: 'payments' as const, label: 'Payments', count: items.payments.length, color: 'green' }
   ]
+
+  const sectionColors = {
+    cases: { active: 'bg-blue-500 shadow-[0_2px_12px_rgb(59_130_246/0.4)]', badge: 'bg-blue-500', badgeActive: 'bg-white/20' },
+    tasks: { active: 'bg-purple-500 shadow-[0_2px_12px_rgb(168_85_247/0.4)]', badge: 'bg-purple-500', badgeActive: 'bg-white/20' },
+    payments: { active: 'bg-green-500 shadow-[0_2px_12px_rgb(34_197_94/0.4)]', badge: 'bg-green-500', badgeActive: 'bg-white/20' }
+  }
 
   return (
     <div className="h-full flex flex-col">
       {/* Section tabs */}
-      <div className="flex gap-1 pb-3 bg-[hsl(var(--color-surface))] backdrop-blur-sm p-1 rounded-xl border border-[hsl(var(--color-border))] w-fit">
+      <div className="flex gap-1 mb-3 bg-[hsl(var(--color-surface))] backdrop-blur-sm p-1 rounded-xl border border-[hsl(var(--color-border))] w-fit">
         {sections.map(s => (
           <button
             key={s.id}
@@ -735,7 +754,7 @@ function OverdueTab({ items }: { items: { cases: any[]; tasks: any[]; payments: 
             className={cn(
               "flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-300 cursor-pointer",
               activeSection === s.id
-                ? "bg-red-500 text-white shadow-[0_2px_12px_rgb(239_68_68/0.4)]"
+                ? `${sectionColors[s.id].active} text-white`
                 : "text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))] hover:bg-[hsl(var(--color-surface-hover))]"
             )}
           >
@@ -743,7 +762,7 @@ function OverdueTab({ items }: { items: { cases: any[]; tasks: any[]; payments: 
             {s.count > 0 && (
               <span className={cn(
                 "px-1.5 py-0.5 text-xs font-bold rounded-full",
-                activeSection === s.id ? "bg-white/20 text-white" : "bg-red-500 text-white"
+                activeSection === s.id ? sectionColors[s.id].badgeActive + " text-white" : sectionColors[s.id].badge + " text-white"
               )}>
                 {s.count}
               </span>

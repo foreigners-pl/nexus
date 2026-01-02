@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { logActivityForUsers } from './dashboard'
 
 export async function addComment(caseId: string, text: string) {
   const supabase = await createClient()
@@ -27,6 +28,41 @@ export async function addComment(caseId: string, text: string) {
     console.error('Error adding comment:', error)
     return { error: error.message }
   }
+
+  // Log comment for all other assignees
+  const { data: caseData } = await supabase
+    .from('cases')
+    .select('case_code, clients(first_name, last_name)')
+    .eq('id', caseId)
+    .single()
+
+  const { data: assignees } = await supabase
+    .from('case_assignees')
+    .select('user_id')
+    .eq('case_id', caseId)
+
+  const { data: commenterProfile } = await supabase
+    .from('users')
+    .select('display_name, email')
+    .eq('id', user.id)
+    .single()
+
+  const assigneeIds = assignees?.map(a => a.user_id) || []
+  const commenterName = commenterProfile?.display_name || commenterProfile?.email || 'Someone'
+
+  await logActivityForUsers({
+    userIds: assigneeIds,
+    actorId: user.id,
+    actionType: 'case_comment',
+    entityType: 'case',
+    entityId: caseId,
+    message: `${commenterName} commented on case ${caseData?.case_code || ''}`,
+    metadata: {
+      case_code: caseData?.case_code,
+      commenter_name: commenterName,
+      comment_preview: text.slice(0, 100),
+    }
+  })
 
   revalidatePath(`/cases/${caseId}`)
   return { data }
