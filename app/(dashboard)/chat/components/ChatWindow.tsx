@@ -161,15 +161,13 @@ export default function ChatWindow({ conversation, onBack, onMeetingUpdate }: Ch
     if (!content.trim() && !attachment) return
 
     setSending(true)
-    const { message, error } = await sendMessage(conversation.id, content, attachment)
+    const { error } = await sendMessage(conversation.id, content, attachment)
     
     if (error) {
       console.error('Error sending message:', error)
       alert('Failed to send message: ' + error)
-    } else if (message) {
-      // Add message immediately (don't wait for realtime)
-      setMessages(prev => [...prev, message])
     }
+    // Don't add message here - let the realtime subscription handle it to avoid duplicates
     setSending(false)
   }
 
