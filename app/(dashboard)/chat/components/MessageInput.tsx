@@ -150,12 +150,12 @@ export default function MessageInput({ onSend, disabled, conversationId }: Messa
         </div>
       )}
 
-      <div className="flex items-end gap-2">
+      <div className="flex items-center gap-2">
         {/* Attachment button */}
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
-          className="p-2.5 rounded-xl hover:bg-white/10 transition-all duration-200 text-white/50 hover:text-white/80 disabled:opacity-50"
+          className="p-2.5 rounded-xl hover:bg-white/10 transition-all duration-200 text-white/50 hover:text-white/80 disabled:opacity-50 self-center"
         >
           {uploading ? (
             <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -174,7 +174,7 @@ export default function MessageInput({ onSend, disabled, conversationId }: Messa
         />
 
         {/* Emoji button */}
-        <div className="relative" ref={emojiPickerRef}>
+        <div className="relative self-center" ref={emojiPickerRef}>
           <button
             onClick={() => setShowEmoji(!showEmoji)}
             className="p-2.5 rounded-xl hover:bg-white/10 transition-all duration-200 text-white/50 hover:text-white/80"
@@ -208,7 +208,7 @@ export default function MessageInput({ onSend, disabled, conversationId }: Messa
         <button
           onClick={handleSend}
           disabled={(!message.trim() && !attachment) || disabled}
-          className="p-3 rounded-xl bg-primary text-white hover:bg-primary/90 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:scale-105 active:scale-95"
+          className="p-3 rounded-xl bg-primary text-white hover:bg-primary/90 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:scale-105 active:scale-95 self-center"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
