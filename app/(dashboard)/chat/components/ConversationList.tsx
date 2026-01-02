@@ -1,7 +1,8 @@
 ﻿'use client'
 
-import { useState, useEffect } from 'react'
-import { ConversationWithDetails } from '@/app/actions/chat'
+import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
+import { ConversationWithDetails, deleteConversation } from '@/app/actions/chat'
 import { createBrowserClient } from '@supabase/ssr'
 
 interface ConversationListProps {
@@ -9,13 +10,15 @@ interface ConversationListProps {
   selectedId: string | null
   onSelect: (id: string) => void
   onNewChat: () => void
+  onDelete: (id: string) => void
 }
 
 export default function ConversationList({ 
   conversations, 
   selectedId, 
   onSelect, 
-  onNewChat 
+  onNewChat,
+  onDelete
 }: ConversationListProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -87,6 +90,7 @@ export default function ConversationList({
                 isSelected={conv.id === selectedId}
                 currentUserId={currentUserId}
                 onClick={() => onSelect(conv.id)}
+                onDelete={() => onDelete(conv.id)}
               />
             ))}
           </div>
@@ -101,12 +105,48 @@ interface ConversationItemProps {
   isSelected: boolean
   currentUserId: string | null
   onClick: () => void
+  onDelete: () => void
 }
 
-function ConversationItem({ conversation, isSelected, currentUserId, onClick }: ConversationItemProps) {
+function ConversationItem({ conversation, isSelected, currentUserId, onClick, onDelete }: ConversationItemProps) {
+  const [showMenu, setShowMenu] = useState(false)
+  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 })
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  
   const name = getConversationName(conversation, currentUserId)
   const lastMessage = conversation.last_message
   const unreadCount = conversation.unread_count || 0
+  
+  // Check if current user can delete (is creator or admin)
+  const isCreator = conversation.created_by === currentUserId
+  const membership = conversation.members?.find(m => m.user_id === currentUserId)
+  const isAdmin = membership?.is_admin === true
+  const canDelete = isCreator || isAdmin
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setMenuPosition({ x: e.clientX, y: e.clientY })
+    setShowMenu(true)
+  }
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    const { success, error } = await deleteConversation(conversation.id)
+    if (success) {
+      onDelete()
+    } else {
+      alert('Failed to delete: ' + error)
+    }
+    setDeleting(false)
+    setShowDeleteConfirm(false)
+    setShowMenu(false)
+  }
 
   const formatTime = (dateStr: string) => {
     const date = new Date(dateStr)
@@ -135,68 +175,132 @@ function ConversationItem({ conversation, isSelected, currentUserId, onClick }: 
   }
 
   return (
-    <button
-      onClick={onClick}
-      className={`w-full px-3 py-3 mx-2 my-0.5 flex items-start gap-3 rounded-xl transition-all duration-200 text-left ${
-        isSelected 
-          ? 'bg-white/10 shadow-lg shadow-black/10' 
-          : 'hover:bg-white/5'
-      }`}
-      style={{ width: 'calc(100% - 16px)' }}
-    >
-      {/* Avatar */}
-      <div className={`w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-semibold shadow-lg ${
-        conversation.is_group 
-          ? 'bg-gradient-to-br from-purple-500/30 to-purple-600/20 text-purple-400 border border-purple-500/20' 
-          : 'bg-gradient-to-br from-primary/30 to-primary/10 text-primary border border-primary/20'
-      }`}>
-        {conversation.is_group ? (
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-          </svg>
-        ) : (
-          getInitials(name)
-        )}
-      </div>
+    <>
+      <button
+        onClick={onClick}
+        onContextMenu={handleContextMenu}
+        className={`w-full px-3 py-3 mx-2 my-0.5 flex items-start gap-3 rounded-xl transition-all duration-200 text-left ${
+          isSelected 
+            ? 'bg-white/10 shadow-lg shadow-black/10' 
+            : 'hover:bg-white/5'
+        }`}
+        style={{ width: 'calc(100% - 16px)' }}
+      >
+        {/* Avatar */}
+        <div className={`w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-semibold shadow-lg ${
+          conversation.is_group 
+            ? 'bg-gradient-to-br from-purple-500/30 to-purple-600/20 text-purple-400 border border-purple-500/20' 
+            : 'bg-gradient-to-br from-primary/30 to-primary/10 text-primary border border-primary/20'
+        }`}>
+          {conversation.is_group ? (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+          ) : (
+            getInitials(name)
+          )}
+        </div>
 
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <span className={`font-medium truncate ${unreadCount > 0 ? 'text-white' : 'text-white/90'}`}>
-            {name}
-          </span>
-          {lastMessage && (
-            <span className="text-xs text-white/40 flex-shrink-0 font-medium">
-              {formatTime(lastMessage.created_at)}
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className={`font-medium truncate ${unreadCount > 0 ? 'text-white' : 'text-white/90'}`}>
+              {name}
             </span>
-          )}
-        </div>
-        <div className="flex items-center justify-between gap-2 mt-1">
-          <span className={`text-sm truncate ${unreadCount > 0 ? 'text-white/80 font-medium' : 'text-white/50'}`}>
-            {lastMessage ? (
-              lastMessage.is_system ? (
-                <span className="italic">
-                  {(() => {
-                    const senderMember = conversation.members?.find(m => m.user_id === lastMessage.sender_id)
-                    const senderName = senderMember?.users?.display_name || senderMember?.users?.email?.split('@')[0] || lastMessage.sender?.display_name || 'Someone'
-                    return `${senderName} ${lastMessage.content}`
-                  })()}
-                </span>
-              ) : (
-                lastMessage.content || (lastMessage.attachment_name ? '📎 Attachment' : '')
-              )
-            ) : (
-              'No messages yet'
+            {lastMessage && (
+              <span className="text-xs text-white/40 flex-shrink-0 font-medium">
+                {formatTime(lastMessage.created_at)}
+              </span>
             )}
-          </span>
-          {unreadCount > 0 && (
-            <span className="bg-primary text-white text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 shadow-lg shadow-primary/30">
-              {unreadCount}
+          </div>
+          <div className="flex items-center justify-between gap-2 mt-1">
+            <span className={`text-sm truncate ${unreadCount > 0 ? 'text-white/80 font-medium' : 'text-white/50'}`}>
+              {lastMessage ? (
+                lastMessage.is_system ? (
+                  <span className="italic">
+                    {(() => {
+                      const senderMember = conversation.members?.find(m => m.user_id === lastMessage.sender_id)
+                      const senderName = senderMember?.users?.display_name || senderMember?.users?.email?.split('@')[0] || lastMessage.sender?.display_name || 'Someone'
+                      return `${senderName} ${lastMessage.content}`
+                    })()}
+                  </span>
+                ) : (
+                  lastMessage.content || (lastMessage.attachment_name ? '📎 Attachment' : '')
+                )
+              ) : (
+                'No messages yet'
+              )}
             </span>
-          )}
+            {unreadCount > 0 && (
+              <span className="bg-primary text-white text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 shadow-lg shadow-primary/30">
+                {unreadCount}
+              </span>
+            )}
+          </div>
         </div>
-      </div>
-    </button>
+      </button>
+
+      {/* Context Menu */}
+      {mounted && showMenu && canDelete && createPortal(
+        <>
+          <div className="fixed inset-0 z-[9998]" onClick={() => setShowMenu(false)} />
+          <div
+            className="fixed z-[9999] bg-[hsl(240_3%_15%)] border border-white/10 rounded-xl shadow-xl overflow-hidden min-w-[160px]"
+            style={{ top: menuPosition.y, left: menuPosition.x }}
+          >
+            <button
+              onClick={() => {
+                setShowDeleteConfirm(true)
+                setShowMenu(false)
+              }}
+              className="w-full px-4 py-2.5 text-left text-sm hover:bg-white/10 flex items-center gap-2 text-red-400"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Delete conversation
+            </button>
+          </div>
+        </>,
+        document.body
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {mounted && showDeleteConfirm && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-[hsl(240_3%_15%)] border border-white/10 rounded-2xl shadow-2xl p-6 max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-white mb-2">Delete Conversation</h3>
+            <p className="text-white/60 mb-6">
+              Are you sure you want to delete this conversation? This will permanently delete all messages and cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleting}
+                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {deleting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   )
 }
 

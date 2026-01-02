@@ -562,3 +562,75 @@ export async function getActiveMeeting(conversationId: string): Promise<{
     startedAt: data?.meeting_started_at || null
   }
 }
+
+// Delete a conversation (only creator or admin can delete)
+export async function deleteConversation(conversationId: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Not authenticated' }
+
+  // Check if user is the creator or an admin of this conversation
+  const { data: conversation, error: convError } = await supabase
+    .from('conversations')
+    .select('created_by')
+    .eq('id', conversationId)
+    .single()
+
+  if (convError) return { success: false, error: convError.message }
+
+  const { data: membership } = await supabase
+    .from('conversation_members')
+    .select('is_admin')
+    .eq('conversation_id', conversationId)
+    .eq('user_id', user.id)
+    .single()
+
+  const isCreator = conversation.created_by === user.id
+  const isAdmin = membership?.is_admin === true
+
+  if (!isCreator && !isAdmin) {
+    return { success: false, error: 'Only the creator or an admin can delete this conversation' }
+  }
+
+  // Delete in order: reactions -> messages -> members -> conversation
+  // First delete message reactions
+  const { data: messageIds } = await supabase
+    .from('messages')
+    .select('id')
+    .eq('conversation_id', conversationId)
+
+  if (messageIds && messageIds.length > 0) {
+    await supabase
+      .from('message_reactions')
+      .delete()
+      .in('message_id', messageIds.map(m => m.id))
+  }
+
+  // Delete messages
+  const { error: msgError } = await supabase
+    .from('messages')
+    .delete()
+    .eq('conversation_id', conversationId)
+
+  if (msgError) return { success: false, error: msgError.message }
+
+  // Delete members
+  const { error: memberError } = await supabase
+    .from('conversation_members')
+    .delete()
+    .eq('conversation_id', conversationId)
+
+  if (memberError) return { success: false, error: memberError.message }
+
+  // Delete conversation
+  const { error: convDelError } = await supabase
+    .from('conversations')
+    .delete()
+    .eq('id', conversationId)
+
+  if (convDelError) return { success: false, error: convDelError.message }
+
+  revalidatePath('/chat')
+  return { success: true }
+}

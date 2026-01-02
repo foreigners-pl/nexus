@@ -127,6 +127,14 @@ export default function ChatContainer({ initialConversations }: ChatContainerPro
     setIsMobileListVisible(true)
   }
 
+  const handleDeleteConversation = (id: string) => {
+    setConversations(prev => prev.filter(c => c.id !== id))
+    if (selectedConversationId === id) {
+      setSelectedConversationId(null)
+      setIsMobileListVisible(true)
+    }
+  }
+
   const selectedConversation = conversations.find(c => c.id === selectedConversationId)
 
   return (
@@ -138,6 +146,7 @@ export default function ChatContainer({ initialConversations }: ChatContainerPro
           selectedId={selectedConversationId}
           onSelect={handleSelectConversation}
           onNewChat={() => setShowNewChatModal(true)}
+          onDelete={handleDeleteConversation}
         />
       </div>
 
