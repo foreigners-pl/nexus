@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { getBoardWithData, getCasesBoardData, deleteBoard } from '@/app/actions/board/core'
 import { getUserBoardAccessLevel } from '@/app/actions/board/helpers'
 import { BoardHeader } from '../components/BoardHeader'
@@ -25,7 +25,9 @@ const CASES_BOARD_ID = '00000000-0000-0000-0000-000000000001'
 export default function IndividualBoardPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const boardId = params.boardId as string
+  const cardIdToOpen = searchParams.get('cardId')
   const refreshBoardList = useBoardRefresh()
 
   const [board, setBoard] = useState<BoardWithAccess | null>(null)
@@ -139,7 +141,26 @@ export default function IndividualBoardPage() {
   }
 
   const handleStatusAdd = (newStatus: BoardStatus) => {
-    setCustomStatuses(prevStatuses => [...prevStatuses, newStatus])
+    setCustomStatuses(prevStatuses => {
+      // Find Done status index
+      const sortedStatuses = [...prevStatuses].sort((a, b) => a.position - b.position)
+      const doneIndex = sortedStatuses.findIndex(s => s.name.toLowerCase().includes('done'))
+      
+      if (doneIndex !== -1) {
+        // Insert new status before Done, and shift Done's position
+        const newStatuses = [
+          ...sortedStatuses.slice(0, doneIndex),
+          newStatus,
+          // Update Done's position to be after the new status
+          { ...sortedStatuses[doneIndex], position: newStatus.position + 1 },
+          ...sortedStatuses.slice(doneIndex + 1).map(s => ({ ...s, position: s.position + 1 }))
+        ]
+        return newStatuses
+      } else {
+        // No Done status, just append
+        return [...sortedStatuses, newStatus]
+      }
+    })
   }
 
   // Optimistic card updates
@@ -286,6 +307,7 @@ export default function IndividualBoardPage() {
                   boardId={boardId}
                   isSharedBoard={(board?.board_access?.length ?? 0) > 1}
                   userAccessLevel={userAccessLevel}
+                  initialOpenCardId={cardIdToOpen}
                   onStatusUpdate={handleStatusUpdate}
                   onStatusDelete={handleStatusDelete}
                   onStatusReorder={handleStatusReorder}

@@ -1,17 +1,35 @@
 ﻿import { HTMLAttributes, forwardRef } from 'react'
 import { cn } from '@/lib/utils'
 
-interface CardProps extends HTMLAttributes<HTMLDivElement> {}
+interface CardProps extends HTMLAttributes<HTMLDivElement> {
+  variant?: 'default' | 'glass' | 'glass-subtle'
+}
 
 const Card = forwardRef<HTMLDivElement, CardProps>(
-  ({ className, ...props }, ref) => {
+  ({ className, variant = 'glass', ...props }, ref) => {
     return (
       <div
         ref={ref}
         className={cn(
-          'rounded-[var(--radius-lg)] bg-[hsl(var(--color-surface))] p-6',
-          'border border-[hsl(var(--color-border))]',
-          'shadow-[var(--shadow-md)]',
+          'rounded-[var(--radius-xl)] p-6',
+          'transition-all duration-300',
+          variant === 'glass' && [
+            'bg-[hsl(var(--color-surface))]',
+            'backdrop-blur-xl',
+            'border border-[hsl(var(--color-border))]',
+            'shadow-[0_8px_32px_rgb(0_0_0/0.25)]',
+          ],
+          variant === 'glass-subtle' && [
+            'bg-[hsl(var(--color-surface)/0.8)]',
+            'backdrop-blur-md',
+            'border border-[hsl(var(--color-border)/0.5)]',
+            'shadow-[0_4px_16px_rgb(0_0_0/0.15)]',
+          ],
+          variant === 'default' && [
+            'bg-[hsl(var(--color-surface))]',
+            'border border-[hsl(var(--color-border))]',
+            'shadow-[var(--shadow-md)]',
+          ],
           className
         )}
         {...props}

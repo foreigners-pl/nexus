@@ -1,6 +1,13 @@
-﻿import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
+﻿import { getCurrentUserProfile } from '@/app/actions/users'
+import { getActivityPreferences } from '@/app/actions/settings'
+import { SettingsContent } from './components/SettingsContent'
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  const [profileResult, preferencesResult] = await Promise.all([
+    getCurrentUserProfile(),
+    getActivityPreferences()
+  ])
+
   return (
     <div className="space-y-6">
       <div>
@@ -12,29 +19,10 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Profile Settings</CardTitle>
-          <CardDescription>Update your personal information</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-[hsl(var(--color-text-secondary))]">
-            Profile settings coming soon...
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Theme Preferences</CardTitle>
-          <CardDescription>Customize the look and feel</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-[hsl(var(--color-text-secondary))]">
-            Theme customization coming soon...
-          </p>
-        </CardContent>
-      </Card>
+      <SettingsContent 
+        initialProfile={profileResult.data ?? null}
+        initialPreferences={preferencesResult.data ?? null}
+      />
     </div>
   )
 }

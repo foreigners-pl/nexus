@@ -59,7 +59,7 @@ export function CommentsSection({ caseId, comments, onUpdate, currentUserId }: C
         {/* Add Comment Form */}
         <form onSubmit={handleSubmit} className="space-y-3">
           {error && (
-            <div className="p-3 rounded bg-red-500/10 border border-red-500/20 text-red-500 text-sm">
+            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-sm">
               {error}
             </div>
           )}
@@ -67,7 +67,7 @@ export function CommentsSection({ caseId, comments, onUpdate, currentUserId }: C
             value={newComment}
             onChange={(e) => setNewComment(e.target.value)}
             placeholder="Write a comment..."
-            className="w-full px-3 py-2 border border-[hsl(var(--color-border))] rounded resize-none focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-primary))]"
+            className="w-full px-3 py-2 bg-[hsl(var(--color-surface-hover))]/50 border border-[hsl(var(--color-border))] rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-border-hover))] text-[hsl(var(--color-text-primary))] placeholder:text-[hsl(var(--color-text-muted))]"
             rows={3}
             disabled={submitting}
           />
@@ -89,7 +89,7 @@ export function CommentsSection({ caseId, comments, onUpdate, currentUserId }: C
             comments.map((comment) => (
               <div
                 key={comment.id}
-                className="border border-[hsl(var(--color-border))] rounded p-3 space-y-2"
+                className="border border-[hsl(var(--color-border))] rounded-xl p-3 space-y-2 bg-[hsl(var(--color-surface-hover))]/30 backdrop-blur-sm"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
@@ -97,7 +97,7 @@ export function CommentsSection({ caseId, comments, onUpdate, currentUserId }: C
                       <p className="text-sm font-medium text-[hsl(var(--color-text-primary))]">
                         {getUserName(comment)}
                       </p>
-                      <p className="text-xs text-[hsl(var(--color-text-secondary))]">
+                      <p className="text-xs text-[hsl(var(--color-text-muted))]">
                         {formatDate(comment.created_at)}
                       </p>
                     </div>

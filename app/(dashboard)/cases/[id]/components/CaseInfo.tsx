@@ -1,9 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Button } from '@/components/ui/Button'
+import { useState, useEffect, useRef } from 'react'
 import { Select } from '@/components/ui/Select'
-import { Modal } from '@/components/ui'
 import { createClient } from '@/lib/supabase/client'
 import { updateCase } from '@/app/actions/cases'
 import { addAssigneeToCase, removeAssigneeFromCase } from '@/app/actions/assignees'
@@ -27,20 +25,24 @@ interface CaseInfoProps {
 export function CaseInfo({ caseData, client, status, assignees, onUpdate, onAssigneesUpdate }: CaseInfoProps) {
   const [statuses, setStatuses] = useState<Status[]>([])
   const [users, setUsers] = useState<User[]>([])
-  const [isAddAssigneeModalOpen, setIsAddAssigneeModalOpen] = useState(false)
-  const [selectedUser, setSelectedUser] = useState('')
-  const [submitting, setSubmitting] = useState(false)
+  const [isAssigneesOpen, setIsAssigneesOpen] = useState(false)
+  const assigneesRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
 
   useEffect(() => {
     fetchStatuses()
+    fetchUsers()
   }, [])
 
   useEffect(() => {
-    if (isAddAssigneeModalOpen && users.length === 0) {
-      fetchUsers()
+    function handleClickOutside(event: MouseEvent) {
+      if (assigneesRef.current && !assigneesRef.current.contains(event.target as Node)) {
+        setIsAssigneesOpen(false)
+      }
     }
-  }, [isAddAssigneeModalOpen])
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const fetchStatuses = async () => {
     const { data } = await supabase
@@ -88,23 +90,25 @@ export function CaseInfo({ caseData, client, status, assignees, onUpdate, onAssi
     }
   }
 
-  const handleAddAssignee = async () => {
-    if (!selectedUser) return
-
-    setSubmitting(true)
-    const result = await addAssigneeToCase(caseData.id, selectedUser)
-
-    if (!result?.error) {
-      setSelectedUser('')
-      setIsAddAssigneeModalOpen(false)
-      onAssigneesUpdate()
+  const handleToggleAssignee = async (userId: string) => {
+    const existingAssignee = assignees.find(a => a.user_id === userId)
+    
+    if (existingAssignee) {
+      await removeAssigneeFromCase(existingAssignee.id, caseData.id)
+    } else {
+      await addAssigneeToCase(caseData.id, userId)
     }
-    setSubmitting(false)
+    onAssigneesUpdate()
   }
 
-  const handleRemoveAssignee = async (assigneeId: string) => {
-    await removeAssigneeFromCase(assigneeId, caseData.id)
-    onAssigneesUpdate()
+  const isUserAssigned = (userId: string) => {
+    return assignees.some(a => a.user_id === userId)
+  }
+
+  const getAssigneesDisplayText = () => {
+    if (assignees.length === 0) return 'Select assignees...'
+    if (assignees.length === 1) return assignees[0].users?.display_name || assignees[0].users?.email || '1 assignee'
+    return `${assignees.length} assignees`
   }
 
   const getClientDisplayName = () => {
@@ -121,16 +125,16 @@ export function CaseInfo({ caseData, client, status, assignees, onUpdate, onAssi
       <div className="grid grid-cols-4 divide-x divide-[hsl(var(--color-border))]">
         {/* Left: Client Info */}
         <div className="pr-6">
-          <label className="block text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-1">Client</label>
+          <label className="block text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-2">Client</label>
           <p className="text-sm text-[hsl(var(--color-text-primary))] font-medium">{getClientDisplayName()}</p>
           {client?.client_code && (
-            <p className="text-xs text-[hsl(var(--color-text-secondary))] font-mono mt-0.5">{client.client_code}</p>
+            <p className="text-xs text-[hsl(var(--color-text-secondary))] font-mono mt-1">{client.client_code}</p>
           )}
         </div>
 
         {/* Center-Left: Status */}
         <div className="px-6">
-          <label className="block text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-1">Status</label>
+          <label className="block text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-2">Status</label>
           <Select
             options={statuses.map(s => ({ id: s.id, label: s.name }))}
             value={caseData.status_id || ''}
@@ -142,63 +146,64 @@ export function CaseInfo({ caseData, client, status, assignees, onUpdate, onAssi
 
         {/* Center-Right: Due Date */}
         <div className="px-6">
-          <label className="block text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-1">Due Date</label>
+          <label className="block text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-2">Due Date</label>
           <input
             type="date"
             value={caseData.due_date || ''}
             onChange={(e) => handleUpdateDueDate(e.target.value)}
-            className="w-full px-3 py-1.5 text-sm bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-lg text-[hsl(var(--color-text-primary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-primary))] transition-colors"
+            className="w-full px-4 py-2.5 text-sm bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] rounded-xl text-[hsl(var(--color-text-primary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-border-hover))] hover:border-[hsl(var(--color-border-hover))] hover:bg-[hsl(var(--color-surface-hover))] transition-all duration-200"
           />
         </div>
 
         {/* Right: Assignees */}
         <div className="pl-6">
-          <div className="flex items-center justify-between mb-1">
-            <label className="block text-xs font-medium text-[hsl(var(--color-text-secondary))]">Assigned To</label>
-            <Button size="sm" variant="ghost" onClick={() => setIsAddAssigneeModalOpen(true)} className="text-xs h-6 px-2">
-              + Add
-            </Button>
+          <label className="block text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-2">Assignees</label>
+          <div ref={assigneesRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setIsAssigneesOpen(!isAssigneesOpen)}
+              className="w-full px-4 py-2.5 text-left bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] rounded-xl hover:border-[hsl(var(--color-border-hover))] hover:bg-[hsl(var(--color-surface-hover))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-border-hover))] text-[hsl(var(--color-text-primary))] transition-all duration-200 flex items-center justify-between"
+            >
+              <span className={assignees.length > 0 ? 'text-[hsl(var(--color-text-primary))]' : 'text-[hsl(var(--color-text-muted))]'}>
+                {getAssigneesDisplayText()}
+              </span>
+              <svg className={`w-4 h-4 text-[hsl(var(--color-text-muted))] transition-transform duration-200 ${isAssigneesOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {isAssigneesOpen && (
+              <div className="absolute z-[100] w-full mt-2 bg-[hsl(var(--color-surface))] backdrop-blur-xl border border-[hsl(var(--color-border))] rounded-xl shadow-[0_10px_40px_rgb(0_0_0/0.4)] max-h-60 overflow-y-auto p-1">
+                {users.length === 0 ? (
+                  <div className="px-4 py-3 text-sm text-[hsl(var(--color-text-secondary))] text-center">No users available</div>
+                ) : (
+                  users.map((user) => (
+                    <button
+                      key={user.id}
+                      type="button"
+                      onClick={() => handleToggleAssignee(user.id)}
+                      className="w-full px-4 py-2.5 text-left text-sm rounded-lg transition-all duration-150 flex items-center gap-3 hover:bg-[hsl(var(--color-surface-hover))]"
+                    >
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                        isUserAssigned(user.id) 
+                          ? 'bg-[hsl(var(--color-primary))] border-[hsl(var(--color-primary))]' 
+                          : 'border-[hsl(var(--color-border))]'
+                      }`}>
+                        {isUserAssigned(user.id) && (
+                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                      <span className="text-[hsl(var(--color-text-primary))]">{user.display_name || user.email}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
           </div>
-          {assignees.length === 0 ? (
-            <p className="text-[hsl(var(--color-text-secondary))] text-xs">No assignees</p>
-          ) : (
-            <div className="flex flex-wrap gap-1">
-              {assignees.map((assignee) => (
-                <div key={assignee.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-[hsl(var(--color-border))] text-xs">
-                  <span className="text-[hsl(var(--color-text-primary))]">{assignee.users?.display_name || assignee.users?.email}</span>
-                  <button
-                    onClick={() => handleRemoveAssignee(assignee.id)}
-                    className="text-[hsl(var(--color-text-secondary))] hover:text-red-500 ml-0.5"
-                    title="Remove assignee"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
-
-      <Modal isOpen={isAddAssigneeModalOpen} onClose={() => setIsAddAssigneeModalOpen(false)} title="Add Assignee">
-        <div className="space-y-4">
-          <Select
-            options={users.filter(u => !assignees.some(a => a.user_id === u.id)).map(u => ({ id: u.id, label: u.display_name || u.email }))}
-            value={selectedUser}
-            onChange={setSelectedUser}
-            placeholder="Select user..."
-            searchPlaceholder="Search users..."
-          />
-          <div className="flex justify-end gap-3">
-            <Button variant="ghost" onClick={() => setIsAddAssigneeModalOpen(false)} disabled={submitting}>
-              Cancel
-            </Button>
-            <Button onClick={handleAddAssignee} disabled={submitting || !selectedUser}>
-              {submitting ? 'Adding...' : 'Add Assignee'}
-            </Button>
-          </div>
-        </div>
-      </Modal>
     </>
   )
 }

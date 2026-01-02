@@ -75,15 +75,22 @@ export function ServicesSection({ caseId, caseServices, onUpdate }: ServicesSect
             {caseServices.map((cs) => {
               const price = cs.custom_price ?? cs.services?.gross_price
               return (
-                <div key={cs.id} className="flex items-center justify-between p-2 rounded border border-[hsl(var(--color-border))]">
+                <div key={cs.id} className="flex items-center justify-between p-3 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface-hover))]/30 backdrop-blur-sm">
                   <div>
                     <span className="text-[hsl(var(--color-text-primary))]">{cs.services?.name}</span>
                     <span className="text-xs text-[hsl(var(--color-text-secondary))] ml-2">
                       {price ? `${price.toFixed(2)} PLN` : 'No price'}
-                      {cs.custom_price && <span className="ml-1 text-blue-500">(custom)</span>}
+                      {cs.custom_price && <span className="ml-1 text-blue-400">(custom)</span>}
                     </span>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => handleRemove(cs.id)}>Remove</Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => handleRemove(cs.id)}
+                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                  >
+                    Remove
+                  </Button>
                 </div>
               )
             })}

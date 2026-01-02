@@ -59,35 +59,41 @@ export function Select({
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setIsOpen(!isOpen)}
-        className="w-full px-3 py-2 text-left bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] rounded-md hover:border-[hsl(var(--color-input-focus))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-primary))] focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed text-[hsl(var(--color-text-primary))]"
+        className="w-full px-4 py-2.5 text-left bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] rounded-xl hover:border-[hsl(var(--color-border-hover))] hover:bg-[hsl(var(--color-surface-hover))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-primary))/0.3] focus:border-[hsl(var(--color-primary))] disabled:opacity-50 disabled:cursor-not-allowed text-[hsl(var(--color-text-primary))] transition-all duration-200 flex items-center justify-between"
       >
         <span className={selectedOption ? 'text-[hsl(var(--color-text-primary))]' : 'text-[hsl(var(--color-text-muted))]'}>
           {selectedOption ? selectedOption.label : placeholder}
         </span>
+        <svg className={`w-4 h-4 text-[hsl(var(--color-text-muted))] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-md shadow-lg max-h-60 overflow-hidden">
-          <div className="p-2 border-b border-[hsl(var(--color-border))]">
+        <div className="absolute z-[100] w-full mt-2 bg-[hsl(var(--color-surface))] backdrop-blur-xl border border-[hsl(var(--color-border))] rounded-xl shadow-[0_10px_40px_rgb(0_0_0/0.4)] max-h-60 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="p-2 border-b border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface-hover)/0.3)]">
             <Input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder={searchPlaceholder}
               autoFocus
+              className="bg-[hsl(var(--color-surface))]"
             />
           </div>
-          <div className="overflow-y-auto max-h-48">
+          <div className="overflow-y-auto max-h-48 p-1">
             {filteredOptions.length === 0 ? (
-              <div className="px-3 py-2 text-sm text-[hsl(var(--color-text-secondary))]">No results found</div>
+              <div className="px-4 py-3 text-sm text-[hsl(var(--color-text-secondary))] text-center">No results found</div>
             ) : (
               filteredOptions.map((option) => (
                 <button
                   key={option.id}
                   type="button"
                   onClick={() => handleSelect(option.id)}
-                  className={`w-full px-3 py-2 text-left text-sm hover:bg-[hsl(var(--color-surface-hover))] ${
-                    option.id === value ? 'bg-[hsl(var(--color-primary)/0.1)] text-[hsl(var(--color-primary))]' : 'text-[hsl(var(--color-text-primary))]'
+                  className={`w-full px-4 py-2.5 text-left text-sm rounded-lg transition-all duration-150 ${
+                    option.id === value 
+                      ? 'bg-[hsl(var(--color-surface-hover))] text-[hsl(var(--color-text-primary))] font-medium' 
+                      : 'text-[hsl(var(--color-text-primary))] hover:bg-[hsl(var(--color-surface-hover))]'
                   }`}
                 >
                   {option.label}

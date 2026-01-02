@@ -195,7 +195,7 @@ export default function CasePage({ params }: CasePageProps) {
         </div>
       </Modal>
       {/* Case Info - Full Width Top */}
-      <Card>
+      <Card className="relative z-10 backdrop-blur-xl bg-[hsl(var(--color-surface))]/80 border-[hsl(var(--color-border))] shadow-[0_8px_32px_rgb(0_0_0/0.25)]">
         <CardContent className="pt-6">
           <CaseInfo 
             caseData={caseData} 
@@ -209,7 +209,7 @@ export default function CasePage({ params }: CasePageProps) {
       </Card>
 
       {/* Services & Payment Row */}
-      <Card>
+      <Card className="backdrop-blur-xl bg-[hsl(var(--color-surface))]/80 border-[hsl(var(--color-border))] shadow-[0_8px_32px_rgb(0_0_0/0.25)]">
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 divide-x divide-[hsl(var(--color-border))]">
             {/* Left: Services */}
@@ -246,7 +246,7 @@ export default function CasePage({ params }: CasePageProps) {
       
       {/* Comments and Attachments Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
+        <Card className="backdrop-blur-xl bg-[hsl(var(--color-surface))]/80 border-[hsl(var(--color-border))] shadow-[0_8px_32px_rgb(0_0_0/0.25)]">
           <CardHeader>
             <CardTitle>Comments</CardTitle>
           </CardHeader>
@@ -260,7 +260,7 @@ export default function CasePage({ params }: CasePageProps) {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="backdrop-blur-xl bg-[hsl(var(--color-surface))]/80 border-[hsl(var(--color-border))] shadow-[0_8px_32px_rgb(0_0_0/0.25)]">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Attachments</CardTitle>

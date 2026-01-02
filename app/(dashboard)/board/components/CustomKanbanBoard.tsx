@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { BoardStatus } from '@/types/database'
 import { CustomKanbanColumn } from './CustomKanbanColumn'
 import { CustomKanbanCard } from './CustomKanbanCard'
@@ -34,6 +34,7 @@ interface CustomKanbanBoardProps {
   boardId: string
   isSharedBoard: boolean
   userAccessLevel: 'owner' | 'editor' | 'viewer' | null
+  initialOpenCardId?: string | null
   onStatusUpdate: (statusId: string, updates: Partial<BoardStatus>) => void
   onStatusDelete: (statusId: string) => void
   onStatusReorder: (fromIndex: number, toIndex: number) => void
@@ -50,6 +51,7 @@ export function CustomKanbanBoard({
   boardId,
   isSharedBoard,
   userAccessLevel,
+  initialOpenCardId,
   onStatusUpdate,
   onStatusDelete,
   onStatusReorder,
@@ -70,6 +72,21 @@ export function CustomKanbanBoard({
   const [modalStatusId, setModalStatusId] = useState<string | null>(null)
   const [modalCard, setModalCard] = useState<any | null>(null)
   const [isCardModalOpen, setIsCardModalOpen] = useState(false)
+  // Track if we've already opened the initial card
+  const [hasOpenedInitialCard, setHasOpenedInitialCard] = useState(false)
+
+  // Auto-open card if initialOpenCardId is provided
+  useEffect(() => {
+    if (initialOpenCardId && cards.length > 0 && !hasOpenedInitialCard) {
+      const cardToOpen = cards.find(c => c.id === initialOpenCardId)
+      if (cardToOpen) {
+        setModalStatusId(cardToOpen.status_id)
+        setModalCard(cardToOpen)
+        setIsCardModalOpen(true)
+        setHasOpenedInitialCard(true)
+      }
+    }
+  }, [initialOpenCardId, cards, hasOpenedInitialCard])
 
   // Configure drag sensors
   const sensors = useSensors(
@@ -248,12 +265,27 @@ export function CustomKanbanBoard({
       const oldIndex = sortedStatuses.findIndex(s => s.id === activeId)
       const newIndex = sortedStatuses.findIndex(s => s.id === overId)
 
-      console.log(`� DRAGGED STATUS INDEX: ${oldIndex} → ${newIndex}`)
+      console.log(`📍 DRAGGED STATUS INDEX: ${oldIndex} → ${newIndex}`)
       console.log(`   Moving "${sortedStatuses[oldIndex]?.name}" to position of "${sortedStatuses[newIndex]?.name}"`)
 
       if (oldIndex === -1 || newIndex === -1) {
         console.log('❌ Invalid indices')
         return
+      }
+
+      // Check if we're trying to move a status after Done (which must stay last)
+      const doneStatusIndex = sortedStatuses.findIndex(s => s.name.toLowerCase().includes('done'))
+      if (doneStatusIndex !== -1) {
+        // If trying to move a status to after Done, prevent it
+        if (newIndex >= doneStatusIndex && oldIndex < doneStatusIndex) {
+          console.log('❌ Cannot move status after Done - Done must stay last')
+          return
+        }
+        // Done status itself should not be draggable (already handled in SortableStatusColumn)
+        if (sortedStatuses[oldIndex]?.name.toLowerCase().includes('done')) {
+          console.log('❌ Cannot move Done status')
+          return
+        }
       }
 
       // Optimistic update
@@ -399,7 +431,7 @@ export function CustomKanbanBoard({
 
         {/* Add Status Column - hidden for viewers */}
         {userAccessLevel !== 'viewer' && (
-          <div className="flex-shrink-0 w-80">
+          <div className="flex-shrink-0 w-64">
             {isAddingStatus ? (
             <div className="bg-[hsl(var(--color-surface))] rounded-lg p-4 border border-dashed border-[hsl(var(--color-border))]">
               <div className="space-y-3">
@@ -527,6 +559,9 @@ interface SortableStatusColumnProps {
 }
 
 function SortableStatusColumn(props: SortableStatusColumnProps) {
+  // Check if this is a Done status (should not be draggable)
+  const isDoneStatus = props.status.name.toLowerCase().includes('done')
+  
   const {
     attributes,
     listeners,
@@ -539,7 +574,9 @@ function SortableStatusColumn(props: SortableStatusColumnProps) {
     data: {
       type: 'status',
       status: props.status
-    }
+    },
+    // Disable sorting for Done status
+    disabled: isDoneStatus
   })
 
   const style = {
@@ -553,6 +590,7 @@ function SortableStatusColumn(props: SortableStatusColumnProps) {
 
   // The entire wrapper is BOTH sortable (for status reordering) AND droppable (for card drops)
   // @dnd-kit handles this automatically!
+  // Don't pass drag handle props to Done status - it can't be moved
   return (
     <div 
       ref={setNodeRef} 
@@ -561,7 +599,7 @@ function SortableStatusColumn(props: SortableStatusColumnProps) {
     >
       <CustomKanbanColumn 
         {...props} 
-        dragHandleProps={{ ...attributes, ...listeners }}
+        dragHandleProps={isDoneStatus ? undefined : { ...attributes, ...listeners }}
         onAddCard={props.onAddCard}
         onEditCard={props.onEditCard}
       />

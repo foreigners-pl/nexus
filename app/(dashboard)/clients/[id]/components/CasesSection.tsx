@@ -48,7 +48,7 @@ export function CasesSection({ clientId, cases, onCaseAdded }: CasesSectionProps
   }
 
   return (
-    <Card>
+    <Card className="backdrop-blur-xl bg-[hsl(var(--color-surface))]/80 border-[hsl(var(--color-border))] shadow-[0_8px_32px_rgb(0_0_0/0.25)]">
       <CardHeader>
         <div className="flex justify-between items-center">
           <CardTitle>Cases</CardTitle>
@@ -69,7 +69,7 @@ export function CasesSection({ clientId, cases, onCaseAdded }: CasesSectionProps
                     <th className="text-left p-3 text-sm font-medium text-[hsl(var(--color-text-secondary))]">Status</th>
                     <th className="text-left p-3 text-sm font-medium text-[hsl(var(--color-text-secondary))]">Services</th>
                     <th className="text-left p-3 text-sm font-medium text-[hsl(var(--color-text-secondary))]">Created</th>
-                    <th className="text-left p-3 text-sm font-medium text-[hsl(var(--color-text-secondary))]"></th>
+                    <th className="text-center p-3 text-sm font-medium text-[hsl(var(--color-text-secondary))]"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -85,7 +85,7 @@ export function CasesSection({ clientId, cases, onCaseAdded }: CasesSectionProps
                       </td>
                       <td className="p-3">
                         {caseItem.status ? (
-                          <span className="text-xs px-2 py-1 rounded bg-[hsl(var(--color-primary))]/10 text-[hsl(var(--color-primary))]">
+                          <span className="text-xs px-2 py-1 rounded bg-[hsl(var(--color-surface-hover))] text-[hsl(var(--color-text-secondary))] border border-[hsl(var(--color-border))]">
                             {caseItem.status.name}
                           </span>
                         ) : (
@@ -106,12 +106,11 @@ export function CasesSection({ clientId, cases, onCaseAdded }: CasesSectionProps
                           {new Date(caseItem.created_at).toLocaleDateString()}
                         </span>
                       </td>
-                      <td className="p-3">
+                      <td className="p-3 text-center">
                         <Button 
-                          variant="ghost" 
+                          variant="primary" 
                           size="sm"
                           onClick={() => router.push(`/cases/${caseItem.case_code || caseItem.id}`)}
-                          className="cursor-pointer hover:bg-[hsl(var(--color-primary))]/10 hover:text-[hsl(var(--color-primary))]"
                         >
                           Open
                         </Button>

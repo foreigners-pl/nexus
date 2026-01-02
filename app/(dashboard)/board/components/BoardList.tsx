@@ -93,12 +93,12 @@ export function BoardList({ boards, currentUserId, currentBoardId, onCreateBoard
   return (
     <div className="h-full flex flex-col">
       {/* Tabs */}
-      <div className="flex items-center border-b border-[hsl(var(--color-border))]">
+      <div className="flex items-center border-b border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface-hover))]/30">
         <button
           onClick={() => handleTabClick('shared')}
           className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
             activeTab === 'shared'
-              ? 'text-[hsl(var(--color-text-primary))] border-b-2 border-[hsl(var(--color-primary))]'
+              ? 'text-[hsl(var(--color-text-primary))] border-b-2 border-[hsl(var(--color-text-primary))]'
               : 'text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))]'
           }`}
         >
@@ -108,7 +108,7 @@ export function BoardList({ boards, currentUserId, currentBoardId, onCreateBoard
           onClick={() => handleTabClick('private')}
           className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
             activeTab === 'private'
-              ? 'text-[hsl(var(--color-text-primary))] border-b-2 border-[hsl(var(--color-primary))]'
+              ? 'text-[hsl(var(--color-text-primary))] border-b-2 border-[hsl(var(--color-text-primary))]'
               : 'text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))]'
           }`}
         >
@@ -157,10 +157,10 @@ export function BoardList({ boards, currentUserId, currentBoardId, onCreateBoard
           displayBoards.map(board => (
             <div
               key={board.id}
-              className={`p-3 cursor-pointer transition-all rounded-lg ${
+              className={`p-3 cursor-pointer transition-all rounded-xl backdrop-blur-sm ${
                 currentBoardId === board.id
-                  ? 'bg-[hsl(var(--color-primary))]/10 border-l-4 border-[hsl(var(--color-primary))] shadow-sm'
-                  : 'bg-[hsl(var(--color-surface-hover))] hover:bg-[hsl(var(--color-background))] border-l-4 border-transparent'
+                  ? 'bg-[hsl(var(--color-surface-hover))] border border-[hsl(var(--color-border))] shadow-[0_4px_16px_rgb(0_0_0/0.15)]'
+                  : 'bg-[hsl(var(--color-surface-hover))]/30 hover:bg-[hsl(var(--color-surface-hover))] border border-transparent hover:border-[hsl(var(--color-border))]'
               }`}
               onClick={() => handleBoardClick(board.id)}
             >
@@ -171,7 +171,7 @@ export function BoardList({ boards, currentUserId, currentBoardId, onCreateBoard
                       {board.name}
                     </h3>
                     {board.is_system && (
-                      <span className="px-1.5 py-0.5 text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded uppercase font-semibold">
+                      <span className="px-1.5 py-0.5 text-[10px] bg-blue-500/20 text-blue-400 rounded uppercase font-semibold">
                         System
                       </span>
                     )}

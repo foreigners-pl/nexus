@@ -22,17 +22,35 @@ export async function createBoardStatus(
     return { error: 'Only board owners and editors can create statuses' }
   }
 
-  // Get the highest position
+  // Get all statuses to find the Done status and determine position
   const { data: existingStatuses } = await supabase
     .from('board_statuses')
-    .select('position')
+    .select('id, name, position')
     .eq('board_id', boardId)
-    .order('position', { ascending: false })
-    .limit(1)
+    .order('position', { ascending: true })
 
-  const nextPosition = existingStatuses && existingStatuses.length > 0 
-    ? existingStatuses[0].position + 1 
-    : 0
+  // Find the Done status (if exists) - new statuses should be inserted before it
+  const doneStatus = existingStatuses?.find(s => s.name.toLowerCase().includes('done'))
+  
+  let insertPosition: number
+  if (doneStatus) {
+    // Insert before the Done status
+    insertPosition = doneStatus.position
+    
+    // Shift Done status (and any after it) up by 1
+    const statusesToShift = existingStatuses?.filter(s => s.position >= doneStatus.position) || []
+    for (const status of statusesToShift) {
+      await supabase
+        .from('board_statuses')
+        .update({ position: status.position + 1 })
+        .eq('id', status.id)
+    }
+  } else {
+    // No Done status, insert at the end
+    insertPosition = existingStatuses && existingStatuses.length > 0 
+      ? existingStatuses[existingStatuses.length - 1].position + 1 
+      : 0
+  }
 
   const { data, error } = await supabase
     .from('board_statuses')
@@ -40,7 +58,7 @@ export async function createBoardStatus(
       board_id: boardId,
       name: name.trim(),
       color,
-      position: nextPosition
+      position: insertPosition
     })
     .select()
     .single()
@@ -112,10 +130,10 @@ export async function deleteBoardStatus(statusId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
 
-  // Get the status with board_id and position
+  // Get the status with board_id, position, and name
   const { data: status, error: statusError } = await supabase
     .from('board_statuses')
-    .select('board_id, position')
+    .select('board_id, position, name')
     .eq('id', statusId)
     .maybeSingle()
 
@@ -126,6 +144,11 @@ export async function deleteBoardStatus(statusId: string) {
 
   if (!status) {
     return { error: 'Status not found' }
+  }
+
+  // Prevent deletion of "Done" status
+  if (status.name.toLowerCase().includes('done')) {
+    return { error: 'The "Done" status cannot be deleted. Every board must have a Done status for task completion tracking.' }
   }
 
   // Check if user has editor or owner access
@@ -191,6 +214,29 @@ export async function reorderBoardStatuses(
   const hasAccess = await hasEditorAccess(supabase, boardId, user.id)
   if (!hasAccess) {
     return { error: 'Only board owners and editors can reorder statuses' }
+  }
+
+  // Get status names to ensure Done stays last
+  const { data: statuses } = await supabase
+    .from('board_statuses')
+    .select('id, name')
+    .eq('board_id', boardId)
+    .in('id', statusIds)
+
+  if (statuses) {
+    // Find Done status
+    const doneStatus = statuses.find(s => s.name.toLowerCase().includes('done'))
+    
+    if (doneStatus) {
+      // Remove Done from current position and ensure it's at the end
+      const filteredIds = statusIds.filter(id => id !== doneStatus.id)
+      const doneIndex = statusIds.indexOf(doneStatus.id)
+      
+      // If Done is not already at the end, reject the reorder
+      if (doneIndex !== statusIds.length - 1) {
+        return { error: 'The "Done" status must always be the last column.' }
+      }
+    }
   }
 
   // Update positions

@@ -274,3 +274,43 @@ export interface WikiDocumentWithRelations extends WikiDocument {
   owner?: User
   folder?: WikiFolder // The folder this document belongs to
 }
+
+// ============================================
+// ACTIVITY LOG TYPES
+// ============================================
+
+export interface ActivityLog {
+  id: string
+  user_id: string
+  actor_id?: string
+  action_type: 'assigned' | 'unassigned' | 'comment' | 'status_change' | 'payment_received' | 'payment_due' | 'due_reminder' | 'overdue' | 'claimed'
+  entity_type: 'case' | 'card' | 'installment' | 'invoice'
+  entity_id: string
+  message: string
+  metadata?: {
+    case_code?: string
+    client_name?: string
+    card_title?: string
+    board_name?: string
+    actor_name?: string
+    amount?: number
+    comment_preview?: string
+    [key: string]: any
+  }
+  is_read: boolean
+  created_at: string
+}
+
+export interface ActivityLogWithActor extends ActivityLog {
+  actor?: User
+}
+
+// User Activity Preferences
+export interface UserActivityPreferences {
+  id: string
+  user_id: string
+  show_in_feed: string[]
+  email_notifications: string[]
+  created_at: string
+  updated_at: string
+}

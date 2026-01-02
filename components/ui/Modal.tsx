@@ -49,24 +49,32 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'md' }: Mod
 
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md"
       onClick={handleBackdropClick}
     >
       <div
         ref={modalRef}
-        className={`bg-[hsl(var(--color-surface))] rounded-lg shadow-xl w-full ${maxWidthClasses[maxWidth]} mx-4 animate-in fade-in zoom-in duration-200`}
+        className={`
+          bg-[hsl(var(--color-surface))] 
+          backdrop-blur-xl 
+          rounded-2xl 
+          border border-[hsl(var(--color-border))] 
+          shadow-[0_25px_50px_-12px_rgb(0_0_0/0.5),0_0_0_1px_rgb(255_255_255/0.05)_inset]
+          w-full ${maxWidthClasses[maxWidth]} mx-4 
+          animate-in fade-in zoom-in duration-200
+        `}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-[hsl(var(--color-border))]">
+        {/* Header with glass effect */}
+        <div className="flex items-center justify-between p-6 border-b border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface-hover)/0.3)]">
           <h2 className="text-xl font-semibold text-[hsl(var(--color-text-primary))]">
             {title}
           </h2>
           <button
             onClick={onClose}
-            className="text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))] transition-colors"
+            className="p-2 rounded-xl text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))] hover:bg-[hsl(var(--color-surface-hover))] transition-all duration-200"
           >
             <svg
-              className="w-6 h-6"
+              className="w-5 h-5"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"

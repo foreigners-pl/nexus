@@ -32,7 +32,7 @@ export function LocationInfo({ client, countryName, cityName, onUpdate }: Locati
   }
 
   return (
-    <Card>
+    <Card className="backdrop-blur-xl bg-[hsl(var(--color-surface))]/80 border-[hsl(var(--color-border))] shadow-[0_8px_32px_rgb(0_0_0/0.25)]">
       <CardHeader>
         <div className="flex justify-between items-center">
           <CardTitle>Location Information</CardTitle>

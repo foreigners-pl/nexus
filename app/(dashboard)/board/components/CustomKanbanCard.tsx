@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { Card as CardType, User, CardAssignee } from '@/types/database'
 import { deleteCard } from '@/app/actions/card/core'
-import { Card } from '@/components/ui/Card'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { useSortable } from '@dnd-kit/sortable'
@@ -99,8 +98,8 @@ export function CustomKanbanCard({ card, isSharedBoard, userAccessLevel, onUpdat
 
   return (
     <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
-      <Card 
-        className="p-3 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow group"
+      <div 
+        className="p-3 cursor-grab active:cursor-grabbing transition-all group rounded-xl backdrop-blur-xl bg-[hsl(var(--color-surface))]/70 border border-[hsl(var(--color-border))] shadow-[0_4px_20px_rgb(0_0_0/0.2)] hover:shadow-[0_8px_32px_rgb(0_0_0/0.3)] hover:bg-[hsl(var(--color-surface))]/90 hover:border-[hsl(var(--color-border-hover))]"
         onClick={handleEdit}
       >
         <div className="space-y-2">
@@ -170,7 +169,7 @@ export function CustomKanbanCard({ card, isSharedBoard, userAccessLevel, onUpdat
             )}
           </div>
         </div>
-      </Card>
+      </div>
 
       {/* Delete Confirmation Modal */}
       <Modal 

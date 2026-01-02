@@ -6,6 +6,7 @@ import { getUserBoards } from '@/app/actions/board/core'
 import { BoardList } from './components/BoardList'
 import { CreateBoardModal } from './components/CreateBoardModal'
 import { createClient } from '@/lib/supabase/client'
+import { cn } from '@/lib/utils'
 import type { Board, BoardAccess } from '@/types/database'
 
 interface BoardWithAccess extends Board {
@@ -33,7 +34,23 @@ export default function BoardLayout({ children }: { children: ReactNode }) {
   const [boardsLoading, setBoardsLoading] = useState(true)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [isNavCollapsed, setIsNavCollapsed] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+
+  // Load navbar collapsed state and listen for changes
+  useEffect(() => {
+    const saved = localStorage.getItem('navbar-collapsed')
+    if (saved !== null) {
+      setIsNavCollapsed(saved === 'true')
+    }
+
+    const handleToggle = (e: CustomEvent<{ collapsed: boolean }>) => {
+      setIsNavCollapsed(e.detail.collapsed)
+    }
+
+    window.addEventListener('navbar-toggle', handleToggle as EventListener)
+    return () => window.removeEventListener('navbar-toggle', handleToggle as EventListener)
+  }, [])
 
   // Get current user ID once on mount
   useEffect(() => {
@@ -88,9 +105,12 @@ export default function BoardLayout({ children }: { children: ReactNode }) {
 
   return (
     <BoardRefreshContext.Provider value={refreshContext}>
-      <div className="fixed top-0 left-64 right-0 bottom-0 flex">
+      <div className={cn(
+        "fixed top-0 right-0 bottom-0 flex transition-all duration-300",
+        isNavCollapsed ? "left-16" : "left-56"
+      )}>
         {/* Sidebar with Board List - PERSISTS across route changes */}
-        <div className={`${isSidebarCollapsed ? 'w-16' : 'w-80'} bg-[hsl(var(--color-surface))] border-r border-[hsl(var(--color-border))] flex flex-col transition-all duration-300 flex-shrink-0 h-full`}>
+        <div className={`${isSidebarCollapsed ? 'w-16' : 'w-72'} backdrop-blur-md bg-[hsl(var(--color-surface))]/50 border-r border-[hsl(var(--color-border))]/60 flex flex-col transition-all duration-300 flex-shrink-0 h-full`}>
           <BoardList
             boards={boards}
             currentUserId={currentUserId}
@@ -103,7 +123,7 @@ export default function BoardLayout({ children }: { children: ReactNode }) {
         </div>
 
         {/* Main Content - Changes based on route */}
-        <div className="flex-1 overflow-hidden h-full">
+        <div className="flex-1 overflow-hidden h-full bg-[hsl(var(--color-background))]">
           {children}
         </div>
 

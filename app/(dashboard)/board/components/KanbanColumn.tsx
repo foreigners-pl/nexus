@@ -44,15 +44,18 @@ export function KanbanColumn({ status, cases, onUpdate }: KanbanColumnProps) {
   const glassyBackground = hexToRgba(statusColor, 0.08)
 
   return (
-    <div className="flex-shrink-0 w-56 h-full">
+    <div className="flex-shrink-0 w-64 h-full">
       <div 
         ref={setNodeRef}
-        className={`rounded-lg p-3 border h-full flex flex-col backdrop-blur-sm transition-colors ${
+        className={`rounded-2xl p-3 border h-full flex flex-col backdrop-blur-xl transition-all duration-200 ${
           isOver 
-            ? 'border-[hsl(var(--color-primary))] border-2 bg-[hsl(var(--color-primary))]/5' 
-            : 'border-[hsl(var(--color-border))]'
+            ? 'border-[hsl(var(--color-primary))] border-2 bg-[hsl(var(--color-primary))]/5 scale-[1.02]' 
+            : 'border-white/10'
         }`}
-        style={{ backgroundColor: isOver ? undefined : glassyBackground }}
+        style={{ 
+          backgroundColor: isOver ? undefined : glassyBackground,
+          boxShadow: '0 8px 32px rgb(0 0 0 / 0.25)'
+        }}
       >
         {/* Column Header */}
         <div className="flex items-center justify-between mb-3 flex-shrink-0">

@@ -48,6 +48,9 @@ export function CustomKanbanColumn({
   dragHandleProps
 }: CustomKanbanColumnProps) {
   // Modal state now handled at board level
+
+  // Check if this is a "Done" status (protected from deletion)
+  const isDoneStatus = status.name.toLowerCase().includes('done')
   // Props for modal triggers
   const { onAddCard, onEditCard } = arguments[0]
   const isViewOnly = userAccessLevel === 'viewer'
@@ -106,6 +109,12 @@ export function CustomKanbanColumn({
   }
 
   const handleDelete = async () => {
+    // Prevent deletion of Done status
+    if (isDoneStatus) {
+      alert('The "Done" status cannot be deleted. Every board must have a Done status for task completion tracking.')
+      return
+    }
+    
     if (!confirm('Delete this status? Tasks in this status must be moved first.')) return
 
     setSubmitting(true)
@@ -151,9 +160,9 @@ export function CustomKanbanColumn({
 
   return (
     <>
-      <div className="flex-shrink-0 w-56 h-full" ref={setDroppableRef}>
+      <div className="flex-shrink-0 w-64 h-full" ref={setDroppableRef}>
         <div 
-          className="rounded-lg p-3 border h-full flex flex-col transition-all backdrop-blur-sm border-[hsl(var(--color-border))]"
+          className="rounded-2xl p-3 border h-full flex flex-col transition-all backdrop-blur-xl border-[hsl(var(--color-border))] shadow-[0_8px_32px_rgb(0_0_0/0.15)]"
           style={{ 
             backgroundColor: glassyBackground 
           }}
@@ -243,16 +252,19 @@ export function CustomKanbanColumn({
                     </svg>
                   </div>
                 )}
-                <button
-                  onClick={handleDelete}
-                  disabled={submitting}
-                  className="p-1 hover:bg-red-500/10 text-red-500 rounded transition-colors disabled:opacity-50"
-                  title="Delete status"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                {/* Hide delete button for Done status */}
+                {!isDoneStatus && (
+                  <button
+                    onClick={handleDelete}
+                    disabled={submitting}
+                    className="p-1 hover:bg-red-500/10 text-red-500 rounded transition-colors disabled:opacity-50"
+                    title="Delete status"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
               </div>
             )}
           </div>

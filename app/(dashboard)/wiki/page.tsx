@@ -10,6 +10,7 @@ import { Modal } from '@/components/ui/Modal'
 import { ShareWikiModal } from './components/ShareWikiModal'
 import { ShareDocumentModal } from './components/ShareDocumentModal'
 import { DocumentViewer } from './components/DocumentViewer'
+import { cn } from '@/lib/utils'
 import {
   getWikiFolders,
   createWikiFolder,
@@ -36,6 +37,7 @@ export default function WikiPage() {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [isNavCollapsed, setIsNavCollapsed] = useState(false)
   const [loading, setLoading] = useState(true)
   
   // Modals
@@ -73,6 +75,21 @@ export default function WikiPage() {
       },
     })
   )
+
+  // Load navbar collapsed state and listen for changes
+  useEffect(() => {
+    const saved = localStorage.getItem('navbar-collapsed')
+    if (saved !== null) {
+      setIsNavCollapsed(saved === 'true')
+    }
+
+    const handleToggle = (e: CustomEvent<{ collapsed: boolean }>) => {
+      setIsNavCollapsed(e.detail.collapsed)
+    }
+
+    window.addEventListener('navbar-toggle', handleToggle as EventListener)
+    return () => window.removeEventListener('navbar-toggle', handleToggle as EventListener)
+  }, [])
 
   useEffect(() => {
     loadFolders()
@@ -341,11 +358,16 @@ export default function WikiPage() {
   const canDelete = userAccess === 'owner'
 
   return (
-    <div className="fixed top-0 left-64 right-0 bottom-0 flex">
+    <div className={cn(
+      "fixed top-0 right-0 bottom-0 flex transition-all duration-300",
+      isNavCollapsed ? "left-16" : "left-56"
+    )}>
       {/* Sidebar */}
-      <div className={`${
-        isSidebarCollapsed ? 'w-16' : 'w-80'
-      } bg-[hsl(var(--color-surface))] border-r border-[hsl(var(--color-border))] flex flex-col transition-all duration-300 flex-shrink-0 h-full`}>
+      <div 
+        className={`${
+          isSidebarCollapsed ? 'w-16' : 'w-80'
+        } backdrop-blur-md bg-[hsl(var(--color-surface))]/50 border-r border-[hsl(var(--color-border))]/60 flex flex-col transition-all duration-300 flex-shrink-0 h-full`}
+      >
         {isSidebarCollapsed ? (
           <div className="flex items-center justify-center p-4 border-b border-[hsl(var(--color-border))]">
             <button
@@ -366,12 +388,12 @@ export default function WikiPage() {
         ) : (
           <>
             {/* Tabs */}
-            <div className="flex items-center border-b border-[hsl(var(--color-border))]">
+            <div className="flex items-center border-b border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface-hover))]/30">
               <button
                 onClick={() => setActiveTab('private')}
                 className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
                   activeTab === 'private'
-                    ? 'text-[hsl(var(--color-text-primary))] border-b-2 border-[hsl(var(--color-primary))]'
+                    ? 'text-[hsl(var(--color-text-primary))] border-b-2 border-[hsl(var(--color-text-primary))]'
                     : 'text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))]'
                 }`}
               >
@@ -381,7 +403,7 @@ export default function WikiPage() {
                 onClick={() => setActiveTab('shared')}
                 className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
                   activeTab === 'shared'
-                    ? 'text-[hsl(var(--color-text-primary))] border-b-2 border-[hsl(var(--color-primary))]'
+                    ? 'text-[hsl(var(--color-text-primary))] border-b-2 border-[hsl(var(--color-text-primary))]'
                     : 'text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))]'
                 }`}
               >
@@ -434,7 +456,6 @@ export default function WikiPage() {
                       onToggle={() => toggleFolder(folder.id)}
                       onSelectFolder={() => {
                         setSelectedFolder(folder)
-                        setExpandedFolders(prev => new Set(prev).add(folder.id))
                       }}
                       onSelectDoc={(doc) => setSelectedDocument(doc)}
                       onDocumentDragEnd={(event) => handleDocumentDragEnd(event, folder.id)}
@@ -477,7 +498,7 @@ export default function WikiPage() {
             <div className="mt-2">
               <button
                 onClick={() => setShowNewFolderModal(true)}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm transition-colors hover:bg-[hsl(var(--color-surface-hover))] text-[hsl(var(--color-text-secondary))]"
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left text-sm transition-colors bg-[hsl(var(--color-surface-hover))]/30 hover:bg-[hsl(var(--color-surface-hover))] border border-transparent hover:border-[hsl(var(--color-border))] text-[hsl(var(--color-text-secondary))]"
               >
                 <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -493,7 +514,7 @@ export default function WikiPage() {
       </div>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col h-full min-w-0">
+      <div className="flex-1 flex flex-col h-full min-w-0 bg-[hsl(var(--color-background))]">
         {selectedDocument ? (
           <div className="flex-1 overflow-hidden p-8 min-w-0">
             <DocumentViewer
@@ -842,25 +863,23 @@ function SortableFolderItem({
   )
 
   return (
-    <div ref={setNodeRef} style={style} className="mb-1">
+    <div ref={setNodeRef} style={style} className="mb-2">
       <div
         {...attributes}
         {...listeners}
-        className={`group flex items-center gap-2 px-3 py-2 rounded-lg cursor-grab active:cursor-grabbing transition-colors ${
+        onClick={() => {
+          onToggle()
+          onSelectFolder()
+        }}
+        className={`group flex items-center gap-2 px-3 py-3 cursor-pointer transition-all rounded-xl backdrop-blur-sm ${
           isSelected
-            ? 'bg-[hsl(var(--color-primary))] text-white'
+            ? 'bg-[hsl(var(--color-surface-hover))] border border-[hsl(var(--color-border))] shadow-[0_4px_16px_rgb(0_0_0/0.15)]'
             : isDragTarget
             ? 'bg-blue-500/20 border-2 border-blue-500'
-            : 'hover:bg-[hsl(var(--color-surface-hover))]'
+            : 'bg-[hsl(var(--color-surface-hover))]/30 hover:bg-[hsl(var(--color-surface-hover))] border border-transparent hover:border-[hsl(var(--color-border))]'
         }`}
       >
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onToggle()
-          }}
-          className="flex-shrink-0"
-        >
+        <div className="flex-shrink-0">
           <svg
             className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
             fill="none"
@@ -869,8 +888,8 @@ function SortableFolderItem({
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
-        </button>
-        <span onClick={(e) => { e.stopPropagation(); onSelectFolder(); }} className="flex-1 truncate text-sm">
+        </div>
+        <span className="flex-1 truncate text-sm">
           {folder.name}
         </span>
         <div className="relative">
@@ -879,7 +898,7 @@ function SortableFolderItem({
               e.stopPropagation()
               setShowMenu(!showMenu)
             }}
-            className="p-1 rounded hover:bg-[hsl(var(--color-surface-hover))] opacity-0 group-hover:opacity-100 transition-opacity"
+            className="p-1 rounded-lg hover:bg-[hsl(var(--color-surface-hover))] opacity-0 group-hover:opacity-100 transition-opacity"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
@@ -888,7 +907,9 @@ function SortableFolderItem({
           {showMenu && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-              <div className="absolute right-0 mt-1 w-48 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-lg shadow-lg z-20">
+              <div 
+                className="absolute right-0 mt-1 w-48 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl shadow-lg z-20 overflow-hidden"
+              >
                 <button
                   onClick={() => {
                     onShare()
@@ -931,7 +952,7 @@ function SortableFolderItem({
         </div>
       </div>
       {isExpanded && (
-        <div className="ml-8 mt-1 space-y-1">
+        <div className="mt-1 space-y-1 pl-6">
           {documents.length > 0 && (
             <DndContext
               sensors={documentSensors}
@@ -956,7 +977,7 @@ function SortableFolderItem({
           )}
           <button
             onClick={onNewDocument}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm transition-colors hover:bg-[hsl(var(--color-surface-hover))] text-[hsl(var(--color-text-secondary))]"
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left text-sm transition-colors bg-[hsl(var(--color-surface-hover))]/30 hover:bg-[hsl(var(--color-surface-hover))] border border-transparent hover:border-[hsl(var(--color-border))] text-[hsl(var(--color-text-secondary))]"
           >
             <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1022,31 +1043,29 @@ function SortableDocumentItem({ document, isSelected, onSelect, onRename, onMove
   }
 
   return (
-    <div ref={setNodeRef} style={style} className="group relative">
-      <div className="flex items-center">
-        <button
-          {...attributes}
-          {...listeners}
-          onClick={(e) => {
-            e.stopPropagation()
-            onSelect()
-          }}
-          className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm cursor-grab active:cursor-grabbing transition-colors ${
-            isSelected
-              ? 'bg-[hsl(var(--color-primary))] text-white'
-              : 'hover:bg-[hsl(var(--color-surface-hover))]'
-          }`}
-        >
-          {getDocumentIcon()}
-          <span className="truncate">{document.title}</span>
-        </button>
+    <div ref={setNodeRef} style={style} className="group relative mb-1">
+      <div
+        {...attributes}
+        {...listeners}
+        onClick={(e) => {
+          e.stopPropagation()
+          onSelect()
+        }}
+        className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left text-sm cursor-pointer transition-all backdrop-blur-sm ${
+          isSelected
+            ? 'bg-[hsl(var(--color-surface-hover))] border border-[hsl(var(--color-border))] shadow-[0_4px_16px_rgb(0_0_0/0.15)]'
+            : 'bg-[hsl(var(--color-surface-hover))]/30 hover:bg-[hsl(var(--color-surface-hover))] border border-transparent hover:border-[hsl(var(--color-border))]'
+        }`}
+      >
+        {getDocumentIcon()}
+        <span className="flex-1 truncate">{document.title}</span>
         <div className="relative flex-shrink-0">
           <button
             onClick={(e) => {
               e.stopPropagation()
               setShowMenu(!showMenu)
             }}
-            className="p-1 rounded hover:bg-[hsl(var(--color-surface-hover))] opacity-0 group-hover:opacity-100 transition-opacity"
+            className="p-1 rounded-lg hover:bg-[hsl(var(--color-surface-hover))] opacity-0 group-hover:opacity-100 transition-opacity"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
@@ -1055,7 +1074,9 @@ function SortableDocumentItem({ document, isSelected, onSelect, onRename, onMove
           {showMenu && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)}></div>
-              <div className="absolute right-0 top-8 z-20 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-lg shadow-lg py-1 min-w-[150px]">
+              <div 
+                className="absolute right-0 top-8 z-20 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl shadow-lg py-1 min-w-[150px] overflow-hidden"
+              >
                 <button
                   onClick={() => {
                     onRename()

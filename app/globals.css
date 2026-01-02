@@ -3,27 +3,38 @@
 /* ============================================
    NEXUS CRM THEME SYSTEM
    ============================================
-   Change these CSS variables to customize the entire app theme
-   All colors, spacing, shadows, and borders are defined here
+   Apple Dark Mode Color Reference (iOS/iPadOS):
+   - Gray 6 (base): #1C1C1E (28, 28, 30) - HSL: 240 3% 11%
+   - Gray 5 (elevated): #2C2C2E (44, 44, 46) - HSL: 240 2% 18%
+   - Gray 4: #3A3A3C (58, 58, 60) - HSL: 240 2% 23%
+   - Gray 3: #48484A (72, 72, 74) - HSL: 240 1% 29%
+   - Gray 2: #636366 (99, 99, 102) - HSL: 240 2% 39%
+   - Gray: #8E8E93 (142, 142, 147) - HSL: 240 2% 57%
 */
 
 @layer base {
   :root {
     /* ========== COLORS ========== */
-    /* Background Colors */
-    --color-background: 240 10% 3.9%;           /* Main page background (dark) */
-    --color-surface: 240 5.9% 10%;              /* Card/panel background */
-    --color-surface-secondary: 240 5.9% 6%;     /* Secondary surface (sidebar panel) */
-    --color-surface-hover: 240 5.9% 15%;        /* Hover state for cards */
+    /* Background Colors - Apple Dark Mode hierarchy */
+    --color-background: 240 3% 11%;             /* Base background #1C1C1E */
+    --color-surface: 240 2% 18%;                /* Elevated surface #2C2C2E */
+    --color-surface-secondary: 240 3% 14%;      /* Secondary surface */
+    --color-surface-hover: 240 2% 23%;          /* Hover state #3A3A3C */
+    --color-surface-active: 240 1% 29%;         /* Active/pressed #48484A */
+    
+    /* Glass Effect Colors */
+    --color-glass: 240 2% 20% / 0.8;            /* Glass background */
+    --color-glass-border: 240 2% 50% / 0.2;     /* Glass border */
+    --color-glass-highlight: 0 0% 100% / 0.08;  /* Glass highlight */
     
     /* Sidebar/Navigation */
-    --color-sidebar: 240 5.9% 8%;               /* Sidebar background */
-    --color-sidebar-active: 240 5.9% 15%;       /* Active nav item */
+    --color-sidebar: 240 3% 14%;                /* Sidebar background */
+    --color-sidebar-active: 240 2% 20%;         /* Active nav item */
     
-    /* Text Colors */
-    --color-text-primary: 0 0% 98%;             /* Main text color */
-    --color-text-secondary: 240 5% 64.9%;       /* Secondary text */
-    --color-text-muted: 240 3.7% 45%;           /* Muted text */
+    /* Text Colors - Apple label colors */
+    --color-text-primary: 0 0% 100%;            /* Primary label */
+    --color-text-secondary: 240 2% 57%;         /* Secondary label #8E8E93 */
+    --color-text-muted: 240 2% 39%;             /* Tertiary label #636366 */
     
     /* Brand/Accent Colors */
     --color-primary: 7 92% 34%;                 /* Primary brand color (#AB1604) */
@@ -37,13 +48,21 @@
     --color-info: 199 89% 48%;                  /* Info/cyan */
     
     /* Border Colors */
-    --color-border: 240 3.7% 15.9%;             /* Default border */
-    --color-border-hover: 240 3.7% 25%;         /* Border on hover */
+    --color-border: 240 2% 26%;                 /* Default border */
+    --color-border-hover: 240 2% 35%;           /* Border on hover */
     
     /* Input Colors */
-    --color-input-bg: 240 5.9% 10%;             /* Input background */
-    --color-input-border: 240 3.7% 15.9%;       /* Input border */
+    --color-input-bg: 240 2% 18%;               /* Input background */
+    --color-input-border: 240 2% 26%;           /* Input border */
     --color-input-focus: 217 91% 60%;           /* Input focus border */
+    
+    /* ========== GLOW COLORS ========== */
+    --glow-primary: 7 92% 34% / 0.4;
+    --glow-cyan: 199 89% 48% / 0.3;
+    --glow-blue: 217 91% 60% / 0.3;
+    --glow-purple: 270 70% 60% / 0.3;
+    --glow-green: 142 71% 45% / 0.3;
+    --glow-orange: 38 92% 50% / 0.3;
     
     /* ========== SPACING ========== */
     --spacing-xs: 0.25rem;      /* 4px */
@@ -58,6 +77,7 @@
     --radius-md: 0.5rem;        /* 8px - buttons, inputs */
     --radius-lg: 0.75rem;       /* 12px - cards */
     --radius-xl: 1rem;          /* 16px - modals */
+    --radius-2xl: 1.5rem;       /* 24px - large cards */
     
     /* ========== SHADOWS ========== */
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
@@ -65,11 +85,13 @@
     --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
     --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
     --shadow-inner: inset 0 2px 4px 0 rgb(0 0 0 / 0.05);
+    --shadow-glow: 0 0 20px rgb(0 0 0 / 0.15);
     
     /* ========== TRANSITIONS ========== */
     --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
     --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
     --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-spring: 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
   }
   
   /* Light theme (optional - add later if needed) */
@@ -115,6 +137,151 @@
   
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--color-border-hover));
+  }
+  
+  /* ========== GLASS EFFECTS ========== */
+  .glass {
+    background: hsl(var(--color-glass));
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid hsl(var(--color-glass-border));
+  }
+  
+  .glass-subtle {
+    background: hsl(240 5.9% 10% / 0.8);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid hsl(var(--color-glass-border));
+  }
+  
+  .glass-strong {
+    background: hsl(240 5.9% 8% / 0.9);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid hsl(240 5% 50% / 0.1);
+  }
+  
+  /* Glass hover effect */
+  .glass-hover {
+    transition: all var(--transition-slow);
+  }
+  
+  .glass-hover:hover {
+    background: hsl(240 5.9% 15% / 0.7);
+    border-color: hsl(240 5% 50% / 0.25);
+    box-shadow: 0 8px 32px rgb(0 0 0 / 0.2);
+  }
+  
+  /* ========== GLOW EFFECTS ========== */
+  .glow-sm {
+    box-shadow: 0 0 10px hsl(var(--glow-primary));
+  }
+  
+  .glow-md {
+    box-shadow: 0 0 20px hsl(var(--glow-primary));
+  }
+  
+  .glow-cyan {
+    box-shadow: 0 0 15px hsl(var(--glow-cyan));
+  }
+  
+  .glow-blue {
+    box-shadow: 0 0 15px hsl(var(--glow-blue));
+  }
+  
+  .glow-purple {
+    box-shadow: 0 0 15px hsl(var(--glow-purple));
+  }
+  
+  .glow-green {
+    box-shadow: 0 0 15px hsl(var(--glow-green));
+  }
+  
+  .glow-orange {
+    box-shadow: 0 0 15px hsl(var(--glow-orange));
+  }
+  
+  /* ========== ANIMATION UTILITIES ========== */
+  .animate-glow-pulse {
+    animation: glow-pulse 2s ease-in-out infinite;
+  }
+  
+  @keyframes glow-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+  
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+  
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+  
+  /* Hover lift effect */
+  .hover-lift {
+    transition: transform var(--transition-slow), box-shadow var(--transition-slow);
+  }
+  
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 24px rgb(0 0 0 / 0.15);
+  }
+  
+  /* Scale effect */
+  .hover-scale {
+    transition: transform var(--transition-base);
+  }
+  
+  .hover-scale:hover {
+    transform: scale(1.02);
+  }
+  
+  .hover-scale-sm:hover {
+    transform: scale(1.01);
+  }
+  
+  /* Shimmer loading effect */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--color-surface)) 0%,
+      hsl(var(--color-surface-hover)) 50%,
+      hsl(var(--color-surface)) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+  
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  
+  /* Gradient border effect */
+  .gradient-border {
+    position: relative;
+  }
+  
+  .gradient-border::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: linear-gradient(
+      135deg,
+      hsl(240 5% 40% / 0.3),
+      hsl(240 5% 20% / 0.1),
+      hsl(240 5% 40% / 0.3)
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
   }
 }
 

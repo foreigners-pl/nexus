@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { Case, Client, Status } from '@/types/database'
-import { Card } from '@/components/ui/Card'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
@@ -76,7 +75,13 @@ export function KanbanCard({ caseItem, isDragging = false }: KanbanCardProps) {
       {...attributes}
     >
       <Link href={`/cases/${caseItem.id}`} onClick={(e) => isDraggingActive && e.preventDefault()}>
-        <Card className="p-3 hover:shadow-lg transition-shadow cursor-pointer border border-[hsl(var(--color-border))]">
+        <div 
+          className="p-3 rounded-xl border border-white/10 backdrop-blur-xl transition-all duration-200 hover:scale-[1.02] hover:border-white/20"
+          style={{
+            backgroundColor: 'rgba(44, 44, 46, 0.6)',
+            boxShadow: '0 4px 16px rgb(0 0 0 / 0.2), inset 0 1px 0 rgb(255 255 255 / 0.05)'
+          }}
+        >
           <div className="space-y-2">
           {/* Title: Case Code */}
           <div className="font-medium text-sm text-[hsl(var(--color-text-primary))]">
@@ -124,7 +129,7 @@ export function KanbanCard({ caseItem, isDragging = false }: KanbanCardProps) {
             )}
           </div>
         </div>
-      </Card>
+      </div>
     </Link>
     </div>
   )
