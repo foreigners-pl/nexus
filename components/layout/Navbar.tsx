@@ -68,11 +68,9 @@ const icons = {
 const navItems = [
   { href: '/home', label: 'Home', icon: 'home' as keyof typeof icons },
   { href: '/clients', label: 'Clients', icon: 'clients' as keyof typeof icons },
-  { href: '/cases', label: 'Cases', icon: 'cases' as keyof typeof icons },
   { href: '/board', label: 'Board', icon: 'board' as keyof typeof icons },
   { href: '/wiki', label: 'Wiki', icon: 'wiki' as keyof typeof icons },
   { href: '/chat', label: 'Chat', icon: 'chat' as keyof typeof icons },
-  { href: '/settings', label: 'Settings', icon: 'settings' as keyof typeof icons },
 ]
 
 export function Navbar() {
@@ -235,7 +233,25 @@ export function Navbar() {
             </div>
           )}
         </div>
-        <form action={logout} className={isCollapsed ? "" : "px-2"}>
+        
+        {/* Settings Link */}
+        <Link
+          href="/settings"
+          title={isCollapsed ? "Settings" : undefined}
+          className={cn(
+            "flex items-center rounded-lg w-full cursor-pointer",
+            "text-sm font-medium transition-all duration-200",
+            pathname === '/settings' || pathname.startsWith('/settings')
+              ? "bg-[hsl(var(--color-surface-hover))] text-[hsl(var(--color-text-primary))]"
+              : "text-[hsl(var(--color-text-secondary))] hover:bg-[hsl(var(--color-surface-hover))] hover:text-[hsl(var(--color-text-primary))]",
+            isCollapsed ? "px-3 py-3 justify-center" : "px-4 py-3 gap-3"
+          )}
+        >
+          <span className="flex-shrink-0">{icons.settings}</span>
+          {!isCollapsed && <span className="whitespace-nowrap">Settings</span>}
+        </Link>
+        
+        <form action={logout} className={isCollapsed ? "" : ""}>
           <Button 
             type="submit" 
             variant="ghost" 
