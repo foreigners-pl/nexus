@@ -4,10 +4,24 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef, Re
 import { createClient } from '@/lib/supabase/client'
 import { getTotalUnreadCount } from '@/app/actions/chat'
 
+interface BuzzNotification {
+  id: string
+  senderName: string
+  conversationId: string
+  timestamp: Date
+}
+
 interface ChatContextType {
   unreadCount: number
   refreshCount: () => Promise<void>
   latestSenderName: string | null
+  activeBuzz: BuzzNotification | null
+  dismissBuzz: () => void
+  isMiniChatOpen: boolean
+  setMiniChatOpen: (open: boolean) => void
+  miniChatConversationId: string | null
+  openMiniChat: (conversationId?: string | null) => void
+  closeMiniChat: () => void
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined)
@@ -28,12 +42,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0)
   const [userId, setUserId] = useState<string | null>(null)
   const [latestSenderName, setLatestSenderName] = useState<string | null>(null)
+  const [activeBuzz, setActiveBuzz] = useState<BuzzNotification | null>(null)
+  const [isMiniChatOpen, setMiniChatOpen] = useState(false)
+  const [miniChatConversationId, setMiniChatConversationId] = useState<string | null>(null)
   const supabase = createClient()
   const audioContextRef = useRef<AudioContext | null>(null)
   const userInteractedRef = useRef(false)
   const prevCountRef = useRef<number | null>(null)
   const originalTitle = useRef('Nexus CRM')
   const titleIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const buzzTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Track user interaction for audio
   useEffect(() => {
@@ -150,6 +168,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setUnreadCount(count)
   }, [])
 
+  const dismissBuzz = useCallback(() => {
+    setActiveBuzz(null)
+    if (buzzTimeoutRef.current) {
+      clearTimeout(buzzTimeoutRef.current)
+      buzzTimeoutRef.current = null
+    }
+  }, [])
+
+  const openMiniChat = useCallback((conversationId?: string | null) => {
+    setMiniChatConversationId(conversationId || null)
+    setMiniChatOpen(true)
+  }, [])
+
+  const closeMiniChat = useCallback(() => {
+    setMiniChatOpen(false)
+    setMiniChatConversationId(null)
+  }, [])
+
   // Initial load
   useEffect(() => {
     refreshCount()
@@ -169,7 +205,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           table: 'messages'
         },
         async (payload) => {
-          const newMessage = payload.new as { sender_id: string; conversation_id: string; content: string | null }
+          const newMessage = payload.new as { 
+            id: string
+            sender_id: string
+            conversation_id: string
+            content: string | null
+            is_system?: boolean
+            created_at: string
+          }
           // Only handle if message is from someone else
           if (newMessage.sender_id && newMessage.sender_id !== userId) {
             // Get sender name for tab title
@@ -179,8 +222,32 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               .eq('id', newMessage.sender_id)
               .single()
             
+            const senderName = sender?.display_name || sender?.email?.split('@')[0] || 'Someone'
+            
             if (sender) {
-              setLatestSenderName(sender.display_name || sender.email?.split('@')[0] || 'Someone')
+              setLatestSenderName(senderName)
+            }
+            
+            // Check if this is a buzz message
+            if (newMessage.is_system && newMessage.content?.includes('sent a buzz')) {
+              // Clear any existing timeout
+              if (buzzTimeoutRef.current) {
+                clearTimeout(buzzTimeoutRef.current)
+              }
+              
+              // Set the active buzz
+              setActiveBuzz({
+                id: newMessage.id,
+                senderName,
+                conversationId: newMessage.conversation_id,
+                timestamp: new Date(newMessage.created_at)
+              })
+              
+              // Auto-dismiss after 10 seconds
+              buzzTimeoutRef.current = setTimeout(() => {
+                setActiveBuzz(null)
+                buzzTimeoutRef.current = null
+              }, 10000)
             }
             
             // Play sound and refresh count
@@ -212,7 +279,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [supabase, userId, refreshCount, playChatSound])
 
   return (
-    <ChatContext.Provider value={{ unreadCount, refreshCount, latestSenderName }}>
+    <ChatContext.Provider value={{ 
+      unreadCount, 
+      refreshCount, 
+      latestSenderName,
+      activeBuzz,
+      dismissBuzz,
+      isMiniChatOpen,
+      setMiniChatOpen,
+      miniChatConversationId,
+      openMiniChat,
+      closeMiniChat
+    }}>
       {children}
     </ChatContext.Provider>
   )

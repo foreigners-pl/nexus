@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Navbar } from '@/components/layout/Navbar'
 import { NotificationProvider } from '@/lib/notifications/NotificationContext'
 import { ChatProvider } from '@/lib/chat/ChatContext'
+import MiniChat from '@/app/(dashboard)/chat/components/MiniChat'
 import { cn } from '@/lib/utils'
 
 export default function DashboardLayout({
@@ -40,6 +41,7 @@ export default function DashboardLayout({
           )}>
             {children}
           </main>
+          <MiniChat />
         </div>
       </ChatProvider>
     </NotificationProvider>
