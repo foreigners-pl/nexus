@@ -222,6 +222,7 @@ export async function moveCard(cardId: string, newStatusId: string, newPosition:
         message: `${actorName} moved task "${cardBefore.title}" to "${newStatus?.name || 'Unknown'}"`,
         metadata: {
           card_title: cardBefore.title,
+          board_id: cardBefore.board_id,
           new_status: newStatus?.name,
           actor_name: actorName,
         }

@@ -290,7 +290,13 @@ export function ActivityFeed({ activities, onRefresh }: ActivityFeedProps) {
     if (activity.entity_type === 'case') {
       router.push(`/cases/${activity.entity_id}`)
     } else if (activity.entity_type === 'card') {
-      router.push('/board')
+      // Navigate to board with card modal open
+      const boardId = activity.metadata?.board_id
+      if (boardId) {
+        router.push(`/board/${boardId}?cardId=${activity.entity_id}`)
+      } else {
+        router.push('/board')
+      }
     } else if (activity.entity_type === 'installment') {
       if (activity.metadata?.case_id) {
         router.push(`/cases/${activity.metadata.case_id}`)

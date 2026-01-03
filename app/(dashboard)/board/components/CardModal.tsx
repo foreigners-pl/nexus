@@ -164,7 +164,7 @@ export function CardModal({ isOpen, onClose, onSuccess, boardId, statusId, card,
     // If editing existing card, remove from database
     if (card && !assigneeId.startsWith('temp-')) {
       setAssigneeLoading(true)
-      const result = await removeCardAssignee(assigneeId)
+      const result = await removeCardAssignee(assigneeId, card.id)
 
       if (result?.error) {
         setError(result.error)
