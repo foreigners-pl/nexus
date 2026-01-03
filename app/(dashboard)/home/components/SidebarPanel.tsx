@@ -149,10 +149,7 @@ export function SidebarPanel({ activities, cases, onRefreshActivities, onRefresh
   }
 
   const handleActivityClick = async (activity: ActivityLog) => {
-    if (!activity.is_read) {
-      await markActivityRead(activity.id)
-      onRefreshActivities()
-    }
+    // Navigate first
     if (activity.entity_type === 'case') {
       router.push(`/cases/${activity.entity_id}`)
     } else if (activity.entity_type === 'card') {
@@ -161,6 +158,11 @@ export function SidebarPanel({ activities, cases, onRefreshActivities, onRefresh
       router.push(`/cases/${activity.metadata.case_id}`)
     } else if (activity.entity_type === 'conversation') {
       router.push(`/chat?conversation=${activity.entity_id}`)
+    }
+    
+    // Mark as read in background (don't await or refresh - we're navigating away)
+    if (!activity.is_read) {
+      markActivityRead(activity.id)
     }
   }
 

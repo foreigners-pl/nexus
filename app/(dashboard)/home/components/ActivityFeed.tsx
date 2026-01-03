@@ -281,13 +281,7 @@ export function ActivityFeed({ activities, onRefresh }: ActivityFeedProps) {
   }
 
   const handleActivityClick = async (activity: ActivityLog) => {
-    // Mark as read
-    if (!activity.is_read) {
-      await markActivityRead(activity.id)
-      onRefresh()
-    }
-
-    // Navigate to the relevant page
+    // Navigate first
     if (activity.entity_type === 'case') {
       router.push(`/cases/${activity.entity_id}`)
     } else if (activity.entity_type === 'card') {
@@ -301,6 +295,11 @@ export function ActivityFeed({ activities, onRefresh }: ActivityFeedProps) {
     } else if (activity.entity_type === 'conversation') {
       // Navigate to chat with the conversation selected
       router.push(`/chat?conversation=${activity.entity_id}`)
+    }
+    
+    // Mark as read in background (don't await or refresh - we're navigating away)
+    if (!activity.is_read) {
+      markActivityRead(activity.id)
     }
   }
 

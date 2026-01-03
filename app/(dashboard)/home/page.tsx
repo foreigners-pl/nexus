@@ -56,9 +56,12 @@ export default function HomePage() {
           table: 'activity_log',
           filter: `user_id=eq.${dashboardData.user.id}`
         },
-        () => {
+        async () => {
           // Refresh activities when new one is inserted for this user
-          refreshActivities()
+          const result = await getMyActivities(15)
+          if (result.activities) {
+            setDashboardData(prev => prev ? { ...prev, activities: result.activities } : prev)
+          }
         }
       )
       .subscribe()
