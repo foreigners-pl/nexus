@@ -283,8 +283,8 @@ export interface ActivityLog {
   id: string
   user_id: string
   actor_id?: string
-  action_type: 'assigned' | 'unassigned' | 'comment' | 'status_change' | 'payment_received' | 'payment_due' | 'due_reminder' | 'overdue' | 'claimed'
-  entity_type: 'case' | 'card' | 'installment' | 'invoice'
+  action_type: 'assigned' | 'unassigned' | 'comment' | 'status_change' | 'payment_received' | 'payment_due' | 'due_reminder' | 'overdue' | 'claimed' | 'buzz'
+  entity_type: 'case' | 'card' | 'installment' | 'invoice' | 'conversation'
   entity_id: string
   message: string
   metadata?: {
@@ -295,6 +295,8 @@ export interface ActivityLog {
     actor_name?: string
     amount?: number
     comment_preview?: string
+    sender_name?: string
+    sender_id?: string
     [key: string]: any
   }
   is_read: boolean

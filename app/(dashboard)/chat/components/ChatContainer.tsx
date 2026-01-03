@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
 import { ConversationWithDetails, Message, getConversations } from '@/app/actions/chat'
 import ConversationList from './ConversationList'
@@ -17,6 +18,7 @@ export default function ChatContainer({ initialConversations }: ChatContainerPro
   const [showNewChatModal, setShowNewChatModal] = useState(false)
   const [isMobileListVisible, setIsMobileListVisible] = useState(true)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const searchParams = useSearchParams()
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,6 +31,21 @@ export default function ChatContainer({ initialConversations }: ChatContainerPro
       setCurrentUserId(data.user?.id || null)
     })
   }, [supabase])
+
+  // Handle conversation query param (e.g., from clicking buzz notification)
+  useEffect(() => {
+    const conversationId = searchParams.get('conversation')
+    if (conversationId && conversations.some(c => c.id === conversationId)) {
+      setSelectedConversationId(conversationId)
+      setIsMobileListVisible(false)
+      // Clear unread count for selected conversation
+      setConversations(prev => 
+        prev.map(conv => 
+          conv.id === conversationId ? { ...conv, unread_count: 0 } : conv
+        )
+      )
+    }
+  }, [searchParams, conversations])
 
   // Subscribe to realtime updates
   useEffect(() => {

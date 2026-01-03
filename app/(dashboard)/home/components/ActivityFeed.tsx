@@ -147,6 +147,12 @@ const actionIcons: Record<string, React.ReactNode> = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
     </svg>
   ),
+  // Chat/Conversation actions
+  buzz: (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+    </svg>
+  ),
   // Legacy compatibility
   assigned: (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -176,6 +182,7 @@ const categoryColors = {
   updates: { text: '#c084fc', bg: 'rgba(168, 85, 247, 0.2)' },        // Purple
   payments: { text: '#4ade80', bg: 'rgba(34, 197, 94, 0.2)' },        // Green
   reminders: { text: '#fb923c', bg: 'rgba(249, 115, 22, 0.2)' },      // Orange
+  chat: { text: '#facc15', bg: 'rgba(250, 204, 21, 0.2)' },           // Yellow
   default: { text: '#9ca3af', bg: 'rgba(156, 163, 175, 0.2)' }
 } as const
 
@@ -216,6 +223,9 @@ const actionToCategory: Record<string, keyof typeof categoryColors> = {
   task_one_month_overdue: 'reminders',
   task_overdue: 'reminders',
   overdue: 'reminders', // Legacy
+  
+  // Chat (yellow)
+  buzz: 'chat',
 }
 
 // Get color for an action type based on its category
@@ -228,6 +238,7 @@ function getActionColor(actionType: string): { text: string; bg: string } {
 const entityBadgeStyles = {
   case: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
   card: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+  conversation: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
 } as const
 
 function getEntityLabel(entityType: string): { label: string; style: string } | null {
@@ -236,6 +247,9 @@ function getEntityLabel(entityType: string): { label: string; style: string } | 
   }
   if (entityType === 'card') {
     return { label: 'Task', style: entityBadgeStyles.card }
+  }
+  if (entityType === 'conversation') {
+    return { label: 'Chat', style: entityBadgeStyles.conversation }
   }
   return null
 }
@@ -284,6 +298,9 @@ export function ActivityFeed({ activities, onRefresh }: ActivityFeedProps) {
       if (activity.metadata?.case_id) {
         router.push(`/cases/${activity.metadata.case_id}`)
       }
+    } else if (activity.entity_type === 'conversation') {
+      // Navigate to chat with the conversation selected
+      router.push(`/chat?conversation=${activity.entity_id}`)
     }
   }
 

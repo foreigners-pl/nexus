@@ -1,7 +1,9 @@
 ﻿'use client'
 
 import { useState, useRef, useEffect, KeyboardEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { createBrowserClient } from '@supabase/ssr'
+import { sendBuzz } from '@/app/actions/chat'
 import EmojiPicker from './EmojiPicker'
 
 interface MessageInputProps {
@@ -18,6 +20,9 @@ export default function MessageInput({ onSend, disabled, conversationId }: Messa
   const [showEmoji, setShowEmoji] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [attachment, setAttachment] = useState<{ url: string; name: string; type: string } | null>(null)
+  const [showBuzzConfirm, setShowBuzzConfirm] = useState(false)
+  const [buzzing, setBuzzing] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const emojiPickerRef = useRef<HTMLDivElement>(null)
@@ -26,6 +31,10 @@ export default function MessageInput({ onSend, disabled, conversationId }: Messa
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Click outside to close emoji picker
   useEffect(() => {
@@ -127,6 +136,16 @@ export default function MessageInput({ onSend, disabled, conversationId }: Messa
     setAttachment(null)
   }
 
+  const handleBuzz = async () => {
+    setBuzzing(true)
+    const { success, error } = await sendBuzz(conversationId)
+    if (!success) {
+      console.error('Buzz error:', error)
+    }
+    setBuzzing(false)
+    setShowBuzzConfirm(false)
+  }
+
   return (
     <div className="border-t border-white/5 p-4 bg-[hsl(240_3%_11%)]/80 backdrop-blur-xl">
       {/* Attachment preview */}
@@ -190,6 +209,18 @@ export default function MessageInput({ onSend, disabled, conversationId }: Messa
           )}
         </div>
 
+        {/* Buzz button */}
+        <button
+          onClick={() => setShowBuzzConfirm(true)}
+          disabled={disabled}
+          className="p-2.5 rounded-xl hover:bg-yellow-500/20 transition-all duration-200 text-yellow-500/70 hover:text-yellow-400 disabled:opacity-50 self-center"
+          title="Send a buzz"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+          </svg>
+        </button>
+
         {/* Message input */}
         <div className="flex-1 relative">
           <textarea
@@ -215,6 +246,52 @@ export default function MessageInput({ onSend, disabled, conversationId }: Messa
           </svg>
         </button>
       </div>
+
+      {/* Buzz Confirmation Modal */}
+      {mounted && showBuzzConfirm && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-[hsl(240_3%_15%)] border border-white/10 rounded-2xl shadow-2xl p-6 max-w-sm mx-4 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-yellow-500/20 flex items-center justify-center">
+              <svg className="w-8 h-8 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-white mb-2">Send a Buzz? 🔔</h3>
+            <p className="text-white/60 mb-6 text-sm">
+              This will send a notification to everyone in this chat to get their attention!
+            </p>
+            <div className="flex justify-center gap-3">
+              <button
+                onClick={() => setShowBuzzConfirm(false)}
+                disabled={buzzing}
+                className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBuzz}
+                disabled={buzzing}
+                className="px-5 py-2.5 rounded-xl bg-yellow-500 hover:bg-yellow-600 text-black font-semibold transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {buzzing ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                    Buzzing...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    Buzz!
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }

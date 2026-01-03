@@ -668,3 +668,56 @@ export async function getTotalUnreadCount(): Promise<{ count: number; error?: st
 
   return { count: totalUnread }
 }
+
+// Send a buzz to all members of a conversation
+export async function sendBuzz(conversationId: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Not authenticated' }
+
+  // Get sender info
+  const { data: sender } = await supabase
+    .from('users')
+    .select('display_name, email')
+    .eq('id', user.id)
+    .single()
+
+  const senderName = sender?.display_name || sender?.email?.split('@')[0] || 'Someone'
+
+  // Create a system message for the buzz in the conversation
+  const { error: messageError } = await supabase
+    .from('messages')
+    .insert({
+      conversation_id: conversationId,
+      sender_id: user.id,
+      content: '🔔 sent a buzz!',
+      is_system: true
+    })
+
+  if (messageError) return { success: false, error: messageError.message }
+
+  // Get all members of the conversation except the sender
+  const { data: members } = await supabase
+    .from('conversation_members')
+    .select('user_id')
+    .eq('conversation_id', conversationId)
+    .neq('user_id', user.id)
+
+  if (members && members.length > 0) {
+    // Create activity log entries for each member
+    const activityEntries = members.map(member => ({
+      user_id: member.user_id,
+      action_type: 'buzz',
+      entity_type: 'conversation',
+      entity_id: conversationId,
+      message: `🔔 ${senderName} buzzed you!`,
+      metadata: { sender_name: senderName, sender_id: user.id },
+      is_read: false
+    }))
+
+    await supabase.from('activity_log').insert(activityEntries)
+  }
+
+  return { success: true }
+}
