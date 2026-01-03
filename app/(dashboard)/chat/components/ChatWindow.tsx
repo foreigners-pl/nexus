@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { createBrowserClient } from '@supabase/ssr'
 import { 
   ConversationWithDetails, 
@@ -35,6 +36,7 @@ export default function ChatWindow({ conversation, onBack, onMeetingUpdate }: Ch
   const [startingMeeting, setStartingMeeting] = useState(false)
   const [showEndMeetingModal, setShowEndMeetingModal] = useState(false)
   const [endingMeeting, setEndingMeeting] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
@@ -42,6 +44,11 @@ export default function ChatWindow({ conversation, onBack, onMeetingUpdate }: Ch
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
+
+  // Handle client-side mounting for portal
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Get current user
   useEffect(() => {
@@ -370,8 +377,8 @@ export default function ChatWindow({ conversation, onBack, onMeetingUpdate }: Ch
       />
 
       {/* End Meeting Confirmation Modal */}
-      {showEndMeetingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {mounted && showEndMeetingModal && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center">
           {/* Backdrop */}
           <div 
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
@@ -379,7 +386,7 @@ export default function ChatWindow({ conversation, onBack, onMeetingUpdate }: Ch
           />
           
           {/* Modal */}
-          <div className="relative bg-[#1c1c1e] border border-white/10 rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl">
+          <div className="relative bg-[#1c1c1e] border border-white/10 rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl overflow-hidden">
             {/* Icon */}
             <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-red-500/20 flex items-center justify-center">
               <svg className="w-7 h-7 text-red-400" viewBox="0 0 24 24" fill="currentColor">
@@ -422,7 +429,8 @@ export default function ChatWindow({ conversation, onBack, onMeetingUpdate }: Ch
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

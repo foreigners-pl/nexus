@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
 
 interface DatePickerProps {
@@ -12,10 +13,18 @@ interface DatePickerProps {
 
 export function DatePicker({ value, onChange, onBlur, className }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 })
   const [selectedDate, setSelectedDate] = useState<Date | null>(
     value ? new Date(value) : null
   )
   const containerRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+
+  // Handle client-side mounting for portal
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     if (value) {
@@ -26,6 +35,11 @@ export function DatePicker({ value, onChange, onBlur, className }: DatePickerPro
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        // Also check if click is inside the portal dropdown
+        const dropdown = document.getElementById('datepicker-dropdown-portal')
+        if (dropdown && dropdown.contains(event.target as Node)) {
+          return
+        }
         setIsOpen(false)
         onBlur?.()
       }
@@ -39,6 +53,17 @@ export function DatePicker({ value, onChange, onBlur, className }: DatePickerPro
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [isOpen, onBlur])
+
+  // Update dropdown position when opening
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect()
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY + 4,
+        left: rect.left + window.scrollX
+      })
+    }
+  }, [isOpen])
 
   const formatDate = (date: Date | null) => {
     if (!date) return ''
@@ -130,6 +155,7 @@ export function DatePicker({ value, onChange, onBlur, className }: DatePickerPro
   return (
     <div ref={containerRef} className="relative">
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
@@ -152,8 +178,16 @@ export function DatePicker({ value, onChange, onBlur, className }: DatePickerPro
         </svg>
       </button>
 
-      {isOpen && (
-        <div className="absolute z-50 mt-1 rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-3 shadow-lg">
+      {mounted && isOpen && createPortal(
+        <div 
+          id="datepicker-dropdown-portal"
+          style={{
+            position: 'absolute',
+            top: dropdownPosition.top,
+            left: dropdownPosition.left
+          }}
+          className="z-[9999] rounded-[var(--radius-md)] border border-[hsl(var(--color-border))] bg-[hsl(var(--color-bg))] p-3 shadow-lg"
+        >
           <div className="flex items-center justify-between mb-3">
             <button
               type="button"
@@ -202,7 +236,8 @@ export function DatePicker({ value, onChange, onBlur, className }: DatePickerPro
               Today
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

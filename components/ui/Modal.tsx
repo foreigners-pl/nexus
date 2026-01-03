@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Button } from './Button'
 
 interface ModalProps {
@@ -13,6 +14,12 @@ interface ModalProps {
 
 export function Modal({ isOpen, onClose, title, children, maxWidth = 'md' }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
+  const [mounted, setMounted] = useState(false)
+
+  // Only render portal on client
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const maxWidthClasses = {
     sm: 'max-w-sm',
@@ -45,9 +52,9 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'md' }: Mod
     }
   }
 
-  if (!isOpen) return null
+  if (!isOpen || !mounted) return null
 
-  return (
+  const modalContent = (
     <div
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md"
       onClick={handleBackdropClick}
@@ -56,16 +63,16 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'md' }: Mod
         ref={modalRef}
         className={`
           bg-[hsl(var(--color-surface))] 
-          backdrop-blur-xl 
           rounded-2xl 
           border border-[hsl(var(--color-border))] 
           shadow-[0_25px_50px_-12px_rgb(0_0_0/0.5),0_0_0_1px_rgb(255_255_255/0.05)_inset]
           w-full ${maxWidthClasses[maxWidth]} mx-4 
           animate-in fade-in zoom-in duration-200
+          overflow-hidden
         `}
       >
-        {/* Header with glass effect */}
-        <div className="flex items-center justify-between p-6 border-b border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface-hover)/0.3)]">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface-hover)/0.3)] rounded-t-2xl">
           <h2 className="text-xl font-semibold text-[hsl(var(--color-text-primary))]">
             {title}
           </h2>
@@ -90,8 +97,10 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'md' }: Mod
         </div>
 
         {/* Content */}
-        <div className="p-6">{children}</div>
+        <div className="p-6 max-h-[calc(100vh-200px)] overflow-y-auto">{children}</div>
       </div>
     </div>
   )
+
+  return createPortal(modalContent, document.body)
 }

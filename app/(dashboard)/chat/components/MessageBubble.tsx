@@ -1,5 +1,7 @@
 'use client'
 
+import { useRef, useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Message, ConversationMember } from '@/app/actions/chat'
 import EmojiPicker from './EmojiPicker'
 
@@ -30,6 +32,38 @@ export default function MessageBubble({
   activeMeeting,
   meetingStartedAt
 }: MessageBubbleProps) {
+  const [mounted, setMounted] = useState(false)
+  const [pickerPosition, setPickerPosition] = useState({ top: 0, left: 0 })
+  const reactionBtnRef = useRef<HTMLButtonElement>(null)
+
+  // Handle client-side mounting for portal
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Update picker position when showing
+  useEffect(() => {
+    if (showEmojiPicker && reactionBtnRef.current) {
+      const rect = reactionBtnRef.current.getBoundingClientRect()
+      const pickerWidth = 288 // w-72 = 18rem = 288px
+      
+      // Position picker below the button, aligned based on message side
+      if (isOwnMessage) {
+        // For own messages (right side), align picker to the right
+        setPickerPosition({
+          top: rect.bottom + window.scrollY + 8,
+          left: rect.right + window.scrollX - pickerWidth
+        })
+      } else {
+        // For other messages (left side), align picker to the left
+        setPickerPosition({
+          top: rect.bottom + window.scrollY + 8,
+          left: rect.left + window.scrollX
+        })
+      }
+    }
+  }, [showEmojiPicker, isOwnMessage])
+
   const formatTime = (dateStr: string) => {
     return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   }
@@ -191,6 +225,7 @@ export default function MessageBubble({
           </div>
 
           <button
+            ref={reactionBtnRef}
             onClick={(e) => {
               e.stopPropagation()
               onReactionClick(message.id)
@@ -202,13 +237,20 @@ export default function MessageBubble({
             </svg>
           </button>
 
-          {showEmojiPicker && (
+          {mounted && showEmojiPicker && createPortal(
             <div 
-              className={'absolute z-50 -bottom-2 translate-y-full ' + pickerClasses}
+              style={{
+                position: 'fixed',
+                top: pickerPosition.top,
+                left: Math.max(8, Math.min(pickerPosition.left, window.innerWidth - 296)),
+                zIndex: 9999
+              }}
               onClick={(e) => e.stopPropagation()}
             >
               <EmojiPicker onSelect={(emoji) => onAddReaction(message.id, emoji)} />
-            </div>
+            </div>,
+            document.body
+          )}
           )}
         </div>
 

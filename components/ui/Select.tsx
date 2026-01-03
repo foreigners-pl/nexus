@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Input } from './Input'
 
 interface SelectOption {
@@ -27,7 +28,15 @@ export function Select({
 }: SelectProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [mounted, setMounted] = useState(false)
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 })
   const containerRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+
+  // Handle client-side mounting for portal
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const selectedOption = options.find(opt => opt.id === value)
   
@@ -35,9 +44,26 @@ export function Select({
     option.label.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
+  // Update dropdown position when opening
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect()
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY + 8,
+        left: rect.left + window.scrollX,
+        width: rect.width
+      })
+    }
+  }, [isOpen])
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        // Also check if click is inside the portal dropdown
+        const dropdown = document.getElementById('select-dropdown-portal')
+        if (dropdown && dropdown.contains(event.target as Node)) {
+          return
+        }
         setIsOpen(false)
         setSearchTerm('')
       }
@@ -56,6 +82,7 @@ export function Select({
   return (
     <div ref={containerRef} className="relative">
       <button
+        ref={buttonRef}
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setIsOpen(!isOpen)}
@@ -69,8 +96,17 @@ export function Select({
         </svg>
       </button>
 
-      {isOpen && (
-        <div className="absolute z-[100] w-full mt-2 bg-[hsl(var(--color-surface))] backdrop-blur-xl border border-[hsl(var(--color-border))] rounded-xl shadow-[0_10px_40px_rgb(0_0_0/0.4)] max-h-60 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+      {mounted && isOpen && createPortal(
+        <div 
+          id="select-dropdown-portal"
+          style={{
+            position: 'absolute',
+            top: dropdownPosition.top,
+            left: dropdownPosition.left,
+            width: dropdownPosition.width
+          }}
+          className="z-[9999] bg-[hsl(var(--color-surface))] backdrop-blur-xl border border-[hsl(var(--color-border))] rounded-xl shadow-[0_10px_40px_rgb(0_0_0/0.4)] max-h-60 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
+        >
           <div className="p-2 border-b border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface-hover)/0.3)]">
             <Input
               type="text"
@@ -101,7 +137,8 @@ export function Select({
               ))
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
