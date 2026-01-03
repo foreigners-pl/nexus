@@ -45,22 +45,32 @@ export default function HomePage() {
     if (!dashboardData?.user?.id) return
 
     const supabase = createClient()
+    const userId = dashboardData.user.id
     
     const channel = supabase
-      .channel('activity-updates')
+      .channel('home-activity-updates')
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'activity_log',
-          filter: `user_id=eq.${dashboardData.user.id}`
+          table: 'activity_log'
         },
-        async () => {
-          // Refresh activities when new one is inserted for this user
-          const result = await getMyActivities(15)
-          if (result.activities) {
-            setDashboardData(prev => prev ? { ...prev, activities: result.activities } : prev)
+        (payload) => {
+          // Filter client-side to ensure we only handle our activities
+          const newActivity = payload.new as ActivityLog
+          if (newActivity.user_id === userId) {
+            // Add the new activity to the top of the list
+            setDashboardData(prev => {
+              if (!prev) return prev
+              // Check if activity already exists to avoid duplicates
+              const exists = prev.activities.some(a => a.id === newActivity.id)
+              if (exists) return prev
+              return {
+                ...prev,
+                activities: [newActivity, ...prev.activities].slice(0, 15)
+              }
+            })
           }
         }
       )

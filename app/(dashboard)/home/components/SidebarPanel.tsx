@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { markActivityRead, markAllActivitiesRead, claimCase } from '@/app/actions/dashboard'
+import { markActivityRead, markActivityReadSilent, markAllActivitiesRead, claimCase } from '@/app/actions/dashboard'
 import { cn } from '@/lib/utils'
 import type { ActivityLog, Case } from '@/types/database'
 
@@ -148,8 +148,13 @@ export function SidebarPanel({ activities, cases, onRefreshActivities, onRefresh
     setLoading(false)
   }
 
-  const handleActivityClick = async (activity: ActivityLog) => {
-    // Navigate first
+  const handleActivityClick = (activity: ActivityLog) => {
+    // Mark as read silently in background (no revalidation since we're leaving)
+    if (!activity.is_read) {
+      markActivityReadSilent(activity.id)
+    }
+    
+    // Navigate immediately
     if (activity.entity_type === 'case') {
       router.push(`/cases/${activity.entity_id}`)
     } else if (activity.entity_type === 'card') {
@@ -158,11 +163,6 @@ export function SidebarPanel({ activities, cases, onRefreshActivities, onRefresh
       router.push(`/cases/${activity.metadata.case_id}`)
     } else if (activity.entity_type === 'conversation') {
       router.push(`/chat?conversation=${activity.entity_id}`)
-    }
-    
-    // Mark as read in background (don't await or refresh - we're navigating away)
-    if (!activity.is_read) {
-      markActivityRead(activity.id)
     }
   }
 

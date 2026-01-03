@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { markActivityRead, markAllActivitiesRead } from '@/app/actions/dashboard'
+import { markActivityRead, markActivityReadSilent, markAllActivitiesRead } from '@/app/actions/dashboard'
 import { cn } from '@/lib/utils'
 import type { ActivityLog } from '@/types/database'
 
@@ -280,26 +280,23 @@ export function ActivityFeed({ activities, onRefresh }: ActivityFeedProps) {
     setLoading(false)
   }
 
-  const handleActivityClick = async (activity: ActivityLog) => {
-    // Navigate first
+  const handleActivityClick = (activity: ActivityLog) => {
+    // Mark as read silently in background (no revalidation since we're leaving)
+    if (!activity.is_read) {
+      markActivityReadSilent(activity.id)
+    }
+    
+    // Navigate immediately
     if (activity.entity_type === 'case') {
       router.push(`/cases/${activity.entity_id}`)
     } else if (activity.entity_type === 'card') {
-      // For cards, we need the board ID - it's in metadata or we go to board list
       router.push('/board')
     } else if (activity.entity_type === 'installment') {
-      // Installments link to case payment panel - need case ID from metadata
       if (activity.metadata?.case_id) {
         router.push(`/cases/${activity.metadata.case_id}`)
       }
     } else if (activity.entity_type === 'conversation') {
-      // Navigate to chat with the conversation selected
       router.push(`/chat?conversation=${activity.entity_id}`)
-    }
-    
-    // Mark as read in background (don't await or refresh - we're navigating away)
-    if (!activity.is_read) {
-      markActivityRead(activity.id)
     }
   }
 
