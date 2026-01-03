@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
 import { ConversationWithDetails, Message, getConversations } from '@/app/actions/chat'
@@ -19,11 +19,21 @@ export default function ChatContainer({ initialConversations }: ChatContainerPro
   const [isMobileListVisible, setIsMobileListVisible] = useState(true)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const searchParams = useSearchParams()
+  
+  // Use ref to track if we've already handled the URL param
+  const urlParamHandled = useRef(false)
+  // Use ref to access current selectedConversationId in realtime callback without re-subscribing
+  const selectedConversationIdRef = useRef<string | null>(null)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
+
+  // Keep ref in sync
+  useEffect(() => {
+    selectedConversationIdRef.current = selectedConversationId
+  }, [selectedConversationId])
 
   // Get current user
   useEffect(() => {
@@ -32,22 +42,27 @@ export default function ChatContainer({ initialConversations }: ChatContainerPro
     })
   }, [supabase])
 
-  // Handle conversation query param (e.g., from clicking buzz notification)
+  // Handle conversation query param ONCE on mount or when URL changes
   useEffect(() => {
     const conversationId = searchParams.get('conversation')
-    if (conversationId && conversations.some(c => c.id === conversationId)) {
-      setSelectedConversationId(conversationId)
-      setIsMobileListVisible(false)
-      // Clear unread count for selected conversation
-      setConversations(prev => 
-        prev.map(conv => 
-          conv.id === conversationId ? { ...conv, unread_count: 0 } : conv
+    if (conversationId && !urlParamHandled.current) {
+      // Check if conversation exists in initial list
+      const exists = initialConversations.some(c => c.id === conversationId)
+      if (exists) {
+        urlParamHandled.current = true
+        setSelectedConversationId(conversationId)
+        setIsMobileListVisible(false)
+        // Clear unread count for selected conversation
+        setConversations(prev => 
+          prev.map(conv => 
+            conv.id === conversationId ? { ...conv, unread_count: 0 } : conv
+          )
         )
-      )
+      }
     }
-  }, [searchParams, conversations])
+  }, [searchParams, initialConversations])
 
-  // Subscribe to realtime updates
+  // Subscribe to realtime updates - only depends on currentUserId
   useEffect(() => {
     if (!currentUserId) return
 
@@ -64,19 +79,19 @@ export default function ChatContainer({ initialConversations }: ChatContainerPro
         async (payload) => {
           const newMessage = payload.new as Message
           
-          // Check if this conversation is in our list
-          const existingConv = conversations.find(c => c.id === newMessage.conversation_id)
-          
-          if (existingConv) {
-            // Update existing conversation
-            setConversations(prev => {
+          setConversations(prev => {
+            const existingConv = prev.find(c => c.id === newMessage.conversation_id)
+            
+            if (existingConv) {
+              // Update existing conversation
               const updated = prev.map(conv => {
                 if (conv.id === newMessage.conversation_id) {
                   return {
                     ...conv,
                     last_message: newMessage,
                     updated_at: newMessage.created_at,
-                    unread_count: conv.id === selectedConversationId 
+                    // Use ref to check current selection without re-subscribing
+                    unread_count: conv.id === selectedConversationIdRef.current 
                       ? conv.unread_count 
                       : (conv.unread_count || 0) + 1
                   }
@@ -86,12 +101,21 @@ export default function ChatContainer({ initialConversations }: ChatContainerPro
               return updated.sort((a, b) => 
                 new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
               )
-            })
-          } else {
-            // New conversation we weren't aware of - refresh the list
-            const { conversations: refreshed } = await getConversations()
-            setConversations(refreshed)
-          }
+            }
+            return prev
+          })
+          
+          // If conversation not in list, refresh
+          setConversations(prev => {
+            const exists = prev.some(c => c.id === newMessage.conversation_id)
+            if (!exists) {
+              // Trigger refresh outside of setState
+              getConversations().then(({ conversations: refreshed }) => {
+                if (refreshed) setConversations(refreshed)
+              })
+            }
+            return prev
+          })
         }
       )
       // Listen for when we're added to a new conversation
@@ -106,7 +130,7 @@ export default function ChatContainer({ initialConversations }: ChatContainerPro
         async () => {
           // Someone added us to a conversation - refresh the list
           const { conversations: refreshed } = await getConversations()
-          setConversations(refreshed)
+          if (refreshed) setConversations(refreshed)
         }
       )
       .subscribe()
@@ -114,7 +138,7 @@ export default function ChatContainer({ initialConversations }: ChatContainerPro
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [supabase, currentUserId, selectedConversationId, conversations])
+  }, [supabase, currentUserId])
 
   const handleSelectConversation = (id: string) => {
     setSelectedConversationId(id)
