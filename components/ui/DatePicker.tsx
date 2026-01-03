@@ -54,17 +54,6 @@ export function DatePicker({ value, onChange, onBlur, className }: DatePickerPro
     }
   }, [isOpen, onBlur])
 
-  // Update dropdown position when opening
-  useEffect(() => {
-    if (isOpen && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect()
-      setDropdownPosition({
-        top: rect.bottom + window.scrollY + 4,
-        left: rect.left + window.scrollX
-      })
-    }
-  }, [isOpen])
-
   const formatDate = (date: Date | null) => {
     if (!date) return ''
     return date.toISOString().split('T')[0]
@@ -157,7 +146,18 @@ export function DatePicker({ value, onChange, onBlur, className }: DatePickerPro
       <button
         ref={buttonRef}
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={(e) => {
+          if (isOpen) {
+            setIsOpen(false)
+          } else {
+            const rect = e.currentTarget.getBoundingClientRect()
+            setDropdownPosition({
+              top: rect.bottom + window.scrollY + 4,
+              left: rect.left + window.scrollX
+            })
+            setIsOpen(true)
+          }
+        }}
         className={cn(
           'flex h-10 w-full items-center justify-between rounded-[var(--radius-md)] px-3 py-2',
           'bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))]',

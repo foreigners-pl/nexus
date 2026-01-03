@@ -44,18 +44,6 @@ export function Select({
     option.label.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  // Update dropdown position when opening
-  useEffect(() => {
-    if (isOpen && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect()
-      setDropdownPosition({
-        top: rect.bottom + window.scrollY + 8,
-        left: rect.left + window.scrollX,
-        width: rect.width
-      })
-    }
-  }, [isOpen])
-
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
@@ -85,7 +73,20 @@ export function Select({
         ref={buttonRef}
         type="button"
         disabled={disabled}
-        onClick={() => !disabled && setIsOpen(!isOpen)}
+        onClick={(e) => {
+          if (disabled) return
+          if (isOpen) {
+            setIsOpen(false)
+          } else {
+            const rect = e.currentTarget.getBoundingClientRect()
+            setDropdownPosition({
+              top: rect.bottom + window.scrollY + 8,
+              left: rect.left + window.scrollX,
+              width: rect.width
+            })
+            setIsOpen(true)
+          }
+        }}
         className="w-full px-4 py-2.5 text-left bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] rounded-xl hover:border-[hsl(var(--color-border-hover))] hover:bg-[hsl(var(--color-surface-hover))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-primary))/0.3] focus:border-[hsl(var(--color-primary))] disabled:opacity-50 disabled:cursor-not-allowed text-[hsl(var(--color-text-primary))] transition-all duration-200 flex items-center justify-between"
       >
         <span className={selectedOption ? 'text-[hsl(var(--color-text-primary))]' : 'text-[hsl(var(--color-text-muted))]'}>

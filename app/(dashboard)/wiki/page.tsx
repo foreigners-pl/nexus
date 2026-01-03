@@ -806,28 +806,16 @@ export default function WikiPage() {
 interface DropdownPortalProps {
   isOpen: boolean
   onClose: () => void
-  triggerRef: React.RefObject<HTMLButtonElement | null>
+  position: { top: number; left: number }
   children: React.ReactNode
 }
 
-function DropdownPortal({ isOpen, onClose, triggerRef, children }: DropdownPortalProps) {
-  const [position, setPosition] = useState({ top: 0, left: 0 })
+function DropdownPortal({ isOpen, onClose, position, children }: DropdownPortalProps) {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setMounted(true)
   }, [])
-
-  useEffect(() => {
-    if (isOpen && triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect()
-      // Position dropdown below and to the right of the trigger button
-      setPosition({
-        top: rect.bottom + 4,
-        left: rect.right - 192, // 192px = w-48 (menu width)
-      })
-    }
-  }, [isOpen, triggerRef])
 
   if (!mounted || !isOpen) return null
 
@@ -907,6 +895,7 @@ function SortableFolderItem({
   }
 
   const [showMenu, setShowMenu] = useState(false)
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 })
   const menuButtonRef = useRef<HTMLButtonElement>(null)
 
   // Always call hooks unconditionally - move sensors to top level
@@ -953,7 +942,16 @@ function SortableFolderItem({
             ref={menuButtonRef}
             onClick={(e) => {
               e.stopPropagation()
-              setShowMenu(!showMenu)
+              if (showMenu) {
+                setShowMenu(false)
+              } else {
+                const rect = e.currentTarget.getBoundingClientRect()
+                setMenuPosition({
+                  top: rect.bottom + 4,
+                  left: rect.right - 192
+                })
+                setShowMenu(true)
+              }
             }}
             className="p-1 rounded-lg hover:bg-[hsl(var(--color-surface-hover))] opacity-0 group-hover:opacity-100 transition-opacity"
           >
@@ -961,7 +959,7 @@ function SortableFolderItem({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
             </svg>
           </button>
-          <DropdownPortal isOpen={showMenu} onClose={() => setShowMenu(false)} triggerRef={menuButtonRef}>
+          <DropdownPortal isOpen={showMenu} onClose={() => setShowMenu(false)} position={menuPosition}>
             <button
               onClick={() => {
                 onShare()
@@ -1053,6 +1051,7 @@ interface SortableDocumentItemProps {
 
 function SortableDocumentItem({ document, isSelected, onSelect, onRename, onMove, onDelete }: SortableDocumentItemProps) {
   const [showMenu, setShowMenu] = useState(false)
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 })
   const menuButtonRef = useRef<HTMLButtonElement>(null)
   const {
     attributes,
@@ -1117,7 +1116,16 @@ function SortableDocumentItem({ document, isSelected, onSelect, onRename, onMove
             ref={menuButtonRef}
             onClick={(e) => {
               e.stopPropagation()
-              setShowMenu(!showMenu)
+              if (showMenu) {
+                setShowMenu(false)
+              } else {
+                const rect = e.currentTarget.getBoundingClientRect()
+                setMenuPosition({
+                  top: rect.bottom + 4,
+                  left: rect.right - 192
+                })
+                setShowMenu(true)
+              }
             }}
             className="p-1 rounded-lg hover:bg-[hsl(var(--color-surface-hover))] opacity-0 group-hover:opacity-100 transition-opacity"
           >
@@ -1125,7 +1133,7 @@ function SortableDocumentItem({ document, isSelected, onSelect, onRename, onMove
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
             </svg>
           </button>
-          <DropdownPortal isOpen={showMenu} onClose={() => setShowMenu(false)} triggerRef={menuButtonRef}>
+          <DropdownPortal isOpen={showMenu} onClose={() => setShowMenu(false)} position={menuPosition}>
             <button
               onClick={() => {
                 onRename()

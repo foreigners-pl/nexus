@@ -41,28 +41,28 @@ export default function MessageBubble({
     setMounted(true)
   }, [])
 
-  // Update picker position when showing
-  useEffect(() => {
-    if (showEmojiPicker && reactionBtnRef.current) {
+  // Calculate picker position when button is clicked (before parent updates showEmojiPicker)
+  const handleReactionClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (reactionBtnRef.current) {
       const rect = reactionBtnRef.current.getBoundingClientRect()
       const pickerWidth = 288 // w-72 = 18rem = 288px
       
       // Position picker below the button, aligned based on message side
       if (isOwnMessage) {
-        // For own messages (right side), align picker to the right
         setPickerPosition({
-          top: rect.bottom + window.scrollY + 8,
-          left: rect.right + window.scrollX - pickerWidth
+          top: rect.bottom + 8,
+          left: rect.right - pickerWidth
         })
       } else {
-        // For other messages (left side), align picker to the left
         setPickerPosition({
-          top: rect.bottom + window.scrollY + 8,
-          left: rect.left + window.scrollX
+          top: rect.bottom + 8,
+          left: rect.left
         })
       }
     }
-  }, [showEmojiPicker, isOwnMessage])
+    onReactionClick(message.id)
+  }
 
   const formatTime = (dateStr: string) => {
     return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -226,10 +226,7 @@ export default function MessageBubble({
 
           <button
             ref={reactionBtnRef}
-            onClick={(e) => {
-              e.stopPropagation()
-              onReactionClick(message.id)
-            }}
+            onClick={handleReactionClick}
             className={'absolute top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-[hsl(240_3%_15%)] border border-white/10 shadow-lg opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110 hover:bg-[hsl(240_3%_20%)] ' + reactionBtnClasses}
           >
             <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
