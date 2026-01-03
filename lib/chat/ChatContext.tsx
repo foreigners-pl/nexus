@@ -61,7 +61,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           event: 'UPDATE',
           schema: 'public',
           table: 'conversation_members',
-          filter: user_id=eq.+userId
+          filter: `user_id=eq.${userId}`
         },
         () => {
           // When last_read_at is updated (user read messages), refresh count
