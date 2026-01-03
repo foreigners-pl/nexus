@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/Button'
 import { 
   createBoardStatus, 
@@ -20,11 +21,18 @@ export function StatusManager({ boardId, statuses, onUpdate }: StatusManagerProp
   const [editingStatusId, setEditingStatusId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [colorPickerStatusId, setColorPickerStatusId] = useState<string | null>(null)
+  const [colorPickerPosition, setColorPickerPosition] = useState({ top: 0, left: 0 })
   const [newStatusName, setNewStatusName] = useState('')
   const [newStatusColor, setNewStatusColor] = useState('#3b82f6')
   const [isAddingStatus, setIsAddingStatus] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
+  const colorButtonRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({})
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Sort statuses by position
   const sortedStatuses = [...statuses].sort((a, b) => a.position - b.position)
@@ -164,14 +172,34 @@ export function StatusManager({ boardId, statuses, onUpdate }: StatusManagerProp
             {/* Color Indicator */}
             <div className="relative">
               <button
-                onClick={() => setColorPickerStatusId(colorPickerStatusId === status.id ? null : status.id)}
+                ref={(el) => { colorButtonRefs.current[status.id] = el }}
+                onClick={(e) => {
+                  if (colorPickerStatusId === status.id) {
+                    setColorPickerStatusId(null)
+                  } else {
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    setColorPickerPosition({
+                      top: rect.bottom + 8,
+                      left: rect.left
+                    })
+                    setColorPickerStatusId(status.id)
+                  }
+                }}
                 className="w-5 h-5 rounded-full border-2 border-white shadow-sm cursor-pointer hover:scale-110 transition-transform"
                 style={{ backgroundColor: status.color }}
                 title="Click to change color"
                 disabled={submitting}
               />
-              {colorPickerStatusId === status.id && (
-                <div className="absolute top-8 left-0 z-[9999] p-2 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-lg shadow-lg">
+              {mounted && colorPickerStatusId === status.id && createPortal(
+                <div 
+                  style={{
+                    position: 'fixed',
+                    top: colorPickerPosition.top,
+                    left: colorPickerPosition.left,
+                    zIndex: 9999
+                  }}
+                  className="p-2 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-lg shadow-lg"
+                >
                   <input
                     type="color"
                     value={status.color}
@@ -179,7 +207,8 @@ export function StatusManager({ boardId, statuses, onUpdate }: StatusManagerProp
                     disabled={submitting}
                     className="w-32 h-8 cursor-pointer"
                   />
-                </div>
+                </div>,
+                document.body
               )}
             </div>
 

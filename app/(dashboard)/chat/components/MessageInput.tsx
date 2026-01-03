@@ -23,9 +23,11 @@ export default function MessageInput({ onSend, disabled, conversationId }: Messa
   const [showBuzzConfirm, setShowBuzzConfirm] = useState(false)
   const [buzzing, setBuzzing] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [emojiPickerPosition, setEmojiPickerPosition] = useState({ top: 0, left: 0 })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const emojiPickerRef = useRef<HTMLDivElement>(null)
+  const emojiButtonRef = useRef<HTMLButtonElement>(null)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -39,7 +41,12 @@ export default function MessageInput({ onSend, disabled, conversationId }: Messa
   // Click outside to close emoji picker
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (showEmoji && emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+      const target = event.target as Node
+      if (
+        showEmoji && 
+        emojiPickerRef.current && !emojiPickerRef.current.contains(target) &&
+        emojiButtonRef.current && !emojiButtonRef.current.contains(target)
+      ) {
         setShowEmoji(false)
       }
     }
@@ -193,19 +200,41 @@ export default function MessageInput({ onSend, disabled, conversationId }: Messa
         />
 
         {/* Emoji button */}
-        <div className="relative self-center" ref={emojiPickerRef}>
+        <div className="relative self-center">
           <button
-            onClick={() => setShowEmoji(!showEmoji)}
+            ref={emojiButtonRef}
+            onClick={(e) => {
+              if (showEmoji) {
+                setShowEmoji(false)
+              } else {
+                const rect = e.currentTarget.getBoundingClientRect()
+                setEmojiPickerPosition({
+                  top: rect.top - 8,
+                  left: rect.left
+                })
+                setShowEmoji(true)
+              }
+            }}
             className="p-2.5 rounded-xl hover:bg-white/10 transition-all duration-200 text-white/50 hover:text-white/80"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </button>
-          {showEmoji && (
-            <div className="absolute bottom-full left-0 mb-2 z-[9999]">
+          {mounted && showEmoji && createPortal(
+            <div 
+              ref={emojiPickerRef}
+              style={{
+                position: 'fixed',
+                top: emojiPickerPosition.top,
+                left: emojiPickerPosition.left,
+                transform: 'translateY(-100%)',
+                zIndex: 9999
+              }}
+            >
               <EmojiPicker onSelect={handleEmojiSelect} />
-            </div>
+            </div>,
+            document.body
           )}
         </div>
 

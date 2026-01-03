@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useRef, useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
@@ -33,9 +34,16 @@ export function ClientsTable({ clients, loading, loadingMore, onLoadMore }: Clie
   const [sortField, setSortField] = useState<SortField>('created_at')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [showDatePicker, setShowDatePicker] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const [datePickerPosition, setDatePickerPosition] = useState({ top: 0, left: 0 })
   const tableRef = useRef<HTMLDivElement>(null)
   const datePickerRef = useRef<HTMLDivElement>(null)
+  const dateButtonRef = useRef<HTMLButtonElement>(null)
   const router = useRouter()
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -252,10 +260,22 @@ export function ClientsTable({ clients, loading, loadingMore, onLoadMore }: Clie
                       Created
                       <SortIcon field="created_at" />
                     </div>
-                    <div className="relative" ref={datePickerRef}>
+                    <div className="relative">
                       <button
+                        ref={dateButtonRef}
                         type="button"
-                        onClick={() => setShowDatePicker(!showDatePicker)}
+                        onClick={(e) => {
+                          if (showDatePicker) {
+                            setShowDatePicker(false)
+                          } else {
+                            const rect = e.currentTarget.getBoundingClientRect()
+                            setDatePickerPosition({
+                              top: rect.bottom + window.scrollY + 8,
+                              left: rect.left + window.scrollX
+                            })
+                            setShowDatePicker(true)
+                          }
+                        }}
                         className="flex h-10 w-full rounded-xl px-3 py-2 bg-[hsl(var(--color-surface-hover))] border border-[hsl(var(--color-border))] text-sm text-left items-center justify-between hover:border-[hsl(var(--color-border-hover))] transition-all"
                       >
                         <span className={filters.dateFrom || filters.dateTo ? 'text-[hsl(var(--color-text-primary))]' : 'text-[hsl(var(--color-text-muted))]'}>
@@ -267,8 +287,17 @@ export function ClientsTable({ clients, loading, loadingMore, onLoadMore }: Clie
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
                       </button>
-                      {showDatePicker && (
-                        <div className="absolute top-full left-0 mt-2 p-4 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl shadow-[0_10px_40px_rgb(0_0_0/0.4)] z-[9999] min-w-[280px]">
+                      {mounted && showDatePicker && createPortal(
+                        <div 
+                          ref={datePickerRef}
+                          style={{
+                            position: 'fixed',
+                            top: datePickerPosition.top,
+                            left: datePickerPosition.left,
+                            zIndex: 9999
+                          }}
+                          className="p-4 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl shadow-[0_10px_40px_rgb(0_0_0/0.4)] min-w-[280px]"
+                        >
                           <div className="space-y-3">
                             <div>
                               <label className="block text-xs text-[hsl(var(--color-text-secondary))] mb-1.5">From</label>
@@ -312,7 +341,8 @@ export function ClientsTable({ clients, loading, loadingMore, onLoadMore }: Clie
                               </Button>
                             </div>
                           </div>
-                        </div>
+                        </div>,
+                        document.body
                       )}
                     </div>
                   </div>

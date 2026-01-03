@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Select } from '@/components/ui/Select'
 import { createClient } from '@/lib/supabase/client'
 import { updateCase } from '@/app/actions/cases'
@@ -26,17 +27,26 @@ export function CaseInfo({ caseData, client, status, assignees, onUpdate, onAssi
   const [statuses, setStatuses] = useState<Status[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [isAssigneesOpen, setIsAssigneesOpen] = useState(false)
+  const [assigneesDropdownPosition, setAssigneesDropdownPosition] = useState({ top: 0, left: 0, width: 0 })
+  const [mounted, setMounted] = useState(false)
   const assigneesRef = useRef<HTMLDivElement>(null)
+  const assigneesButtonRef = useRef<HTMLButtonElement>(null)
+  const assigneesDropdownRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
 
   useEffect(() => {
+    setMounted(true)
     fetchStatuses()
     fetchUsers()
   }, [])
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (assigneesRef.current && !assigneesRef.current.contains(event.target as Node)) {
+      const target = event.target as Node
+      if (
+        assigneesButtonRef.current && !assigneesButtonRef.current.contains(target) &&
+        assigneesDropdownRef.current && !assigneesDropdownRef.current.contains(target)
+      ) {
         setIsAssigneesOpen(false)
       }
     }
@@ -160,8 +170,21 @@ export function CaseInfo({ caseData, client, status, assignees, onUpdate, onAssi
           <label className="block text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-2">Assignees</label>
           <div ref={assigneesRef} className="relative">
             <button
+              ref={assigneesButtonRef}
               type="button"
-              onClick={() => setIsAssigneesOpen(!isAssigneesOpen)}
+              onClick={(e) => {
+                if (isAssigneesOpen) {
+                  setIsAssigneesOpen(false)
+                } else {
+                  const rect = e.currentTarget.getBoundingClientRect()
+                  setAssigneesDropdownPosition({
+                    top: rect.bottom + 8,
+                    left: rect.left,
+                    width: rect.width
+                  })
+                  setIsAssigneesOpen(true)
+                }
+              }}
               className="w-full px-4 py-2.5 text-left bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] rounded-xl hover:border-[hsl(var(--color-border-hover))] hover:bg-[hsl(var(--color-surface-hover))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-border-hover))] text-[hsl(var(--color-text-primary))] transition-all duration-200 flex items-center justify-between"
             >
               <span className={assignees.length > 0 ? 'text-[hsl(var(--color-text-primary))]' : 'text-[hsl(var(--color-text-muted))]'}>
@@ -172,8 +195,18 @@ export function CaseInfo({ caseData, client, status, assignees, onUpdate, onAssi
               </svg>
             </button>
 
-            {isAssigneesOpen && (
-              <div className="absolute z-[9999] w-full mt-2 bg-[hsl(var(--color-surface))] backdrop-blur-xl border border-[hsl(var(--color-border))] rounded-xl shadow-[0_10px_40px_rgb(0_0_0/0.4)] max-h-60 overflow-y-auto p-1">
+            {mounted && isAssigneesOpen && createPortal(
+              <div 
+                ref={assigneesDropdownRef}
+                style={{
+                  position: 'fixed',
+                  top: assigneesDropdownPosition.top,
+                  left: assigneesDropdownPosition.left,
+                  width: assigneesDropdownPosition.width,
+                  zIndex: 9999
+                }}
+                className="bg-[hsl(var(--color-surface))] backdrop-blur-xl border border-[hsl(var(--color-border))] rounded-xl shadow-[0_10px_40px_rgb(0_0_0/0.4)] max-h-60 overflow-y-auto p-1"
+              >
                 {users.length === 0 ? (
                   <div className="px-4 py-3 text-sm text-[hsl(var(--color-text-secondary))] text-center">No users available</div>
                 ) : (
@@ -199,7 +232,8 @@ export function CaseInfo({ caseData, client, status, assignees, onUpdate, onAssi
                     </button>
                   ))
                 )}
-              </div>
+              </div>,
+              document.body
             )}
           </div>
         </div>

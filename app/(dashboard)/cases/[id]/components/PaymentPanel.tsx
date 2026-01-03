@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Modal } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -26,6 +27,8 @@ interface PaymentPanelProps {
 export function PaymentPanel({ caseId, installments, services, client, onUpdate }: PaymentPanelProps) {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 })
+  const [mounted, setMounted] = useState(false)
   const [editingInstallment, setEditingInstallment] = useState<string | null>(null)
   const [editAmount, setEditAmount] = useState('')
   const [editDueDate, setEditDueDate] = useState('')
@@ -45,6 +48,11 @@ export function PaymentPanel({ caseId, installments, services, client, onUpdate 
   const [invoiceDueDate, setInvoiceDueDate] = useState('')
   
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const buttonRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     fetchInvoices()
@@ -52,9 +60,17 @@ export function PaymentPanel({ caseId, installments, services, client, onUpdate 
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setActiveDropdown(null)
+      // Check if click is on a dropdown button
+      for (const [id, btn] of buttonRefs.current.entries()) {
+        if (btn && btn.contains(event.target as Node)) {
+          return // Let the button handler manage it
+        }
       }
+      // Check if click is inside the dropdown
+      if (dropdownRef.current && dropdownRef.current.contains(event.target as Node)) {
+        return
+      }
+      setActiveDropdown(null)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -471,15 +487,39 @@ export function PaymentPanel({ caseId, installments, services, client, onUpdate 
                       </div>
                       
                       {/* Actions menu - show for all installments */}
-                      <div className="relative" ref={activeDropdown === installment.id ? dropdownRef : null}>
-                        <button onClick={() => setActiveDropdown(activeDropdown === installment.id ? null : installment.id)} className="p-1 rounded hover:bg-[hsl(var(--color-surface-hover))] text-[hsl(var(--color-text-secondary))]">
+                      <div className="relative">
+                        <button 
+                          ref={(el) => { if (el) buttonRefs.current.set(installment.id, el) }}
+                          onClick={(e) => {
+                            if (activeDropdown === installment.id) {
+                              setActiveDropdown(null)
+                            } else {
+                              const rect = e.currentTarget.getBoundingClientRect()
+                              setDropdownPosition({
+                                top: rect.bottom + window.scrollY + 4,
+                                left: rect.right + window.scrollX - 160 // 160 = w-40
+                              })
+                              setActiveDropdown(installment.id)
+                            }
+                          }} 
+                          className="p-1 rounded hover:bg-[hsl(var(--color-surface-hover))] text-[hsl(var(--color-text-secondary))]"
+                        >
                           <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                           </svg>
                         </button>
                         
-                        {activeDropdown === installment.id && (
-                          <div className="absolute right-0 top-8 z-[9999] w-40 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-lg shadow-lg py-1">
+                        {mounted && activeDropdown === installment.id && createPortal(
+                          <div 
+                            ref={dropdownRef}
+                            style={{
+                              position: 'fixed',
+                              top: dropdownPosition.top,
+                              left: dropdownPosition.left,
+                              zIndex: 9999
+                            }}
+                            className="w-40 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-lg shadow-lg py-1"
+                          >
                             {/* Draft/Unsent: Send Invoice, Edit */}
                             {!installmentIsRefund && !installment.paid && invoice?.status !== 'sent' && (
                               <>
@@ -528,7 +568,8 @@ export function PaymentPanel({ caseId, installments, services, client, onUpdate 
                                 Delete
                               </button>
                             )}
-                          </div>
+                          </div>,
+                          document.body
                         )}
                       </div>
                     </div>

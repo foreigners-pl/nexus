@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/Button'
 import { updateBoard } from '@/app/actions/board/core'
 
@@ -26,16 +27,26 @@ export function BoardHeader({
   onDeleteClick
 }: BoardHeaderProps) {
   const [showMenu, setShowMenu] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 })
   const menuRef = useRef<HTMLDivElement>(null)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
   const [isEditingName, setIsEditingName] = useState(false)
   const [isEditingDescription, setIsEditingDescription] = useState(false)
   const [name, setName] = useState(boardName)
   const [description, setDescription] = useState(boardDescription || '')
   const [saving, setSaving] = useState(false)
 
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   // Close menu when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
+      if (menuButtonRef.current && menuButtonRef.current.contains(event.target as Node)) {
+        return
+      }
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setShowMenu(false)
       }
@@ -149,9 +160,21 @@ export function BoardHeader({
             
             {/* More Options Menu - Only show for owners */}
             {isOwner && onDeleteClick && (
-              <div className="relative" ref={menuRef}>
+              <div className="relative">
                 <Button 
-                  onClick={() => setShowMenu(!showMenu)} 
+                  ref={menuButtonRef}
+                  onClick={(e) => {
+                    if (showMenu) {
+                      setShowMenu(false)
+                    } else {
+                      const rect = e.currentTarget.getBoundingClientRect()
+                      setMenuPosition({
+                        top: rect.bottom + window.scrollY + 4,
+                        left: rect.left + window.scrollX
+                      })
+                      setShowMenu(true)
+                    }
+                  }} 
                   variant="ghost" 
                   size="sm"
                   title="More options"
@@ -161,8 +184,17 @@ export function BoardHeader({
                   </svg>
                 </Button>
                 
-                {showMenu && (
-                  <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-lg shadow-lg overflow-hidden z-[9999] min-w-[160px]">
+                {mounted && showMenu && createPortal(
+                  <div 
+                    ref={menuRef}
+                    style={{
+                      position: 'fixed',
+                      top: menuPosition.top,
+                      left: menuPosition.left,
+                      zIndex: 9999
+                    }}
+                    className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-lg shadow-lg overflow-hidden min-w-[160px]"
+                  >
                     <button
                       onClick={() => {
                         setShowMenu(false)
@@ -175,7 +207,8 @@ export function BoardHeader({
                       </svg>
                       Delete Board
                     </button>
-                  </div>
+                  </div>,
+                  document.body
                 )}
               </div>
             )}

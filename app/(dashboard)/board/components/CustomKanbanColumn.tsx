@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { BoardStatus, Card } from '@/types/database'
 import { updateBoardStatus, deleteBoardStatus, reorderBoardStatuses } from '@/app/actions/board/statuses'
 import { CustomKanbanCard } from './CustomKanbanCard'
@@ -58,6 +59,13 @@ export function CustomKanbanColumn({
   const [editName, setEditName] = useState(status.name)
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const [colorPickerPosition, setColorPickerPosition] = useState({ top: 0, left: 0 })
+  const colorButtonRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Make the column a drop target for cards
   const { setNodeRef: setDroppableRef } = useDroppable({
@@ -179,15 +187,35 @@ export function CustomKanbanColumn({
                   />
                 ) : (
                   <button
-                    onClick={() => setShowColorPicker(!showColorPicker)}
+                    ref={colorButtonRef}
+                    onClick={(e) => {
+                      if (showColorPicker) {
+                        setShowColorPicker(false)
+                      } else {
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        setColorPickerPosition({
+                          top: rect.bottom + 8,
+                          left: rect.left
+                        })
+                        setShowColorPicker(true)
+                      }
+                    }}
                     className="w-4 h-4 rounded-full border-2 border-white shadow-sm cursor-pointer hover:scale-110 transition-transform"
                     style={{ backgroundColor: status.color || '#94a3b8' }}
                     title="Click to change color"
                     disabled={submitting}
                   />
                 )}
-                {showColorPicker && (
-                  <div className="absolute top-8 left-0 z-[9999] p-2 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-lg shadow-lg">
+                {mounted && showColorPicker && createPortal(
+                  <div 
+                    style={{
+                      position: 'fixed',
+                      top: colorPickerPosition.top,
+                      left: colorPickerPosition.left,
+                      zIndex: 9999
+                    }}
+                    className="p-2 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-lg shadow-lg"
+                  >
                     <input
                       type="color"
                       value={status.color || '#94a3b8'}
@@ -195,7 +223,8 @@ export function CustomKanbanColumn({
                       disabled={submitting}
                       className="w-32 h-8 cursor-pointer"
                     />
-                  </div>
+                  </div>,
+                  document.body
                 )}
               </div>
 
