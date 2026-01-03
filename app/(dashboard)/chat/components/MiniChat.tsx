@@ -331,7 +331,7 @@ export default function MiniChat() {
           <div
             className={`px-3 py-2 rounded-xl text-sm ${
               isOwn
-                ? 'bg-primary text-white rounded-br-md'
+                ? 'bg-[#0A84FF] text-white rounded-br-md'
                 : 'bg-white/10 text-white/90 rounded-bl-md'
             }`}
           >
