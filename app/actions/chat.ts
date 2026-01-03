@@ -634,3 +634,37 @@ export async function deleteConversation(conversationId: string): Promise<{ succ
   revalidatePath('/chat')
   return { success: true }
 }
+
+// Get total unread message count across all conversations
+export async function getTotalUnreadCount(): Promise<{ count: number; error?: string }> {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { count: 0, error: 'Not authenticated' }
+
+  // Get all conversations this user is a member of with their last_read_at
+  const { data: memberships, error: memberError } = await supabase
+    .from('conversation_members')
+    .select('conversation_id, last_read_at')
+    .eq('user_id', user.id)
+
+  if (memberError || !memberships) return { count: 0, error: memberError?.message }
+
+  let totalUnread = 0
+
+  // For each conversation, count messages after last_read_at
+  for (const membership of memberships) {
+    const { count, error } = await supabase
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('conversation_id', membership.conversation_id)
+      .neq('sender_id', user.id) // Don't count own messages
+      .gt('created_at', membership.last_read_at || '1970-01-01')
+
+    if (!error && count) {
+      totalUnread += count
+    }
+  }
+
+  return { count: totalUnread }
+}

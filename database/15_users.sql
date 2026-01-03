@@ -31,7 +31,8 @@ BEGIN
   )
   ON CONFLICT (id) DO UPDATE SET
     email = EXCLUDED.email,
-    display_name = COALESCE(EXCLUDED.display_name, public.users.display_name),
+    -- Only update display_name if the existing one is NULL (preserve user-set names)
+    display_name = COALESCE(public.users.display_name, EXCLUDED.display_name),
     updated_at = NOW();
   
   RETURN NEW;

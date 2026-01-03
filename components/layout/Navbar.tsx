@@ -8,6 +8,7 @@ import { logout } from '@/app/actions/auth'
 import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { useNotifications } from '@/lib/notifications/NotificationContext'
+import { useChat } from '@/lib/chat/ChatContext'
 import type { User } from '@/types/database'
 
 // Icons as simple SVG components
@@ -80,10 +81,19 @@ export function Navbar() {
   const [isCollapsed, setIsCollapsed] = useState(false)
   
   // Get notification count - wrapped in try/catch in case context is not available
-  let unreadCount = 0
+  let notificationCount = 0
   try {
     const notifications = useNotifications()
-    unreadCount = notifications.unreadCount
+    notificationCount = notifications.unreadCount
+  } catch {
+    // Context not available yet
+  }
+
+  // Get chat unread count
+  let chatUnreadCount = 0
+  try {
+    const chat = useChat()
+    chatUnreadCount = chat.unreadCount
   } catch {
     // Context not available yet
   }
@@ -152,7 +162,10 @@ export function Navbar() {
           {navItems.map((item) => {
             const isActive = pathname === item.href || 
                            (item.href !== '/' && pathname.startsWith(item.href))
-            const showBadge = item.href === '/home' && unreadCount > 0
+            const showHomeBadge = item.href === '/home' && notificationCount > 0
+            const showChatBadge = item.href === '/chat' && chatUnreadCount > 0
+            const badgeCount = item.href === '/home' ? notificationCount : chatUnreadCount
+            const showBadge = showHomeBadge || showChatBadge
             
             return (
               <li key={item.href}>
@@ -172,7 +185,7 @@ export function Navbar() {
                     {icons[item.icon]}
                     {showBadge && isCollapsed && (
                       <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                        {unreadCount > 9 ? '9+' : unreadCount}
+                        {badgeCount > 9 ? '9+' : badgeCount}
                       </span>
                     )}
                   </span>
@@ -181,7 +194,7 @@ export function Navbar() {
                       <span className="whitespace-nowrap flex-1">{item.label}</span>
                       {showBadge && (
                         <span className="px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] text-center">
-                          {unreadCount > 99 ? '99+' : unreadCount}
+                          {badgeCount > 99 ? '99+' : badgeCount}
                         </span>
                       )}
                     </>
