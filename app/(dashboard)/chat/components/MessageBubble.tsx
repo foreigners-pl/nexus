@@ -251,7 +251,6 @@ export default function MessageBubble({
             </div>,
             document.body
           )}
-          )}
         </div>
 
         {Object.keys(reactionGroups).length > 0 && (

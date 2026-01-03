@@ -203,7 +203,7 @@ export default function MessageInput({ onSend, disabled, conversationId }: Messa
             </svg>
           </button>
           {showEmoji && (
-            <div className="absolute bottom-full left-0 mb-2 z-50">
+            <div className="absolute bottom-full left-0 mb-2 z-[9999]">
               <EmojiPicker onSelect={handleEmojiSelect} />
             </div>
           )}

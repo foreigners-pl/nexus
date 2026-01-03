@@ -162,7 +162,7 @@ export function BoardHeader({
                 </Button>
                 
                 {showMenu && (
-                  <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-lg shadow-lg overflow-hidden z-50 min-w-[160px]">
+                  <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-lg shadow-lg overflow-hidden z-[9999] min-w-[160px]">
                     <button
                       onClick={() => {
                         setShowMenu(false)

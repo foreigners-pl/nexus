@@ -268,7 +268,7 @@ export function ClientsTable({ clients, loading, loadingMore, onLoadMore }: Clie
                         </svg>
                       </button>
                       {showDatePicker && (
-                        <div className="absolute top-full left-0 mt-2 p-4 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl shadow-[0_10px_40px_rgb(0_0_0/0.4)] z-50 min-w-[280px]">
+                        <div className="absolute top-full left-0 mt-2 p-4 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl shadow-[0_10px_40px_rgb(0_0_0/0.4)] z-[9999] min-w-[280px]">
                           <div className="space-y-3">
                             <div>
                               <label className="block text-xs text-[hsl(var(--color-text-secondary))] mb-1.5">From</label>

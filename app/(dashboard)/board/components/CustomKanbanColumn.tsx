@@ -187,7 +187,7 @@ export function CustomKanbanColumn({
                   />
                 )}
                 {showColorPicker && (
-                  <div className="absolute top-8 left-0 z-50 p-2 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-lg shadow-lg">
+                  <div className="absolute top-8 left-0 z-[9999] p-2 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-lg shadow-lg">
                     <input
                       type="color"
                       value={status.color || '#94a3b8'}

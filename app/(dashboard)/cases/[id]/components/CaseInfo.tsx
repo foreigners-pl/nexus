@@ -173,7 +173,7 @@ export function CaseInfo({ caseData, client, status, assignees, onUpdate, onAssi
             </button>
 
             {isAssigneesOpen && (
-              <div className="absolute z-[100] w-full mt-2 bg-[hsl(var(--color-surface))] backdrop-blur-xl border border-[hsl(var(--color-border))] rounded-xl shadow-[0_10px_40px_rgb(0_0_0/0.4)] max-h-60 overflow-y-auto p-1">
+              <div className="absolute z-[9999] w-full mt-2 bg-[hsl(var(--color-surface))] backdrop-blur-xl border border-[hsl(var(--color-border))] rounded-xl shadow-[0_10px_40px_rgb(0_0_0/0.4)] max-h-60 overflow-y-auto p-1">
                 {users.length === 0 ? (
                   <div className="px-4 py-3 text-sm text-[hsl(var(--color-text-secondary))] text-center">No users available</div>
                 ) : (

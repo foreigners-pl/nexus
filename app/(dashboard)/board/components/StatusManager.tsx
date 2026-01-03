@@ -171,7 +171,7 @@ export function StatusManager({ boardId, statuses, onUpdate }: StatusManagerProp
                 disabled={submitting}
               />
               {colorPickerStatusId === status.id && (
-                <div className="absolute top-8 left-0 z-10 p-2 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-lg shadow-lg">
+                <div className="absolute top-8 left-0 z-[9999] p-2 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-lg shadow-lg">
                   <input
                     type="color"
                     value={status.color}

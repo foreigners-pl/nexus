@@ -136,7 +136,7 @@ export function RichTextEditor({ document, canEdit, onUpdate }: RichTextEditorPr
       {/* Floating Toolbar */}
       {showToolbar && editor && (
         <div
-          className="fixed bg-neutral-900 border border-neutral-700 rounded-lg shadow-xl p-1 flex items-center gap-1 z-50"
+          className="fixed bg-neutral-900 border border-neutral-700 rounded-lg shadow-xl p-1 flex items-center gap-1 z-[9999]"
           style={{ top: `${toolbarPos.top}px`, left: `${toolbarPos.left}px`, transform: 'translateX(-50%)' }}
         >
           {/* Text Style Dropdown */}
@@ -154,7 +154,7 @@ export function RichTextEditor({ document, canEdit, onUpdate }: RichTextEditorPr
                editor.isActive('heading', { level: 3 }) ? 'H3' : 'P'}
             </button>
             {showTextStyleDropdown && (
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-neutral-900 border border-neutral-700 rounded-lg shadow-xl py-1 min-w-[80px] z-50">
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-neutral-900 border border-neutral-700 rounded-lg shadow-xl py-1 min-w-[80px] z-[9999]">
                 <button onClick={() => { editor.chain().focus().toggleHeading({ level: 1 }).run(); setShowTextStyleDropdown(false) }} className="w-full px-3 py-1.5 text-center hover:bg-neutral-800 text-neutral-300 font-bold">H1</button>
                 <button onClick={() => { editor.chain().focus().toggleHeading({ level: 2 }).run(); setShowTextStyleDropdown(false) }} className="w-full px-3 py-1.5 text-center hover:bg-neutral-800 text-neutral-300 font-semibold">H2</button>
                 <button onClick={() => { editor.chain().focus().toggleHeading({ level: 3 }).run(); setShowTextStyleDropdown(false) }} className="w-full px-3 py-1.5 text-center hover:bg-neutral-800 text-neutral-300 font-medium">H3</button>
@@ -180,7 +180,7 @@ export function RichTextEditor({ document, canEdit, onUpdate }: RichTextEditorPr
               <div className="w-4 h-1 rounded" style={{ backgroundColor: editor.getAttributes('textStyle').color || '#ffffff' }}></div>
             </button>
             {showColorPicker && (
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-neutral-900 border border-neutral-700 rounded-lg shadow-xl p-2 z-50 flex gap-1">
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-neutral-900 border border-neutral-700 rounded-lg shadow-xl p-2 z-[9999] flex gap-1">
                 <button onClick={() => { editor.chain().focus().setColor('#ffffff').run(); setShowColorPicker(false) }} className="w-6 h-6 rounded bg-white border border-neutral-600 hover:ring-2 hover:ring-red-500" title="White" />
                 <button onClick={() => { editor.chain().focus().setColor('#ef4444').run(); setShowColorPicker(false) }} className="w-6 h-6 rounded bg-red-500 hover:ring-2 hover:ring-red-500" title="Red" />
                 <button onClick={() => { editor.chain().focus().setColor('#f97316').run(); setShowColorPicker(false) }} className="w-6 h-6 rounded bg-orange-500 hover:ring-2 hover:ring-red-500" title="Orange" />
@@ -219,7 +219,7 @@ export function RichTextEditor({ document, canEdit, onUpdate }: RichTextEditorPr
               ☰
             </button>
             {showListStyleDropdown && (
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-neutral-900 border border-neutral-700 rounded-lg shadow-xl py-1 min-w-[140px] z-50">
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-neutral-900 border border-neutral-700 rounded-lg shadow-xl py-1 min-w-[140px] z-[9999]">
                 <button onClick={() => { editor.chain().focus().toggleBulletList().run(); setShowListStyleDropdown(false) }} className="w-full px-3 py-1.5 text-left hover:bg-neutral-800 text-neutral-300 text-sm">• Bullet List</button>
                 <button onClick={() => { editor.chain().focus().toggleOrderedList().run(); setShowListStyleDropdown(false) }} className="w-full px-3 py-1.5 text-left hover:bg-neutral-800 text-neutral-300 text-sm">1. Numbered List</button>
               </div>
@@ -256,7 +256,7 @@ export function RichTextEditor({ document, canEdit, onUpdate }: RichTextEditorPr
                 Font: {documentFont.split(',')[0]}
               </button>
               {showDocFontDropdown && (
-                <div className="absolute top-full left-0 mt-1 bg-neutral-900 border border-neutral-700 rounded-lg shadow-xl py-1 min-w-[140px] z-50">
+                <div className="absolute top-full left-0 mt-1 bg-neutral-900 border border-neutral-700 rounded-lg shadow-xl py-1 min-w-[140px] z-[9999]">
                   <button onClick={() => { setDocumentFont('Inter, sans-serif'); setShowDocFontDropdown(false) }} className="w-full px-3 py-1.5 text-left hover:bg-neutral-800 text-neutral-300 text-sm" style={{ fontFamily: 'Inter, sans-serif' }}>Inter</button>
                   <button onClick={() => { setDocumentFont('Georgia, serif'); setShowDocFontDropdown(false) }} className="w-full px-3 py-1.5 text-left hover:bg-neutral-800 text-neutral-300 text-sm" style={{ fontFamily: 'Georgia, serif' }}>Georgia</button>
                   <button onClick={() => { setDocumentFont('Courier New, monospace'); setShowDocFontDropdown(false) }} className="w-full px-3 py-1.5 text-left hover:bg-neutral-800 text-neutral-300 text-sm" style={{ fontFamily: 'Courier New, monospace' }}>Courier</button>
@@ -277,7 +277,7 @@ export function RichTextEditor({ document, canEdit, onUpdate }: RichTextEditorPr
                 Size: {documentFontSize}
               </button>
               {showDocFontSizeDropdown && (
-                <div className="absolute top-full left-0 mt-1 bg-neutral-900 border border-neutral-700 rounded-lg shadow-xl py-1 min-w-[100px] z-50">
+                <div className="absolute top-full left-0 mt-1 bg-neutral-900 border border-neutral-700 rounded-lg shadow-xl py-1 min-w-[100px] z-[9999]">
                   <button onClick={() => { setDocumentFontSize('12px'); setShowDocFontSizeDropdown(false) }} className="w-full px-3 py-1.5 text-center hover:bg-neutral-800 text-neutral-300 text-sm">12px</button>
                   <button onClick={() => { setDocumentFontSize('14px'); setShowDocFontSizeDropdown(false) }} className="w-full px-3 py-1.5 text-center hover:bg-neutral-800 text-neutral-300 text-sm">14px</button>
                   <button onClick={() => { setDocumentFontSize('16px'); setShowDocFontSizeDropdown(false) }} className="w-full px-3 py-1.5 text-center hover:bg-neutral-800 text-neutral-300 text-sm">16px</button>

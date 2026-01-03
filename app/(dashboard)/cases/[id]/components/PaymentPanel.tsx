@@ -479,7 +479,7 @@ export function PaymentPanel({ caseId, installments, services, client, onUpdate 
                         </button>
                         
                         {activeDropdown === installment.id && (
-                          <div className="absolute right-0 top-8 z-50 w-40 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-lg shadow-lg py-1">
+                          <div className="absolute right-0 top-8 z-[9999] w-40 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-lg shadow-lg py-1">
                             {/* Draft/Unsent: Send Invoice, Edit */}
                             {!installmentIsRefund && !installment.paid && invoice?.status !== 'sent' && (
                               <>
