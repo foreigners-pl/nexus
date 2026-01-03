@@ -26,6 +26,8 @@ export type ActivityType =
   | 'task_due_today'
   | 'task_one_week_overdue'
   | 'task_one_month_overdue'
+  // Chat
+  | 'buzz'
 
 export interface ActivityTypeInfo {
   id: ActivityType
@@ -68,6 +70,9 @@ export const ACTIVITY_TYPES: ActivityTypeInfo[] = [
   { id: 'task_due_today', label: 'Due Today', entity: 'tasks', category: 'reminders' },
   { id: 'task_one_week_overdue', label: '1 Week Overdue', entity: 'tasks', category: 'reminders' },
   { id: 'task_one_month_overdue', label: '1 Month Overdue', entity: 'tasks', category: 'reminders' },
+  
+  // Chat - Messages
+  { id: 'buzz', label: 'Buzz', entity: 'other', category: 'messages' },
 ]
 
 export interface ActivityPreferences {
@@ -89,6 +94,7 @@ export const DEFAULT_FEED: ActivityType[] = [
   'task_assigned', 'task_unassigned',
   'task_status_changed', 'task_completed', 'task_due_date_changed',
   'task_due_today', 'task_one_week_overdue', 'task_one_month_overdue',
+  'buzz',
 ]
 
 // Default: no email notifications

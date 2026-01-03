@@ -354,7 +354,7 @@ export function SidebarPanel({ activities, cases, onRefreshActivities, onRefresh
             ) : (
               activities.map((activity) => {
                 const colors = getCategoryColors(activity.action_type)
-                const entityLabel = activity.entity_type === 'case' ? 'Case' : activity.entity_type === 'card' ? 'Task' : null
+                const entityLabel = activity.entity_type === 'case' ? 'Case' : activity.entity_type === 'card' ? 'Task' : activity.entity_type === 'conversation' ? 'Chat' : null
                 return (
                 <div
                   key={activity.id}
@@ -362,7 +362,7 @@ export function SidebarPanel({ activities, cases, onRefreshActivities, onRefresh
                   className={cn(
                     "flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200",
                     "hover:scale-[1.01]",
-                    colors.unread
+                    !activity.is_read ? colors.unread : "hover:bg-white/5"
                   )}
                 >
                   <div className={cn(
