@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
 import { ConversationWithDetails, Message, getConversations } from '@/app/actions/chat'
+import { useConversationsCache } from '@/lib/query'
 import ConversationList from './ConversationList'
 import ChatWindow from './ChatWindow'
 import NewChatModal from './NewChatModal'
@@ -13,6 +14,7 @@ interface ChatContainerProps {
 }
 
 export default function ChatContainer({ initialConversations }: ChatContainerProps) {
+  const { setCached: setCachedConversations } = useConversationsCache()
   const [conversations, setConversations] = useState<ConversationWithDetails[]>(initialConversations)
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null)
   const [showNewChatModal, setShowNewChatModal] = useState(false)
@@ -34,6 +36,11 @@ export default function ChatContainer({ initialConversations }: ChatContainerPro
   useEffect(() => {
     selectedConversationIdRef.current = selectedConversationId
   }, [selectedConversationId])
+
+  // Cache conversations whenever they change
+  useEffect(() => {
+    setCachedConversations({ conversations })
+  }, [conversations, setCachedConversations])
 
   // Get current user
   useEffect(() => {

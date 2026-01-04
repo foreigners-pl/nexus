@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Navbar } from '@/components/layout/Navbar'
 import { NotificationProvider } from '@/lib/notifications/NotificationContext'
 import { ChatProvider } from '@/lib/chat/ChatContext'
+import { QueryProvider, PrefetchManager } from '@/lib/query'
 import MiniChat from '@/app/(dashboard)/chat/components/MiniChat'
 import { cn } from '@/lib/utils'
 
@@ -31,19 +32,22 @@ export default function DashboardLayout({
   }, [])
 
   return (
-    <NotificationProvider>
-      <ChatProvider>
-        <div className="h-screen bg-[hsl(var(--color-background))] flex flex-col">
-          <Navbar />
-          <main className={cn(
-            "px-6 py-6 flex-1 overflow-y-auto transition-all duration-300",
-            isNavCollapsed ? "ml-16" : "ml-56"
-          )}>
-            {children}
-          </main>
-          <MiniChat />
-        </div>
-      </ChatProvider>
-    </NotificationProvider>
+    <QueryProvider>
+      <NotificationProvider>
+        <ChatProvider>
+          <PrefetchManager />
+          <div className="h-screen bg-[hsl(var(--color-background))] flex flex-col">
+            <Navbar />
+            <main className={cn(
+              "px-6 py-6 flex-1 overflow-y-auto transition-all duration-300",
+              isNavCollapsed ? "ml-16" : "ml-56"
+            )}>
+              {children}
+            </main>
+            <MiniChat />
+          </div>
+        </ChatProvider>
+      </NotificationProvider>
+    </QueryProvider>
   )
 }

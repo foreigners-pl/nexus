@@ -9,6 +9,7 @@ import {
   getUnassignedCases,
   type DashboardData
 } from '@/app/actions/dashboard'
+import { useDashboardCache } from '@/lib/query'
 import { createClient } from '@/lib/supabase/client'
 import type { User, ActivityLog, Case } from '@/types/database'
 
@@ -33,6 +34,7 @@ function formatDate(): string {
 }
 
 export default function HomePage() {
+  const { getCached: getCachedDashboard, setCached: setCachedDashboard } = useDashboardCache()
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -82,10 +84,26 @@ export default function HomePage() {
   }, [dashboardData?.user?.id])
 
   async function loadDashboardData() {
+    // Try to use cached data first for instant loading
+    const cached = getCachedDashboard()
+    if (cached?.data) {
+      setDashboardData(cached.data)
+      setLoading(false)
+      // Still refresh in background
+      getAllDashboardData().then(result => {
+        if (result.data) {
+          setDashboardData(result.data)
+          setCachedDashboard(result)
+        }
+      })
+      return
+    }
+    
     setLoading(true)
     const result = await getAllDashboardData()
     if (result.data) {
       setDashboardData(result.data)
+      setCachedDashboard(result)
     }
     setLoading(false)
   }

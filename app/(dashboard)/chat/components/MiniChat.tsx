@@ -15,6 +15,7 @@ import {
   sendBuzz
 } from '@/app/actions/chat'
 import { useChat } from '@/lib/chat/ChatContext'
+import { useConversationsCache, useMessagesCache, usePrefetchMessages } from '@/lib/query'
 import EmojiPicker from './EmojiPicker'
 
 // Frequently used reaction emojis
@@ -29,6 +30,10 @@ export default function MiniChat() {
     activeBuzz,
     dismissBuzz
   } = useChat()
+  
+  // Cache hooks for instant loading
+  const { getCached: getCachedConversations, setCached: setCachedConversations } = useConversationsCache()
+  const prefetchMessages = usePrefetchMessages()
   
   const [conversations, setConversations] = useState<ConversationWithDetails[]>([])
   const [selectedConversation, setSelectedConversation] = useState<ConversationWithDetails | null>(null)
@@ -211,9 +216,22 @@ export default function MiniChat() {
   }, [selectedConversation, supabase])
 
   const loadConversations = async () => {
+    // Try to use cached data first for instant loading
+    const cached = getCachedConversations()
+    if (cached?.conversations && cached.conversations.length > 0) {
+      setConversations(cached.conversations)
+      // Still refresh in background
+      getConversations().then(({ conversations: fresh }) => {
+        setConversations(fresh)
+        setCachedConversations({ conversations: fresh })
+      })
+      return
+    }
+    
     setLoading(true)
     const { conversations: loaded } = await getConversations()
     setConversations(loaded)
+    setCachedConversations({ conversations: loaded })
     setLoading(false)
   }
 
@@ -227,6 +245,11 @@ export default function MiniChat() {
     await markConversationRead(conv.id)
     setLoading(false)
   }
+
+  // Prefetch messages when hovering over a conversation
+  const handleConversationHover = useCallback((convId: string) => {
+    prefetchMessages(convId)
+  }, [prefetchMessages])
 
   const handleSend = async () => {
     if ((!messageText.trim() && !attachment) || !selectedConversation || sending) return
@@ -664,6 +687,7 @@ export default function MiniChat() {
                 <button
                   key={conv.id}
                   onClick={() => selectConversation(conv)}
+                  onMouseEnter={() => handleConversationHover(conv.id)}
                   className="w-full p-3 hover:bg-white/5 border-b border-white/5 flex items-center gap-3 transition-colors text-left"
                 >
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center text-white/70 font-medium">
