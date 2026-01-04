@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { createBrowserClient } from '@supabase/ssr'
 import { 
@@ -34,6 +34,9 @@ export default function MiniChat() {
   const [selectedConversation, setSelectedConversation] = useState<ConversationWithDetails | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
+  const [initialScrollDone, setInitialScrollDone] = useState(false)
   const [messageText, setMessageText] = useState('')
   const [sending, setSending] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -47,6 +50,7 @@ export default function MiniChat() {
   const [emojiPickerPosition, setEmojiPickerPosition] = useState({ top: 0, left: 0 })
   const [reactionPickerPosition, setReactionPickerPosition] = useState({ top: 0, left: 0 })
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const emojiButtonRef = useRef<HTMLButtonElement>(null)
   const emojiPickerRef = useRef<HTMLDivElement>(null)
@@ -85,10 +89,52 @@ export default function MiniChat() {
     }
   }, [miniChatConversationId, conversations])
 
-  // Auto-scroll to bottom when messages change
+  // Auto-scroll to bottom on initial load
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    if (!loading && messages.length > 0 && !initialScrollDone && selectedConversation) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'instant' })
+      setInitialScrollDone(true)
+    }
+  }, [loading, messages.length, initialScrollDone, selectedConversation])
+
+  // Scroll to bottom when new message is added
+  useEffect(() => {
+    if (initialScrollDone && !loadingMore) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [messages.length])
+
+  // Load older messages when scrolling up
+  const handleScroll = useCallback(async () => {
+    const container = messagesContainerRef.current
+    if (!container || loadingMore || !hasMore || !selectedConversation) return
+
+    if (container.scrollTop < 50) {
+      const oldestMessage = messages[0]
+      if (!oldestMessage) return
+
+      setLoadingMore(true)
+      const prevScrollHeight = container.scrollHeight
+
+      const { messages: olderMessages, hasMore: more } = await getMessages(
+        selectedConversation.id, 
+        10, 
+        oldestMessage.created_at
+      )
+
+      if (olderMessages.length > 0) {
+        setMessages(prev => [...olderMessages, ...prev])
+        setHasMore(more)
+
+        requestAnimationFrame(() => {
+          const newScrollHeight = container.scrollHeight
+          container.scrollTop = newScrollHeight - prevScrollHeight
+        })
+      }
+
+      setLoadingMore(false)
+    }
+  }, [selectedConversation, messages, loadingMore, hasMore])
 
   // Click outside to close emoji picker
   useEffect(() => {
@@ -152,8 +198,8 @@ export default function MiniChat() {
           table: 'message_reactions'
         },
         async () => {
-          // Refresh messages to get updated reactions
-          const { messages: refreshed } = await getMessages(selectedConversation.id)
+          // Refresh messages to get updated reactions (keep same count)
+          const { messages: refreshed } = await getMessages(selectedConversation.id, Math.max(messages.length, 10))
           setMessages(refreshed)
         }
       )
@@ -174,8 +220,10 @@ export default function MiniChat() {
   const selectConversation = async (conv: ConversationWithDetails) => {
     setSelectedConversation(conv)
     setLoading(true)
-    const { messages: loaded } = await getMessages(conv.id)
+    setInitialScrollDone(false)
+    const { messages: loaded, hasMore: more } = await getMessages(conv.id)
     setMessages(loaded)
+    setHasMore(more)
     await markConversationRead(conv.id)
     setLoading(false)
   }
@@ -477,7 +525,22 @@ export default function MiniChat() {
         ) : selectedConversation ? (
           /* Chat View */
           <>
-            <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin">
+            <div 
+              ref={messagesContainerRef}
+              className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin"
+              onScroll={handleScroll}
+            >
+              {/* Loading older messages indicator */}
+              {loadingMore && (
+                <div className="flex justify-center py-1">
+                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+              {hasMore && !loadingMore && (
+                <div className="text-center text-white/30 text-[10px] py-1">
+                  Scroll up for older messages
+                </div>
+              )}
               {messages.map(message => (
                 <MessageBubble key={message.id} message={message} />
               ))}

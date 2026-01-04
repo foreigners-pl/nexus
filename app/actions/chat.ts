@@ -70,10 +70,10 @@ export async function getConversations(): Promise<{ conversations: ConversationW
   
   if (!user) return { conversations: [], error: 'Not authenticated' }
 
-  // Get conversations user is a member of
+  // Get conversations user is a member of with their membership info
   const { data: memberData, error: memberError } = await supabase
     .from('conversation_members')
-    .select('conversation_id')
+    .select('conversation_id, last_read_at')
     .eq('user_id', user.id)
 
   if (memberError) return { conversations: [], error: memberError.message }
@@ -81,7 +81,10 @@ export async function getConversations(): Promise<{ conversations: ConversationW
   const conversationIds = memberData?.map(m => m.conversation_id) || []
   if (conversationIds.length === 0) return { conversations: [] }
 
-  // Get conversations with members
+  // Create a map of conversation_id to last_read_at for quick lookup
+  const lastReadMap = new Map(memberData?.map(m => [m.conversation_id, m.last_read_at]) || [])
+
+  // Get conversations with members in a single query
   const { data: conversations, error } = await supabase
     .from('conversations')
     .select(`
@@ -98,7 +101,7 @@ export async function getConversations(): Promise<{ conversations: ConversationW
 
   if (error) return { conversations: [], error: error.message }
 
-  // Get user info for all members
+  // Get user info for all members in a single query
   const allUserIds = new Set<string>()
   conversations?.forEach(conv => {
     conv.conversation_members?.forEach((m: any) => allUserIds.add(m.user_id))
@@ -111,54 +114,45 @@ export async function getConversations(): Promise<{ conversations: ConversationW
 
   const usersMap = new Map(usersData?.map(u => [u.id, u]) || [])
 
-  // Get last message and unread count for each conversation
-  const result: ConversationWithDetails[] = await Promise.all(
-    (conversations || []).map(async (conv) => {
-      // Get last message
-      const { data: lastMsg } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('conversation_id', conv.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
+  // Get last messages for ALL conversations in a single query using DISTINCT ON
+  const { data: lastMessages } = await supabase
+    .rpc('get_last_messages', { conv_ids: conversationIds })
 
-      // Get unread count
-      const membership = conv.conversation_members?.find((m: ConversationMember) => m.user_id === user.id)
-      const lastReadAt = membership?.last_read_at || conv.created_at
+  const lastMsgMap = new Map(lastMessages?.map((m: any) => [m.conversation_id, m]) || [])
 
-      const { count: unreadCount } = await supabase
-        .from('messages')
-        .select('*', { count: 'exact', head: true })
-        .eq('conversation_id', conv.id)
-        .gt('created_at', lastReadAt)
-        .neq('sender_id', user.id)
+  // Get unread counts for all conversations in a single query
+  const { data: unreadCounts } = await supabase
+    .rpc('get_unread_counts', { p_user_id: user.id, conv_ids: conversationIds })
 
-      // Add user info to members
-      const membersWithUsers = (conv.conversation_members || []).map((m: any) => ({
-        ...m,
-        users: usersMap.get(m.user_id) || null
-      }))
+  const unreadMap = new Map(unreadCounts?.map((u: any) => [u.conversation_id, u.unread_count]) || [])
 
-      return {
-        ...conv,
-        members: membersWithUsers,
-        last_message: lastMsg || undefined,
-        unread_count: unreadCount || 0
-      }
-    })
-  )
+  // Build result without N+1 queries
+  const result: ConversationWithDetails[] = (conversations || []).map((conv) => {
+    // Add user info to members
+    const membersWithUsers = (conv.conversation_members || []).map((m: any) => ({
+      ...m,
+      users: usersMap.get(m.user_id) || null
+    }))
+
+    return {
+      ...conv,
+      members: membersWithUsers,
+      last_message: lastMsgMap.get(conv.id) || undefined,
+      unread_count: unreadMap.get(conv.id) || 0
+    }
+  })
 
   return { conversations: result }
 }
 
 // Get messages for a conversation
-export async function getMessages(conversationId: string, limit = 50, before?: string): Promise<{ messages: Message[]; error?: string }> {
+export async function getMessages(conversationId: string, limit = 10, before?: string): Promise<{ messages: Message[]; hasMore: boolean; error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   
-  if (!user) return { messages: [], error: 'Not authenticated' }
+  if (!user) return { messages: [], hasMore: false, error: 'Not authenticated' }
 
+  // Request one extra to check if there are more
   let query = supabase
     .from('messages')
     .select(`
@@ -167,7 +161,7 @@ export async function getMessages(conversationId: string, limit = 50, before?: s
     `)
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: false })
-    .limit(limit)
+    .limit(limit + 1)
 
   if (before) {
     query = query.lt('created_at', before)
@@ -175,10 +169,14 @@ export async function getMessages(conversationId: string, limit = 50, before?: s
 
   const { data, error } = await query
 
-  if (error) return { messages: [], error: error.message }
+  if (error) return { messages: [], hasMore: false, error: error.message }
+
+  // Check if there are more messages
+  const hasMore = (data?.length || 0) > limit
+  const messages = hasMore ? data?.slice(0, limit) : data
 
   // Return in chronological order
-  return { messages: (data || []).reverse() }
+  return { messages: (messages || []).reverse(), hasMore }
 }
 
 // Send a message

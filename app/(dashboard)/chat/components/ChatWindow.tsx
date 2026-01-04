@@ -27,6 +27,8 @@ interface ChatWindowProps {
 export default function ChatWindow({ conversation, onBack, onMeetingUpdate }: ChatWindowProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
   const [sending, setSending] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [showEmojiPicker, setShowEmojiPicker] = useState<string | null>(null)
@@ -37,6 +39,7 @@ export default function ChatWindow({ conversation, onBack, onMeetingUpdate }: Ch
   const [showEndMeetingModal, setShowEndMeetingModal] = useState(false)
   const [endingMeeting, setEndingMeeting] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [initialScrollDone, setInitialScrollDone] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
@@ -89,8 +92,10 @@ export default function ChatWindow({ conversation, onBack, onMeetingUpdate }: Ch
   useEffect(() => {
     const loadMessages = async () => {
       setLoading(true)
-      const { messages: loadedMessages } = await getMessages(conversation.id)
+      setInitialScrollDone(false)
+      const { messages: loadedMessages, hasMore: more } = await getMessages(conversation.id)
       setMessages(loadedMessages)
+      setHasMore(more)
       setLoading(false)
       
       // Mark as read
@@ -99,10 +104,54 @@ export default function ChatWindow({ conversation, onBack, onMeetingUpdate }: Ch
     loadMessages()
   }, [conversation.id])
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom on initial load and new messages
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    if (!loading && messages.length > 0 && !initialScrollDone) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'instant' })
+      setInitialScrollDone(true)
+    }
+  }, [loading, messages.length, initialScrollDone])
+
+  // Scroll to bottom when new message is added (not when loading older)
+  useEffect(() => {
+    if (initialScrollDone && !loadingMore) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [messages.length])
+
+  // Load older messages when scrolling up
+  const handleScroll = useCallback(async () => {
+    const container = messagesContainerRef.current
+    if (!container || loadingMore || !hasMore) return
+
+    // Load more when scrolled near top (within 100px)
+    if (container.scrollTop < 100) {
+      const oldestMessage = messages[0]
+      if (!oldestMessage) return
+
+      setLoadingMore(true)
+      const prevScrollHeight = container.scrollHeight
+
+      const { messages: olderMessages, hasMore: more } = await getMessages(
+        conversation.id, 
+        10, 
+        oldestMessage.created_at
+      )
+
+      if (olderMessages.length > 0) {
+        setMessages(prev => [...olderMessages, ...prev])
+        setHasMore(more)
+
+        // Maintain scroll position after prepending messages
+        requestAnimationFrame(() => {
+          const newScrollHeight = container.scrollHeight
+          container.scrollTop = newScrollHeight - prevScrollHeight
+        })
+      }
+
+      setLoadingMore(false)
+    }
+  }, [conversation.id, messages, loadingMore, hasMore])
 
   // Realtime subscription for new messages
   useEffect(() => {
@@ -137,8 +186,8 @@ export default function ChatWindow({ conversation, onBack, onMeetingUpdate }: Ch
           table: 'message_reactions'
         },
         async () => {
-          // Reload messages to get updated reactions
-          const { messages: reloadedMessages } = await getMessages(conversation.id)
+          // Reload current messages to get updated reactions (keep same count)
+          const { messages: reloadedMessages } = await getMessages(conversation.id, Math.max(messages.length, 10))
           setMessages(reloadedMessages)
         }
       )
@@ -328,6 +377,7 @@ export default function ChatWindow({ conversation, onBack, onMeetingUpdate }: Ch
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin"
         onClick={() => setShowEmojiPicker(null)}
+        onScroll={handleScroll}
       >
         {loading ? (
           <div className="flex items-center justify-center h-full">
@@ -342,6 +392,17 @@ export default function ChatWindow({ conversation, onBack, onMeetingUpdate }: Ch
           </div>
         ) : (
           <>
+            {/* Loading older messages indicator */}
+            {loadingMore && (
+              <div className="flex justify-center py-2">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+              </div>
+            )}
+            {hasMore && !loadingMore && (
+              <div className="text-center text-white/30 text-xs py-2">
+                Scroll up to load older messages
+              </div>
+            )}
             {messages.map((message, index) => {
               const prevMessage = messages[index - 1]
               const showAvatar = !prevMessage || prevMessage.sender_id !== message.sender_id
