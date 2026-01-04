@@ -11,6 +11,7 @@ import { Modal } from '@/components/ui/Modal'
 import { ShareWikiModal } from './components/ShareWikiModal'
 import { ShareDocumentModal } from './components/ShareDocumentModal'
 import { DocumentViewer } from './components/DocumentViewer'
+import { useWikiFoldersCache } from '@/lib/query'
 import { cn } from '@/lib/utils'
 import {
   getWikiFolders,
@@ -29,6 +30,7 @@ import {
 import type { WikiFolder, WikiDocument } from '@/types/database'
 
 export default function WikiPage() {
+  const { getCached: getCachedFolders, setCached: setCachedFolders } = useWikiFoldersCache(false)
   const [activeTab, setActiveTab] = useState<'private' | 'shared'>('private')
   const [folders, setFolders] = useState<WikiFolder[]>([])
   const [selectedFolder, setSelectedFolder] = useState<WikiFolder | null>(null)
@@ -107,11 +109,30 @@ export default function WikiPage() {
   }, [selectedFolder])
 
   async function loadFolders() {
+    const isShared = activeTab === 'shared'
+    
+    // Try cache first for private folders (instant load)
+    if (!isShared) {
+      const cached = getCachedFolders()
+      if (cached && cached.length > 0) {
+        setFolders(cached)
+        setLoading(false)
+        // Still refresh in background
+        getWikiFolders(false).then(data => {
+          setFolders(data)
+          setCachedFolders(data)
+        })
+        return
+      }
+    }
+    
     setLoading(true)
     try {
-      const isShared = activeTab === 'shared'
       const data = await getWikiFolders(isShared)
       setFolders(data)
+      if (!isShared) {
+        setCachedFolders(data)
+      }
       setLoading(false) // Show folders immediately
       
       // Preload all documents in the background with batched updates

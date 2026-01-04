@@ -3,6 +3,7 @@
 import { useState, useEffect, ReactNode, createContext, useContext } from 'react'
 import { useParams } from 'next/navigation'
 import { getUserBoards } from '@/app/actions/board/core'
+import { useBoardsCache } from '@/lib/query'
 import { BoardList } from './components/BoardList'
 import { CreateBoardModal } from './components/CreateBoardModal'
 import { createClient } from '@/lib/supabase/client'
@@ -28,6 +29,7 @@ export function useBoardRefresh() {
 export default function BoardLayout({ children }: { children: ReactNode }) {
   const params = useParams()
   const currentBoardId = params?.boardId as string | undefined
+  const { getCached: getCachedBoards, setCached: setCachedBoards } = useBoardsCache()
 
   const [boards, setBoards] = useState<BoardWithAccess[]>([])
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -66,6 +68,22 @@ export default function BoardLayout({ children }: { children: ReactNode }) {
 
   // Fetch boards once on mount and when refreshKey changes
   useEffect(() => {
+    // Try cache first on initial load
+    if (refreshKey === 0) {
+      const cached = getCachedBoards()
+      if (cached?.data && cached.data.length > 0) {
+        setBoards(cached.data as BoardWithAccess[])
+        setBoardsLoading(false)
+        // Still refresh in background
+        getUserBoards().then(result => {
+          if (result?.data) {
+            setBoards(result.data as BoardWithAccess[])
+            setCachedBoards(result)
+          }
+        })
+        return
+      }
+    }
     fetchBoards()
   }, [refreshKey])
 
@@ -74,6 +92,7 @@ export default function BoardLayout({ children }: { children: ReactNode }) {
     const result = await getUserBoards()
     if (result?.data) {
       setBoards(result.data as BoardWithAccess[])
+      setCachedBoards(result)
     }
     setBoardsLoading(false)
   }
@@ -89,6 +108,7 @@ export default function BoardLayout({ children }: { children: ReactNode }) {
     const result = await getUserBoards()
     if (result?.data) {
       const allBoards = result.data as BoardWithAccess[]
+      setCachedBoards(result)
       const updatedBoard = allBoards.find(b => b.id === boardId)
       if (updatedBoard) {
         setBoards(prevBoards => 

@@ -20,8 +20,9 @@ export const queryKeys = {
   boards: ['boards'] as const,
   board: (id: string) => ['boards', id] as const,
   boardCards: (boardId: string) => ['boards', boardId, 'cards'] as const,
+  casesBoard: ['boards', 'cases'] as const,
   
   // Wiki
-  wiki: ['wiki'] as const,
-  wikiDocument: (id: string) => ['wiki', id] as const,
+  wikiFolders: (isShared: boolean) => ['wiki', 'folders', isShared] as const,
+  wikiDocuments: (folderId: string) => ['wiki', 'documents', folderId] as const,
 }

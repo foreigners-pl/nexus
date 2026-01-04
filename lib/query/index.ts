@@ -7,5 +7,9 @@ export {
   usePrefetchMessages,
   useConversationsCache,
   useMessagesCache,
-  useDashboardCache
+  useDashboardCache,
+  useBoardsCache,
+  useCasesBoardCache,
+  useWikiFoldersCache,
+  useClientsCache
 } from './usePrefetch'

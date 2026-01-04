@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { getBoardWithData, getCasesBoardData, deleteBoard } from '@/app/actions/board/core'
 import { getUserBoardAccessLevel } from '@/app/actions/board/helpers'
+import { useCasesBoardCache } from '@/lib/query'
 import { BoardHeader } from '../components/BoardHeader'
 import { KanbanBoard } from '../components/KanbanBoard'
 import { CustomKanbanBoard } from '../components/CustomKanbanBoard'
@@ -29,6 +30,7 @@ export default function IndividualBoardPage() {
   const boardId = params.boardId as string
   const cardIdToOpen = searchParams.get('cardId')
   const refreshBoardList = useBoardRefresh()
+  const { getCached: getCachedCasesBoard, setCached: setCachedCasesBoard } = useCasesBoardCache()
 
   const [board, setBoard] = useState<BoardWithAccess | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -66,7 +68,6 @@ export default function IndividualBoardPage() {
   }, [])
 
   async function fetchBoardData() {
-    setLoading(true)
     setError(null)
 
     // Fetch user's access level for this board
@@ -76,6 +77,25 @@ export default function IndividualBoardPage() {
     // Check if this is the Cases board
     if (boardId === CASES_BOARD_ID) {
       setIsCasesBoard(true)
+      
+      // Try cache first for instant load
+      const cached = getCachedCasesBoard()
+      if (cached?.data) {
+        setStatuses(cached.data.statuses)
+        setCases(cached.data.cases as CaseWithRelations[])
+        setLoading(false)
+        // Still refresh in background
+        getCasesBoardData().then(result => {
+          if (result?.data) {
+            setStatuses(result.data.statuses)
+            setCases(result.data.cases as CaseWithRelations[])
+            setCachedCasesBoard(result)
+          }
+        })
+        return
+      }
+      
+      setLoading(true)
       const result = await getCasesBoardData()
       
       if (result?.error) {
@@ -83,10 +103,12 @@ export default function IndividualBoardPage() {
       } else if (result?.data) {
         setStatuses(result.data.statuses)
         setCases(result.data.cases as CaseWithRelations[])
+        setCachedCasesBoard(result)
       }
     } else {
       // Custom board
       setIsCasesBoard(false)
+      setLoading(true)
       const result = await getBoardWithData(boardId)
       
       if (result?.error) {
