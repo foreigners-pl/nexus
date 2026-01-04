@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { createBrowserClient } from '@supabase/ssr'
+import { useMessagesCache } from '@/lib/query'
 import { 
   ConversationWithDetails, 
   Message, 
@@ -25,6 +26,7 @@ interface ChatWindowProps {
 }
 
 export default function ChatWindow({ conversation, onBack, onMeetingUpdate }: ChatWindowProps) {
+  const { getCached: getCachedMessages, setCached: setCachedMessages } = useMessagesCache(conversation.id)
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -91,11 +93,33 @@ export default function ChatWindow({ conversation, onBack, onMeetingUpdate }: Ch
   // Load messages
   useEffect(() => {
     const loadMessages = async () => {
-      setLoading(true)
       setInitialScrollDone(false)
-      const { messages: loadedMessages, hasMore: more } = await getMessages(conversation.id)
+      
+      // Try cache first for INSTANT display
+      const cached = getCachedMessages()
+      if (cached?.messages && cached.messages.length > 0) {
+        console.log('[ChatWindow] Using cached messages:', cached.messages.length)
+        setMessages(cached.messages)
+        setHasMore(cached.hasMore || false)
+        setLoading(false)
+        
+        // Mark as read
+        markConversationRead(conversation.id)
+        
+        // Still refresh in background
+        getMessages(conversation.id, 20).then(({ messages: freshMessages, hasMore: more }) => {
+          setMessages(freshMessages)
+          setHasMore(more)
+          setCachedMessages({ messages: freshMessages, hasMore: more })
+        })
+        return
+      }
+      
+      setLoading(true)
+      const { messages: loadedMessages, hasMore: more } = await getMessages(conversation.id, 20)
       setMessages(loadedMessages)
       setHasMore(more)
+      setCachedMessages({ messages: loadedMessages, hasMore: more })
       setLoading(false)
       
       // Mark as read

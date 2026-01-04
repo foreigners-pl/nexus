@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { Modal } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
-import { deleteClient } from '@/app/actions/clients'
+import { deleteClient, getClient } from '@/app/actions/clients'
+import { useClientCache } from '@/lib/query'
 import { ClientHeader } from './components/ClientHeader'
 import { ContactInfo } from './components/ContactInfo'
 import { LocationInfo } from './components/LocationInfo'
@@ -31,7 +32,11 @@ export default function ClientPage({ params }: ClientPageProps) {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [clientId, setClientId] = useState<string | null>(null)
+  const [actualClientId, setActualClientId] = useState<string | null>(null)
   const supabase = createClient()
+
+  // Use cache for instant loading (will be populated by deep prefetch)
+  const { getCached, setCached } = useClientCache(actualClientId || '')
 
   useEffect(() => {
     async function initClientId() {
@@ -43,9 +48,36 @@ export default function ClientPage({ params }: ClientPageProps) {
 
   useEffect(() => {
     if (clientId) {
-      fetchAllData()
+      // Try cache first for instant display
+      tryLoadFromCache()
     }
   }, [clientId])
+
+  async function tryLoadFromCache() {
+    if (!clientId) return
+
+    // If it's a UUID (not a client_code), try cache first
+    if (!clientId.startsWith('CL')) {
+      setActualClientId(clientId)
+      const cached = getCached()
+      if (cached?.client) {
+        console.log('[ClientPage] Using cached client data')
+        setClient(cached.client)
+        setPhoneNumbers(cached.phoneNumbers || [])
+        setNotes(cached.notes || [])
+        setCases(cached.cases || [])
+        setCountryName(cached.countryName)
+        setCityName(cached.cityName)
+        setLoading(false)
+        // Still refresh in background
+        fetchAllData()
+        return
+      }
+    }
+
+    // No cache or client_code - fetch fresh
+    fetchAllData()
+  }
 
   // Handler for optimistic case addition
   const handleCaseAdded = (newCase: CaseWithStatus) => {

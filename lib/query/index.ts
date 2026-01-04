@@ -12,5 +12,12 @@ export {
   useBoardsCache,
   useCasesBoardCache,
   useWikiFoldersCache,
-  useClientsCache
+  useClientsCache,
+  // Deep prefetch hooks
+  useDeepPrefetchChat,
+  useDeepPrefetchBoard,
+  useDeepPrefetchClients,
+  // Individual item caches
+  useClientCache,
+  useBoardCardsCache
 } from './usePrefetch'

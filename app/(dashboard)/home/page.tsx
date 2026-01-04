@@ -35,7 +35,10 @@ function formatDate(): string {
 
 export default function HomePage() {
   const { getCached: getCachedDashboard, setCached: setCachedDashboard } = useDashboardCache()
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(() => {
+    // Try to initialize from cache synchronously (will be null on first render but fast on navigation)
+    return null
+  })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -123,11 +126,56 @@ export default function HomePage() {
   }
 
   if (loading || !dashboardData) {
+    // Show UI shell with skeleton placeholders - NOT a blank loading screen
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-[hsl(var(--color-primary))] border-t-transparent rounded-full animate-spin" />
-          <div className="text-[hsl(var(--color-text-secondary))]">Loading dashboard...</div>
+      <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden">
+        {/* Header Skeleton */}
+        <div className="flex-shrink-0 pb-4 flex items-center gap-4">
+          <div className="p-3 rounded-2xl bg-[hsl(var(--color-primary))]/20 backdrop-blur-sm border border-[hsl(var(--color-primary))]/30">
+            <svg className="w-6 h-6 text-[hsl(var(--color-primary))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+          </div>
+          <div>
+            <div className="h-8 w-48 bg-[hsl(var(--color-surface-hover))] rounded animate-pulse" />
+            <div className="h-4 w-32 bg-[hsl(var(--color-surface-hover))] rounded animate-pulse mt-2" />
+          </div>
+        </div>
+
+        {/* Main Content Skeleton */}
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Dashboard Panel Skeleton */}
+          <div className="lg:col-span-2 min-h-0">
+            <div className="h-full bg-[hsl(var(--color-card))] rounded-xl border border-[hsl(var(--color-border))] p-4">
+              {/* Tab buttons skeleton */}
+              <div className="flex gap-2 mb-4">
+                {[1,2,3,4,5].map(i => (
+                  <div key={i} className="h-10 w-24 bg-[hsl(var(--color-surface-hover))] rounded-lg animate-pulse" />
+                ))}
+              </div>
+              {/* Content area skeleton */}
+              <div className="space-y-3">
+                {[1,2,3,4,5].map(i => (
+                  <div key={i} className="h-16 bg-[hsl(var(--color-surface-hover))] rounded-lg animate-pulse" />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Sidebar Skeleton */}
+          <div className="min-h-0">
+            <div className="h-full bg-[hsl(var(--color-card))] rounded-xl border border-[hsl(var(--color-border))] p-4">
+              <div className="flex gap-2 mb-4">
+                <div className="h-8 w-20 bg-[hsl(var(--color-surface-hover))] rounded animate-pulse" />
+                <div className="h-8 w-20 bg-[hsl(var(--color-surface-hover))] rounded animate-pulse" />
+              </div>
+              <div className="space-y-3">
+                {[1,2,3,4,5,6].map(i => (
+                  <div key={i} className="h-12 bg-[hsl(var(--color-surface-hover))] rounded-lg animate-pulse" />
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     )

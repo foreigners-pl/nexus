@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { getBoardWithData, getCasesBoardData, deleteBoard } from '@/app/actions/board/core'
 import { getUserBoardAccessLevel } from '@/app/actions/board/helpers'
-import { useCasesBoardCache } from '@/lib/query'
+import { useCasesBoardCache, useBoardCardsCache } from '@/lib/query'
 import { BoardHeader } from '../components/BoardHeader'
 import { KanbanBoard } from '../components/KanbanBoard'
 import { CustomKanbanBoard } from '../components/CustomKanbanBoard'
@@ -31,6 +31,7 @@ export default function IndividualBoardPage() {
   const cardIdToOpen = searchParams.get('cardId')
   const refreshBoardList = useBoardRefresh()
   const { getCached: getCachedCasesBoard, setCached: setCachedCasesBoard } = useCasesBoardCache()
+  const { getCached: getCachedBoardCards, setCached: setCachedBoardCards } = useBoardCardsCache(boardId)
 
   const [board, setBoard] = useState<BoardWithAccess | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -108,6 +109,26 @@ export default function IndividualBoardPage() {
     } else {
       // Custom board
       setIsCasesBoard(false)
+      
+      // Try cache first for instant load
+      const cached = getCachedBoardCards()
+      if (cached?.data) {
+        setBoard(cached.data)
+        setCustomStatuses(cached.data.board_statuses || [])
+        setCustomCards(cached.data.cards || [])
+        setLoading(false)
+        // Still refresh in background
+        getBoardWithData(boardId).then(result => {
+          if (result?.data) {
+            setBoard(result.data)
+            setCustomStatuses(result.data.board_statuses || [])
+            setCustomCards(result.data.cards || [])
+            setCachedBoardCards(result)
+          }
+        })
+        return
+      }
+      
       setLoading(true)
       const result = await getBoardWithData(boardId)
       
@@ -117,6 +138,7 @@ export default function IndividualBoardPage() {
         setBoard(result.data)
         setCustomStatuses(result.data.board_statuses || [])
         setCustomCards(result.data.cards || [])
+        setCachedBoardCards(result)
       }
     }
 

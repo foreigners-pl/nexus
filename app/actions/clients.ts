@@ -95,3 +95,44 @@ export async function deleteClient(id: string) {
   revalidatePath('/clients')
   return { success: true }
 }
+
+/**
+ * Get full client details for prefetching
+ */
+export async function getClient(id: string) {
+  const supabase = await createClient()
+  
+  // Fetch client with all related data in parallel
+  const [clientResult, phonesResult, notesResult, casesResult] = await Promise.all([
+    supabase
+      .from('clients')
+      .select('*, countries:country_of_origin(name), cities:city_in_poland(name)')
+      .eq('id', id)
+      .single(),
+    supabase
+      .from('contact_numbers')
+      .select('*')
+      .eq('client_id', id)
+      .order('created_at', { ascending: true }),
+    supabase
+      .from('client_notes')
+      .select('*')
+      .eq('client_id', id)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('cases')
+      .select('*, status:status_id(*)')
+      .eq('client_id', id)
+      .order('created_at', { ascending: false })
+  ])
+
+  return {
+    client: clientResult.data,
+    phoneNumbers: phonesResult.data || [],
+    notes: notesResult.data || [],
+    cases: casesResult.data || [],
+    countryName: clientResult.data?.countries?.name || null,
+    cityName: clientResult.data?.cities?.name || null,
+    error: clientResult.error?.message
+  }
+}

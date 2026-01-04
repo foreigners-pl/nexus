@@ -439,3 +439,175 @@ export function useClientsCache() {
 
   return { getCached, setCached }
 }
+
+// ============================================
+// DEEP PREFETCH HOOKS
+// These prefetch "the next level" of data when you enter a tab
+// ============================================
+
+/**
+ * Deep prefetch for Chat tab - prefetch messages for ALL visible conversations
+ */
+export function useDeepPrefetchChat() {
+  const queryClient = useQueryClient()
+  const hasPrefetched = useRef(false)
+
+  const prefetchAllMessages = useCallback(async () => {
+    if (hasPrefetched.current) return
+    hasPrefetched.current = true
+
+    const cached = queryClient.getQueryData<Awaited<ReturnType<typeof getConversations>>>(
+      queryKeys.conversations
+    )
+    
+    if (!cached?.conversations) return
+
+    console.log('[DeepPrefetch] Chat: Prefetching messages for', cached.conversations.length, 'conversations')
+    
+    // Prefetch messages for ALL conversations (not just top 3)
+    // Do this in batches to not overwhelm the network
+    const batchSize = 5
+    for (let i = 0; i < cached.conversations.length; i += batchSize) {
+      const batch = cached.conversations.slice(i, i + batchSize)
+      await Promise.all(
+        batch.map(conv =>
+          queryClient.prefetchQuery({
+            queryKey: queryKeys.messages(conv.id),
+            queryFn: async () => {
+              const result = await getMessages(conv.id, 20) // 20 messages per conversation
+              return result
+            },
+            staleTime: 60 * 1000,
+          })
+        )
+      )
+    }
+    console.log('[DeepPrefetch] Chat: All messages prefetched')
+  }, [queryClient])
+
+  return prefetchAllMessages
+}
+
+/**
+ * Deep prefetch for Board tab - prefetch cards for ALL boards
+ */
+export function useDeepPrefetchBoard() {
+  const queryClient = useQueryClient()
+  const hasPrefetched = useRef(false)
+
+  const prefetchAllBoards = useCallback(async () => {
+    if (hasPrefetched.current) return
+    hasPrefetched.current = true
+
+    const cached = queryClient.getQueryData<Awaited<ReturnType<typeof getUserBoards>>>(
+      queryKeys.boards
+    )
+    
+    if (!cached?.data) return
+
+    console.log('[DeepPrefetch] Board: Prefetching cards for', cached.data.length, 'boards')
+    
+    // Import getBoardWithData dynamically
+    const { getBoardWithData } = await import('@/app/actions/board/core')
+    
+    // Skip the cases board (already prefetched separately), prefetch all other boards
+    const customBoards = cached.data.filter(b => b.id !== '00000000-0000-0000-0000-000000000001')
+    
+    // Prefetch cards for ALL custom boards
+    await Promise.all(
+      customBoards.map(board =>
+        queryClient.prefetchQuery({
+          queryKey: queryKeys.boardCards(board.id),
+          queryFn: async () => {
+            const result = await getBoardWithData(board.id)
+            return result
+          },
+          staleTime: 60 * 1000,
+        })
+      )
+    )
+    console.log('[DeepPrefetch] Board: All board cards prefetched')
+  }, [queryClient])
+
+  return prefetchAllBoards
+}
+
+/**
+ * Deep prefetch for Clients tab - prefetch full client details for top clients
+ */
+export function useDeepPrefetchClients() {
+  const queryClient = useQueryClient()
+  const hasPrefetched = useRef(false)
+
+  const prefetchClientDetails = useCallback(async () => {
+    if (hasPrefetched.current) return
+    hasPrefetched.current = true
+
+    const cached = queryClient.getQueryData<ClientWithPhones[]>(queryKeys.clients)
+    
+    if (!cached || cached.length === 0) return
+
+    console.log('[DeepPrefetch] Clients: Prefetching details for', Math.min(cached.length, 20), 'clients')
+    
+    // Import getClient dynamically
+    const { getClient } = await import('@/app/actions/clients')
+    
+    // Prefetch details for top 20 clients
+    const topClients = cached.slice(0, 20)
+    await Promise.all(
+      topClients.map(client =>
+        queryClient.prefetchQuery({
+          queryKey: queryKeys.client(client.id),
+          queryFn: async () => {
+            const result = await getClient(client.id)
+            return result
+          },
+          staleTime: 60 * 1000,
+        })
+      )
+    )
+    console.log('[DeepPrefetch] Clients: All client details prefetched')
+  }, [queryClient])
+
+  return prefetchClientDetails
+}
+
+/**
+ * Get cached client details if available
+ */
+export function useClientCache(clientId: string) {
+  const queryClient = useQueryClient()
+  
+  const getCached = useCallback(() => {
+    return queryClient.getQueryData<any>(queryKeys.client(clientId))
+  }, [queryClient, clientId])
+
+  const setCached = useCallback(
+    (data: any) => {
+      queryClient.setQueryData(queryKeys.client(clientId), data)
+    },
+    [queryClient, clientId]
+  )
+
+  return { getCached, setCached }
+}
+
+/**
+ * Get cached board cards if available
+ */
+export function useBoardCardsCache(boardId: string) {
+  const queryClient = useQueryClient()
+  
+  const getCached = useCallback(() => {
+    return queryClient.getQueryData<any>(queryKeys.boardCards(boardId))
+  }, [queryClient, boardId])
+
+  const setCached = useCallback(
+    (data: any) => {
+      queryClient.setQueryData(queryKeys.boardCards(boardId), data)
+    },
+    [queryClient, boardId]
+  )
+
+  return { getCached, setCached }
+}
