@@ -8,6 +8,7 @@ export {
   useConversationsCache,
   useMessagesCache,
   useDashboardCache,
+  useWeeklyCache,
   useBoardsCache,
   useCasesBoardCache,
   useWikiFoldersCache,

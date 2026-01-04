@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { DndContext, DragEndEvent, closestCenter, PointerSensor, useSensor, useSensors, DragStartEvent, DragOverEvent } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
@@ -30,7 +30,8 @@ import {
 import type { WikiFolder, WikiDocument } from '@/types/database'
 
 export default function WikiPage() {
-  const { getCached: getCachedFolders, setCached: setCachedFolders } = useWikiFoldersCache(false)
+  const { getCached: getCachedPrivateFolders, setCached: setCachedPrivateFolders } = useWikiFoldersCache(false)
+  const { getCached: getCachedSharedFolders, setCached: setCachedSharedFolders } = useWikiFoldersCache(true)
   const [activeTab, setActiveTab] = useState<'private' | 'shared'>('private')
   const [folders, setFolders] = useState<WikiFolder[]>([])
   const [selectedFolder, setSelectedFolder] = useState<WikiFolder | null>(null)
@@ -42,6 +43,20 @@ export default function WikiPage() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isNavCollapsed, setIsNavCollapsed] = useState(false)
   const [loading, setLoading] = useState(true)
+  const initialCacheChecked = useRef(false)
+  
+  // Check cache BEFORE paint using useLayoutEffect
+  useLayoutEffect(() => {
+    if (initialCacheChecked.current) return
+    initialCacheChecked.current = true
+    
+    const cached = getCachedPrivateFolders()
+    if (cached) {
+      console.log('[Wiki] Initial cache hit (layout):', cached.length)
+      setFolders(cached)
+      setLoading(false)
+    }
+  }, [getCachedPrivateFolders])
   
   // Modals
   const [showNewFolderModal, setShowNewFolderModal] = useState(false)
@@ -111,54 +126,57 @@ export default function WikiPage() {
   async function loadFolders() {
     const isShared = activeTab === 'shared'
     
-    // Try cache first for private folders (instant load)
-    if (!isShared) {
-      const cached = getCachedFolders()
-      if (cached && cached.length > 0) {
-        setFolders(cached)
-        setLoading(false)
-        // Still refresh in background
-        getWikiFolders(false).then(data => {
-          setFolders(data)
-          setCachedFolders(data)
-        })
-        return
-      }
+    // Try cache first for INSTANT display
+    const getCachedFolders = isShared ? getCachedSharedFolders : getCachedPrivateFolders
+    const setCachedFolders = isShared ? setCachedSharedFolders : setCachedPrivateFolders
+    
+    const cached = getCachedFolders()
+    if (cached) {
+      console.log('[Wiki] Cache hit, folders:', cached.length)
+      setFolders(cached)
+      setLoading(false)
+      // Refresh in background
+      getWikiFolders(isShared).then(data => {
+        console.log('[Wiki] Background refresh done, folders:', data.length)
+        setFolders(data)
+        setCachedFolders(data)
+        // Preload documents in background
+        preloadDocuments(data)
+      })
+      return
     }
     
+    console.log('[Wiki] No cache, loading...')
     setLoading(true)
     try {
       const data = await getWikiFolders(isShared)
       setFolders(data)
-      if (!isShared) {
-        setCachedFolders(data)
-      }
+      setCachedFolders(data)
       setLoading(false) // Show folders immediately
       
-      // Preload all documents in the background with batched updates
-      const loadDocumentsInBackground = async () => {
-        const documentsMap: Record<string, WikiDocument[]> = {}
-        await Promise.all(
-          data.map(async (folder) => {
-            try {
-              const docs = await getWikiDocuments(folder.id)
-              documentsMap[folder.id] = docs
-            } catch (error) {
-              console.error(`Failed to preload documents for folder ${folder.id}:`, error)
-              documentsMap[folder.id] = []
-            }
-          })
-        )
-        // Single state update with all documents
-        setAllDocuments(documentsMap)
-      }
-      
-      // Run in background without blocking
-      loadDocumentsInBackground().catch(err => console.error('Error preloading documents:', err))
+      // Preload documents in background
+      preloadDocuments(data)
     } catch (error) {
       console.error('Failed to load folders:', error)
       setLoading(false)
     }
+  }
+  
+  async function preloadDocuments(foldersToPreload: WikiFolder[]) {
+    const documentsMap: Record<string, WikiDocument[]> = {}
+    await Promise.all(
+      foldersToPreload.map(async (folder) => {
+        try {
+          const docs = await getWikiDocuments(folder.id)
+          documentsMap[folder.id] = docs
+        } catch (error) {
+          console.error(`Failed to preload documents for folder ${folder.id}:`, error)
+          documentsMap[folder.id] = []
+        }
+      })
+    )
+    // Single state update with all documents
+    setAllDocuments(prev => ({ ...prev, ...documentsMap }))
   }
 
   async function loadDocuments(folderId: string) {

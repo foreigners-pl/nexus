@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { useWeeklyCache } from '@/lib/query'
 import { cn } from '@/lib/utils'
 import {
   getWeeklyCases,
@@ -248,62 +249,125 @@ function TimelineTab({ todayCounts }: { todayCounts: { cases: number; tasks: num
   const [items, setItems] = useState<TimelineItem[]>([])
   const [loading, setLoading] = useState(true)
 
+  const weekStartStr = formatLocalDate(currentWeekStart)
+  const { getCachedCases, getCachedTasks, getCachedPayments, setCachedCases, setCachedTasks, setCachedPayments } = useWeeklyCache(weekStartStr)
+
   const weekDates = getWeekDates(currentWeekStart)
+
+  // Transform raw data to TimelineItem format
+  const transformCases = (cases: Awaited<ReturnType<typeof getWeeklyCases>>['cases']): TimelineItem[] => {
+    return cases.map(c => {
+      const client = Array.isArray(c.clients) ? c.clients[0] : c.clients
+      return {
+        id: c.id,
+        title: c.case_code || 'Unknown Case',
+        subtitle: client ? [client.first_name, client.last_name].filter(Boolean).join(' ') : 'Unknown',
+        due_date: c.due_date || '',
+        type: 'cases' as const,
+        entityId: c.id
+      }
+    })
+  }
+
+  const transformTasks = (cards: Awaited<ReturnType<typeof getWeeklyCards>>['cards']): TimelineItem[] => {
+    return cards.map(c => {
+      const board = Array.isArray(c.boards) ? c.boards[0] : c.boards
+      const status = Array.isArray(c.board_statuses) ? c.board_statuses[0] : c.board_statuses
+      return {
+        id: c.id,
+        title: c.title,
+        subtitle: board?.name || 'Unknown Board',
+        due_date: c.due_date || '',
+        type: 'tasks' as const,
+        entityId: c.id,
+        boardId: c.board_id,
+        color: status?.color
+      }
+    })
+  }
+
+  const transformPayments = (payments: Awaited<ReturnType<typeof getWeeklyPayments>>['payments']): TimelineItem[] => {
+    return payments.map(p => {
+      const caseData = Array.isArray(p.cases) ? p.cases[0] : p.cases
+      const client = caseData?.clients ? (Array.isArray(caseData.clients) ? caseData.clients[0] : caseData.clients) : null
+      return {
+        id: p.id,
+        title: `${p.amount.toLocaleString()} PLN`,
+        subtitle: client ? [client.first_name, client.last_name].filter(Boolean).join(' ') : (caseData?.case_code || 'Unknown'),
+        due_date: p.due_date || '',
+        type: 'payments' as const,
+        entityId: p.case_id
+      }
+    })
+  }
 
   useEffect(() => {
     loadItems()
   }, [currentWeekStart, timelineFilter])
 
   async function loadItems() {
-    setLoading(true)
     const startDateStr = formatLocalDate(currentWeekStart)
     console.log('[TimelineTab] Loading items for:', startDateStr, 'filter:', timelineFilter)
+
+    // Check cache first for INSTANT display
+    if (timelineFilter === 'cases') {
+      const cached = getCachedCases()
+      if (cached?.cases) {
+        console.log('[TimelineTab] Using cached cases:', cached.cases.length)
+        setItems(transformCases(cached.cases))
+        setLoading(false)
+        // Refresh in background
+        getWeeklyCases(startDateStr).then((result) => {
+          setItems(transformCases(result.cases))
+          setCachedCases(result)
+        })
+        return
+      }
+    } else if (timelineFilter === 'tasks') {
+      const cached = getCachedTasks()
+      if (cached?.cards) {
+        console.log('[TimelineTab] Using cached tasks:', cached.cards.length)
+        setItems(transformTasks(cached.cards))
+        setLoading(false)
+        // Refresh in background
+        getWeeklyCards(startDateStr).then((result) => {
+          setItems(transformTasks(result.cards))
+          setCachedTasks(result)
+        })
+        return
+      }
+    } else {
+      const cached = getCachedPayments()
+      if (cached?.payments) {
+        console.log('[TimelineTab] Using cached payments:', cached.payments.length)
+        setItems(transformPayments(cached.payments))
+        setLoading(false)
+        // Refresh in background
+        getWeeklyPayments(startDateStr).then((result) => {
+          setItems(transformPayments(result.payments))
+          setCachedPayments(result)
+        })
+        return
+      }
+    }
+
+    // No cache - show loading and fetch
+    setLoading(true)
     let newItems: TimelineItem[] = []
 
     if (timelineFilter === 'cases') {
-      const { cases, error } = await getWeeklyCases(startDateStr)
-      console.log('[TimelineTab] Cases received:', cases?.length, 'Error:', error)
-      newItems = cases.map(c => {
-        const client = Array.isArray(c.clients) ? c.clients[0] : c.clients
-        return {
-          id: c.id,
-          title: c.case_code || 'Unknown Case',
-          subtitle: client ? [client.first_name, client.last_name].filter(Boolean).join(' ') : 'Unknown',
-          due_date: c.due_date || '',
-          type: 'cases' as const,
-          entityId: c.id
-        }
-      })
+      const result = await getWeeklyCases(startDateStr)
+      console.log('[TimelineTab] Cases received:', result.cases?.length, 'Error:', result.error)
+      newItems = transformCases(result.cases)
+      setCachedCases(result)
     } else if (timelineFilter === 'tasks') {
-      const { cards } = await getWeeklyCards(startDateStr)
-      newItems = cards.map(c => {
-        const board = Array.isArray(c.boards) ? c.boards[0] : c.boards
-        const status = Array.isArray(c.board_statuses) ? c.board_statuses[0] : c.board_statuses
-        return {
-          id: c.id,
-          title: c.title,
-          subtitle: board?.name || 'Unknown Board',
-          due_date: c.due_date || '',
-          type: 'tasks' as const,
-          entityId: c.id,
-          boardId: c.board_id,
-          color: status?.color
-        }
-      })
+      const result = await getWeeklyCards(startDateStr)
+      newItems = transformTasks(result.cards)
+      setCachedTasks(result)
     } else {
-      const { payments } = await getWeeklyPayments(startDateStr)
-      newItems = payments.map(p => {
-        const caseData = Array.isArray(p.cases) ? p.cases[0] : p.cases
-        const client = caseData?.clients ? (Array.isArray(caseData.clients) ? caseData.clients[0] : caseData.clients) : null
-        return {
-          id: p.id,
-          title: `${p.amount.toLocaleString()} PLN`,
-          subtitle: client ? [client.first_name, client.last_name].filter(Boolean).join(' ') : (caseData?.case_code || 'Unknown'),
-          due_date: p.due_date || '',
-          type: 'payments' as const,
-          entityId: p.case_id
-        }
-      })
+      const result = await getWeeklyPayments(startDateStr)
+      newItems = transformPayments(result.payments)
+      setCachedPayments(result)
     }
 
     console.log('[TimelineTab] Items loaded:', newItems.length)

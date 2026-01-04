@@ -6,7 +6,7 @@ import { queryKeys } from './queryKeys'
 
 // Import server actions
 import { getConversations, getMessages } from '@/app/actions/chat'
-import { getAllDashboardData } from '@/app/actions/dashboard'
+import { getAllDashboardData, getWeeklyCases, getWeeklyCards, getWeeklyPayments } from '@/app/actions/dashboard'
 import { getUserBoards, getCasesBoardData } from '@/app/actions/board/core'
 import { getWikiFolders } from '@/app/actions/wiki'
 
@@ -14,6 +14,23 @@ import { getWikiFolders } from '@/app/actions/wiki'
 interface ClientWithPhones {
   id: string
   [key: string]: any
+}
+
+// Helper to get start of current week
+function getStartOfWeek(date: Date): Date {
+  const d = new Date(date)
+  const day = d.getDay()
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1)
+  d.setDate(diff)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 /**
@@ -31,13 +48,20 @@ export function usePrefetchOnMount() {
     if (hasPrefetched.current) return
     hasPrefetched.current = true
 
-    // Wait longer to ensure home page is fully loaded first
-    // Home page should have finished all its initial renders by this time
-    const timer = setTimeout(() => {
+    // Start prefetching quickly but not blocking initial render
+    // Use requestIdleCallback if available, otherwise short timeout
+    const startPrefetch = () => {
       prefetchAllTabs(queryClient)
-    }, 2000) // Wait 2 seconds after mount before prefetching other tabs
+    }
 
-    return () => clearTimeout(timer)
+    if (typeof requestIdleCallback !== 'undefined') {
+      // Browser is idle - perfect time to prefetch
+      requestIdleCallback(startPrefetch, { timeout: 1000 })
+    } else {
+      // Fallback: 500ms delay
+      const timer = setTimeout(startPrefetch, 500)
+      return () => clearTimeout(timer)
+    }
   }, [queryClient])
 }
 
@@ -45,24 +69,124 @@ export function usePrefetchOnMount() {
  * Prefetch data for all tabs (runs after home page is loaded)
  */
 async function prefetchAllTabs(queryClient: ReturnType<typeof useQueryClient>) {
-  // Prefetch in sequence with small delays to not overwhelm the network
-  // This runs in background after home page is fully loaded
-  
+  console.log('[Prefetch] Starting prefetch of all tabs...')
   try {
-    // 1. Prefetch conversations (most commonly accessed)
-    await queryClient.prefetchQuery({
-      queryKey: queryKeys.conversations,
-      queryFn: async () => {
-        const result = await getConversations()
-        return result
-      },
-      staleTime: 30 * 1000,
-    })
+    // Get current week start for timeline prefetch
+    const weekStart = getStartOfWeek(new Date())
+    const weekStartStr = formatLocalDate(weekStart)
 
-    // Small delay between prefetches
-    await new Promise(resolve => setTimeout(resolve, 100))
+    // Prefetch ALL data in parallel for maximum speed
+    await Promise.all([
+      // 1. Conversations
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.conversations,
+        queryFn: async () => {
+          const result = await getConversations()
+          return result
+        },
+        staleTime: 60 * 1000, // 1 minute
+      }),
 
-    // 2. Prefetch messages for top 3 conversations
+      // 2. Dashboard data (includes all home page data except timeline)
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.dashboard,
+        queryFn: async () => {
+          const result = await getAllDashboardData()
+          return result
+        },
+        staleTime: 60 * 1000,
+      }),
+
+      // 3. Weekly cases (for timeline "Today" tab)
+      queryClient.prefetchQuery({
+        queryKey: ['weeklyCases', weekStartStr],
+        queryFn: async () => {
+          const result = await getWeeklyCases(weekStartStr)
+          return result
+        },
+        staleTime: 60 * 1000,
+      }),
+
+      // 4. Weekly tasks (for timeline)
+      queryClient.prefetchQuery({
+        queryKey: ['weeklyTasks', weekStartStr],
+        queryFn: async () => {
+          const result = await getWeeklyCards(weekStartStr)
+          return result
+        },
+        staleTime: 60 * 1000,
+      }),
+
+      // 5. Weekly payments (for timeline)
+      queryClient.prefetchQuery({
+        queryKey: ['weeklyPayments', weekStartStr],
+        queryFn: async () => {
+          const result = await getWeeklyPayments(weekStartStr)
+          return result
+        },
+        staleTime: 60 * 1000,
+      }),
+
+      // 6. Boards list
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.boards,
+        queryFn: async () => {
+          const result = await getUserBoards()
+          return result
+        },
+        staleTime: 60 * 1000,
+      }),
+
+      // 7. Cases board data (default board)
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.casesBoard,
+        queryFn: async () => {
+          const result = await getCasesBoardData()
+          return result
+        },
+        staleTime: 60 * 1000,
+      }),
+
+      // 8. Wiki folders (private)
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.wikiFolders(false),
+        queryFn: async () => {
+          const result = await getWikiFolders(false)
+          console.log('[Prefetch] Wiki folders (private) loaded:', result?.length)
+          return result
+        },
+        staleTime: 60 * 1000,
+      }),
+
+      // 9. Wiki folders (shared)
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.wikiFolders(true),
+        queryFn: async () => {
+          const result = await getWikiFolders(true)
+          console.log('[Prefetch] Wiki folders (shared) loaded:', result?.length)
+          return result
+        },
+        staleTime: 60 * 1000,
+      }),
+
+      // 10. Clients (first page)
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.clients,
+        queryFn: async () => {
+          const { createClient } = await import('@/lib/supabase/client')
+          const supabase = createClient()
+          const { data } = await supabase
+            .from('clients')
+            .select('*, contact_numbers (id, number, is_on_whatsapp)')
+            .order('created_at', { ascending: false })
+            .range(0, 19)
+          return data || []
+        },
+        staleTime: 60 * 1000,
+      }),
+    ])
+
+    // After conversations load, prefetch messages for top 3
     const cachedConvs = queryClient.getQueryData<Awaited<ReturnType<typeof getConversations>>>(
       queryKeys.conversations
     )
@@ -76,67 +200,13 @@ async function prefetchAllTabs(queryClient: ReturnType<typeof useQueryClient>) {
               const msgResult = await getMessages(conv.id, 10)
               return msgResult
             },
-            staleTime: 30 * 1000,
+            staleTime: 60 * 1000,
           })
         )
       )
     }
 
-    await new Promise(resolve => setTimeout(resolve, 100))
-
-    // 3. Prefetch boards list
-    await queryClient.prefetchQuery({
-      queryKey: queryKeys.boards,
-      queryFn: async () => {
-        const result = await getUserBoards()
-        return result
-      },
-      staleTime: 30 * 1000,
-    })
-
-    await new Promise(resolve => setTimeout(resolve, 100))
-
-    // 4. Prefetch cases board data (default board)
-    await queryClient.prefetchQuery({
-      queryKey: queryKeys.casesBoard,
-      queryFn: async () => {
-        const result = await getCasesBoardData()
-        return result
-      },
-      staleTime: 30 * 1000,
-    })
-
-    await new Promise(resolve => setTimeout(resolve, 100))
-
-    // 5. Prefetch wiki folders (private)
-    await queryClient.prefetchQuery({
-      queryKey: queryKeys.wikiFolders(false),
-      queryFn: async () => {
-        const result = await getWikiFolders(false)
-        return result
-      },
-      staleTime: 30 * 1000,
-    })
-
-    await new Promise(resolve => setTimeout(resolve, 100))
-
-    // 6. Prefetch clients (first page)
-    await queryClient.prefetchQuery({
-      queryKey: queryKeys.clients,
-      queryFn: async () => {
-        // Import dynamically to avoid circular deps
-        const { createClient } = await import('@/lib/supabase/client')
-        const supabase = createClient()
-        const { data } = await supabase
-          .from('clients')
-          .select('*, contact_numbers (id, number, is_on_whatsapp)')
-          .order('created_at', { ascending: false })
-          .range(0, 19) // First 20 clients
-        return data || []
-      },
-      staleTime: 30 * 1000,
-    })
-
+    console.debug('[Prefetch] All tabs prefetched successfully')
   } catch (err) {
     // Silently fail prefetches - they're not critical
     console.debug('Prefetch error:', err)
@@ -158,7 +228,7 @@ export function usePrefetchMessages() {
           const result = await getMessages(conversationId, 10)
           return result
         },
-        staleTime: 30 * 1000,
+        staleTime: 60 * 1000,
       })
     },
     [queryClient]
@@ -231,6 +301,57 @@ export function useDashboardCache() {
   )
 
   return { getCached, setCached }
+}
+
+/**
+ * Get cached weekly timeline data
+ */
+export function useWeeklyCache(weekStartStr: string) {
+  const queryClient = useQueryClient()
+  
+  const getCachedCases = useCallback(() => {
+    return queryClient.getQueryData<Awaited<ReturnType<typeof getWeeklyCases>>>(
+      ['weeklyCases', weekStartStr]
+    )
+  }, [queryClient, weekStartStr])
+
+  const getCachedTasks = useCallback(() => {
+    return queryClient.getQueryData<Awaited<ReturnType<typeof getWeeklyCards>>>(
+      ['weeklyTasks', weekStartStr]
+    )
+  }, [queryClient, weekStartStr])
+
+  const getCachedPayments = useCallback(() => {
+    return queryClient.getQueryData<Awaited<ReturnType<typeof getWeeklyPayments>>>(
+      ['weeklyPayments', weekStartStr]
+    )
+  }, [queryClient, weekStartStr])
+
+  const setCachedCases = useCallback(
+    (data: Awaited<ReturnType<typeof getWeeklyCases>>) => {
+      queryClient.setQueryData(['weeklyCases', weekStartStr], data)
+    },
+    [queryClient, weekStartStr]
+  )
+
+  const setCachedTasks = useCallback(
+    (data: Awaited<ReturnType<typeof getWeeklyCards>>) => {
+      queryClient.setQueryData(['weeklyTasks', weekStartStr], data)
+    },
+    [queryClient, weekStartStr]
+  )
+
+  const setCachedPayments = useCallback(
+    (data: Awaited<ReturnType<typeof getWeeklyPayments>>) => {
+      queryClient.setQueryData(['weeklyPayments', weekStartStr], data)
+    },
+    [queryClient, weekStartStr]
+  )
+
+  return { 
+    getCachedCases, getCachedTasks, getCachedPayments,
+    setCachedCases, setCachedTasks, setCachedPayments
+  }
 }
 
 /**
