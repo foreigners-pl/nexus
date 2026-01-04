@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { createBrowserClient } from '@supabase/ssr'
 import { useMessagesCache } from '@/lib/query'
@@ -90,40 +90,51 @@ export default function ChatWindow({ conversation, onBack, onMeetingUpdate }: Ch
     return () => clearInterval(interval)
   }, [meetingStartedAt])
 
-  // Load messages
+  // CRITICAL: Synchronously update messages when conversation changes
+  // This runs BEFORE paint to prevent flash of old messages
+  useLayoutEffect(() => {
+    const cached = getCachedMessages()
+    if (cached?.messages && cached.messages.length > 0) {
+      setMessages(cached.messages)
+      setHasMore(cached.hasMore || false)
+      setLoading(false)
+    } else {
+      // Clear old messages immediately when no cache for new conversation
+      setMessages([])
+      setLoading(true)
+    }
+    setInitialScrollDone(false)
+  }, [conversation.id]) // Only run when conversation changes
+
+  // Load/refresh messages after layout effect
   useEffect(() => {
     const loadMessages = async () => {
-      setInitialScrollDone(false)
-      
-      // Try cache first for INSTANT display
+      // Check if we have cached data (set by useLayoutEffect)
       const cached = getCachedMessages()
-      if (cached?.messages && cached.messages.length > 0) {
-        console.log('[ChatWindow] Using cached messages:', cached.messages.length)
-        setMessages(cached.messages)
-        setHasMore(cached.hasMore || false)
-        setLoading(false)
-        
+      const hadCache = cached?.messages && cached.messages.length > 0
+      
+      if (hadCache) {
+        console.log('[ChatWindow] Had cached messages, refreshing in background')
         // Mark as read
         markConversationRead(conversation.id)
         
-        // Still refresh in background
-        getMessages(conversation.id, 20).then(({ messages: freshMessages, hasMore: more }) => {
-          setMessages(freshMessages)
-          setHasMore(more)
-          setCachedMessages({ messages: freshMessages, hasMore: more })
-        })
-        return
+        // Refresh in background
+        const { messages: freshMessages, hasMore: more } = await getMessages(conversation.id, 20)
+        setMessages(freshMessages)
+        setHasMore(more)
+        setCachedMessages({ messages: freshMessages, hasMore: more })
+      } else {
+        console.log('[ChatWindow] No cache, loading fresh messages')
+        // No cache - fetch fresh (loading state already set by useLayoutEffect)
+        const { messages: loadedMessages, hasMore: more } = await getMessages(conversation.id, 20)
+        setMessages(loadedMessages)
+        setHasMore(more)
+        setCachedMessages({ messages: loadedMessages, hasMore: more })
+        setLoading(false)
+        
+        // Mark as read
+        await markConversationRead(conversation.id)
       }
-      
-      setLoading(true)
-      const { messages: loadedMessages, hasMore: more } = await getMessages(conversation.id, 20)
-      setMessages(loadedMessages)
-      setHasMore(more)
-      setCachedMessages({ messages: loadedMessages, hasMore: more })
-      setLoading(false)
-      
-      // Mark as read
-      await markConversationRead(conversation.id)
     }
     loadMessages()
   }, [conversation.id])

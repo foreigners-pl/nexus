@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useLayoutEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -301,6 +301,37 @@ function TimelineTab({ todayCounts }: { todayCounts: { cases: number; tasks: num
     })
   }
 
+  // CRITICAL: Check cache SYNCHRONOUSLY before first paint
+  // This prevents the loading spinner from appearing when we have cached data
+  useLayoutEffect(() => {
+    if (timelineFilter === 'cases') {
+      const cached = getCachedCases()
+      if (cached?.cases) {
+        setItems(transformCases(cached.cases))
+        setLoading(false)
+        return
+      }
+    } else if (timelineFilter === 'tasks') {
+      const cached = getCachedTasks()
+      if (cached?.cards) {
+        setItems(transformTasks(cached.cards))
+        setLoading(false)
+        return
+      }
+    } else {
+      const cached = getCachedPayments()
+      if (cached?.payments) {
+        setItems(transformPayments(cached.payments))
+        setLoading(false)
+        return
+      }
+    }
+    // No cache - keep loading true
+    setLoading(true)
+    setItems([])
+  }, [currentWeekStart, timelineFilter])
+
+  // Background refresh after layout effect
   useEffect(() => {
     loadItems()
   }, [currentWeekStart, timelineFilter])
@@ -309,70 +340,52 @@ function TimelineTab({ todayCounts }: { todayCounts: { cases: number; tasks: num
     const startDateStr = formatLocalDate(currentWeekStart)
     console.log('[TimelineTab] Loading items for:', startDateStr, 'filter:', timelineFilter)
 
-    // Check cache first for INSTANT display
-    if (timelineFilter === 'cases') {
-      const cached = getCachedCases()
-      if (cached?.cases) {
-        console.log('[TimelineTab] Using cached cases:', cached.cases.length)
-        setItems(transformCases(cached.cases))
-        setLoading(false)
-        // Refresh in background
-        getWeeklyCases(startDateStr).then((result) => {
-          setItems(transformCases(result.cases))
-          setCachedCases(result)
-        })
-        return
-      }
-    } else if (timelineFilter === 'tasks') {
-      const cached = getCachedTasks()
-      if (cached?.cards) {
-        console.log('[TimelineTab] Using cached tasks:', cached.cards.length)
-        setItems(transformTasks(cached.cards))
-        setLoading(false)
-        // Refresh in background
-        getWeeklyCards(startDateStr).then((result) => {
-          setItems(transformTasks(result.cards))
-          setCachedTasks(result)
-        })
-        return
+    // Check if we have cached data (set by useLayoutEffect)
+    const hadCachedCases = timelineFilter === 'cases' && getCachedCases()?.cases
+    const hadCachedTasks = timelineFilter === 'tasks' && getCachedTasks()?.cards
+    const hadCachedPayments = timelineFilter === 'payments' && getCachedPayments()?.payments
+    const hadCache = hadCachedCases || hadCachedTasks || hadCachedPayments
+
+    if (hadCache) {
+      // Had cache - just refresh in background (don't show loading)
+      console.log('[TimelineTab] Refreshing in background')
+      if (timelineFilter === 'cases') {
+        const result = await getWeeklyCases(startDateStr)
+        setItems(transformCases(result.cases))
+        setCachedCases(result)
+      } else if (timelineFilter === 'tasks') {
+        const result = await getWeeklyCards(startDateStr)
+        setItems(transformTasks(result.cards))
+        setCachedTasks(result)
+      } else {
+        const result = await getWeeklyPayments(startDateStr)
+        setItems(transformPayments(result.payments))
+        setCachedPayments(result)
       }
     } else {
-      const cached = getCachedPayments()
-      if (cached?.payments) {
-        console.log('[TimelineTab] Using cached payments:', cached.payments.length)
-        setItems(transformPayments(cached.payments))
-        setLoading(false)
-        // Refresh in background
-        getWeeklyPayments(startDateStr).then((result) => {
-          setItems(transformPayments(result.payments))
-          setCachedPayments(result)
-        })
-        return
+      // No cache - loading state already set by useLayoutEffect, fetch fresh
+      console.log('[TimelineTab] No cache, fetching fresh')
+      let newItems: TimelineItem[] = []
+
+      if (timelineFilter === 'cases') {
+        const result = await getWeeklyCases(startDateStr)
+        console.log('[TimelineTab] Cases received:', result.cases?.length, 'Error:', result.error)
+        newItems = transformCases(result.cases)
+        setCachedCases(result)
+      } else if (timelineFilter === 'tasks') {
+        const result = await getWeeklyCards(startDateStr)
+        newItems = transformTasks(result.cards)
+        setCachedTasks(result)
+      } else {
+        const result = await getWeeklyPayments(startDateStr)
+        newItems = transformPayments(result.payments)
+        setCachedPayments(result)
       }
+
+      console.log('[TimelineTab] Items loaded:', newItems.length)
+      setItems(newItems)
+      setLoading(false)
     }
-
-    // No cache - show loading and fetch
-    setLoading(true)
-    let newItems: TimelineItem[] = []
-
-    if (timelineFilter === 'cases') {
-      const result = await getWeeklyCases(startDateStr)
-      console.log('[TimelineTab] Cases received:', result.cases?.length, 'Error:', result.error)
-      newItems = transformCases(result.cases)
-      setCachedCases(result)
-    } else if (timelineFilter === 'tasks') {
-      const result = await getWeeklyCards(startDateStr)
-      newItems = transformTasks(result.cards)
-      setCachedTasks(result)
-    } else {
-      const result = await getWeeklyPayments(startDateStr)
-      newItems = transformPayments(result.payments)
-      setCachedPayments(result)
-    }
-
-    console.log('[TimelineTab] Items loaded:', newItems.length)
-    setItems(newItems)
-    setLoading(false)
   }
 
   const itemsByDate: Record<string, TimelineItem[]> = {}
@@ -466,11 +479,51 @@ function TimelineTab({ todayCounts }: { todayCounts: { cases: number; tasks: num
       {/* Calendar Grid */}
       <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden scrollbar-thin">
         {loading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-6 h-6 border-2 border-[hsl(var(--color-primary))] border-t-transparent rounded-full animate-spin" />
-              <div className="text-sm text-[hsl(var(--color-text-secondary))]">Loading timeline...</div>
-            </div>
+          // Show skeleton calendar structure instead of spinner - feels more responsive
+          <div className="grid grid-cols-7 gap-2 h-full min-w-[600px]">
+            {weekDates.map((date) => {
+              const dateKey = formatLocalDate(date)
+              const dayName = date.toLocaleDateString('en-US', { weekday: 'short' })
+              const dayNum = date.getDate()
+              const today = isToday(date)
+              const past = isPast(date)
+
+              return (
+                <div 
+                  key={dateKey} 
+                  className={cn(
+                    "flex flex-col rounded-xl border backdrop-blur-sm transition-all duration-300 min-w-0 flex-1",
+                    today 
+                      ? "border-[hsl(var(--color-primary)/0.4)] bg-[hsl(var(--color-primary))]/10 shadow-[0_0_20px_hsl(var(--color-primary)/0.15)]" 
+                      : "border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface-secondary))] hover:bg-[hsl(var(--color-surface))]"
+                  )}
+                >
+                  <div className={cn(
+                    "px-2 py-3 text-center border-b h-[72px] flex flex-col justify-center",
+                    today ? "border-[hsl(var(--color-primary))]/30" : "border-[hsl(var(--color-border))]"
+                  )}>
+                    <div className={cn(
+                      "text-xs font-medium",
+                      today ? "text-[hsl(var(--color-text-primary))]" : "text-[hsl(var(--color-text-secondary))]"
+                    )}>
+                      {dayName}
+                    </div>
+                    <div className={cn(
+                      "font-bold",
+                      today ? "text-2xl text-[hsl(var(--color-text-primary))]" : "text-lg",
+                      !today && (past ? "text-[hsl(var(--color-text-secondary))]" : "text-[hsl(var(--color-text-primary))]")
+                    )}>
+                      {dayNum}
+                    </div>
+                  </div>
+                  <div className="flex-1 p-1 space-y-1 overflow-y-auto scrollbar-thin">
+                    {/* Skeleton loading pulses */}
+                    <div className="h-7 bg-[hsl(var(--color-surface))] rounded animate-pulse opacity-30" />
+                    <div className="h-7 bg-[hsl(var(--color-surface))] rounded animate-pulse opacity-20" />
+                  </div>
+                </div>
+              )
+            })}
           </div>
         ) : (
           <div className="grid grid-cols-7 gap-2 h-full min-w-[600px]">
