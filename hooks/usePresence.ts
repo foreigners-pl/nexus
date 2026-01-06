@@ -22,7 +22,12 @@ export function usePresence(currentUserId: string | null) {
   )
 
   useEffect(() => {
-    if (!currentUserId) return
+    if (!currentUserId) {
+      console.log('[Presence] No currentUserId, skipping')
+      return
+    }
+
+    console.log('[Presence] Setting up presence for user:', currentUserId)
 
     // Create presence channel
     const presenceChannel = supabase.channel('online-users', {
@@ -43,11 +48,13 @@ export function usePresence(currentUserId: string | null) {
         online.add(userId)
       })
       
+      console.log('[Presence] Sync - online users:', Array.from(online))
       setOnlineUsers(online)
     })
 
     // Handle user joining
     presenceChannel.on('presence', { event: 'join' }, ({ key }) => {
+      console.log('[Presence] User joined:', key)
       setOnlineUsers(prev => {
         const next = new Set(prev)
         next.add(key)
@@ -57,6 +64,7 @@ export function usePresence(currentUserId: string | null) {
 
     // Handle user leaving
     presenceChannel.on('presence', { event: 'leave' }, ({ key }) => {
+      console.log('[Presence] User left:', key)
       setOnlineUsers(prev => {
         const next = new Set(prev)
         next.delete(key)
@@ -66,12 +74,13 @@ export function usePresence(currentUserId: string | null) {
 
     // Subscribe and track own presence
     presenceChannel.subscribe(async (status) => {
+      console.log('[Presence] Channel status:', status)
       if (status === 'SUBSCRIBED') {
-        await presenceChannel.track({
+        const trackResult = await presenceChannel.track({
           user_id: currentUserId,
           online_at: new Date().toISOString(),
         })
-      }
+        console.log('[Presence] Track result:', trackResult)
     })
 
     channelRef.current = presenceChannel
