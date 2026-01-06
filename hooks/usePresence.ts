@@ -12,6 +12,8 @@ import { RealtimeChannel } from '@supabase/supabase-js'
  * const userIsOnline = isOnline('some-user-id')
  */
 export function usePresence(currentUserId: string | null) {
+  console.log('[Presence] Hook called with userId:', currentUserId)
+  
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set())
   const channelRef = useRef<RealtimeChannel | null>(null)
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null)
