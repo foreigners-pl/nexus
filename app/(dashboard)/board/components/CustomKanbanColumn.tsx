@@ -320,6 +320,7 @@ export function CustomKanbanColumn({
                   onEdit={() => onEditCard && onEditCard(card)}
                   onDelete={onCardDelete}
                   userAccessLevel={userAccessLevel}
+                  isCompleted={isDoneStatus}
                 />
               ))}
             </div>

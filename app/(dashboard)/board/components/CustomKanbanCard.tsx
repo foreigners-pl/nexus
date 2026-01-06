@@ -21,9 +21,10 @@ interface CustomKanbanCardProps {
   onEdit: (card: CardWithAssignees) => void
   onDelete?: (cardId: string) => void
   isDraggingGhost?: boolean
+  isCompleted?: boolean // If true, won't show overdue styling
 }
 
-export function CustomKanbanCard({ card, isSharedBoard, userAccessLevel, onUpdate, onEdit, onDelete, isDraggingGhost = false }: CustomKanbanCardProps) {
+export function CustomKanbanCard({ card, isSharedBoard, userAccessLevel, onUpdate, onEdit, onDelete, isDraggingGhost = false, isCompleted = false }: CustomKanbanCardProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   
@@ -76,7 +77,8 @@ export function CustomKanbanCard({ card, isSharedBoard, userAccessLevel, onUpdat
     const dueDate = new Date(date)
     dueDate.setHours(0, 0, 0, 0)
     
-    const isOverdue = dueDate < today
+    // Completed tasks are never considered overdue
+    const isOverdue = !isCompleted && dueDate < today
     const isToday = dueDate.getTime() === today.getTime()
     const isFuture = dueDate > today
     

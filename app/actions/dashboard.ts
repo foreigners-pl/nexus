@@ -934,7 +934,14 @@ export async function getMyOverdueItems(): Promise<{ items: OverdueItems; error?
     }
   })
 
-  const tasks: OverdueTask[] = (overdueTasks || []).map(t => {
+  const tasks: OverdueTask[] = (overdueTasks || [])
+    // Filter out tasks that are in a "Done" status (completed tasks shouldn't be overdue)
+    .filter(t => {
+      const status = Array.isArray(t.board_statuses) ? t.board_statuses[0] : t.board_statuses
+      const statusName = status?.name?.toLowerCase() || ''
+      return !statusName.includes('done') && !statusName.includes('complete')
+    })
+    .map(t => {
     const boards = Array.isArray(t.boards) ? t.boards[0] : t.boards
     return {
       id: t.id,
@@ -1032,15 +1039,21 @@ export async function getDashboardStats(): Promise<{ stats: DashboardStats; erro
     overdueCasesCount = count || 0
   }
 
-  // Get overdue cards count
+  // Get overdue cards count (excluding completed/done statuses)
   let overdueCardsCount = 0
   if (cardIds.length > 0) {
-    const { count } = await supabase
+    const { data: overdueCards } = await supabase
       .from('cards')
-      .select('id', { count: 'exact', head: true })
+      .select('id, board_statuses(name)')
       .in('id', cardIds)
       .lt('due_date', today)
-    overdueCardsCount = count || 0
+    
+    // Filter out cards in Done/Complete status
+    overdueCardsCount = (overdueCards || []).filter(card => {
+      const status = Array.isArray(card.board_statuses) ? card.board_statuses[0] : card.board_statuses
+      const statusName = status?.name?.toLowerCase() || ''
+      return !statusName.includes('done') && !statusName.includes('complete')
+    }).length
   }
 
   // Get overdue payments count
@@ -1277,7 +1290,14 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
     }
   })
 
-  const overdueTasks = (overdueCardsResult.data || []).map(t => {
+  const overdueTasks = (overdueCardsResult.data || [])
+    // Filter out tasks that are in a "Done" status (completed tasks shouldn't be overdue)
+    .filter(t => {
+      const status = Array.isArray(t.board_statuses) ? t.board_statuses[0] : t.board_statuses
+      const statusName = status?.name?.toLowerCase() || ''
+      return !statusName.includes('done') && !statusName.includes('complete')
+    })
+    .map(t => {
     const boards = Array.isArray(t.boards) ? t.boards[0] : t.boards
     return {
       id: t.id,
