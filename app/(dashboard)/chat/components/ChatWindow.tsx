@@ -43,6 +43,7 @@ export default function ChatWindow({ conversation, onBack, onMeetingUpdate, isOn
   const [endingMeeting, setEndingMeeting] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [initialScrollDone, setInitialScrollDone] = useState(false)
+  const [showMembersPanel, setShowMembersPanel] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
@@ -437,15 +438,34 @@ export default function ChatWindow({ conversation, onBack, onMeetingUpdate, isOn
             )}
           </button>
         )}
+
+        {/* Members button - only for group chats */}
+        {conversation.is_group && (
+          <button
+            onClick={() => setShowMembersPanel(!showMembersPanel)}
+            className={`p-2.5 rounded-xl border transition-all duration-200 hover:scale-105 active:scale-95 ${
+              showMembersPanel 
+                ? 'bg-primary/20 border-primary/30 text-primary' 
+                : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/70'
+            }`}
+            title="View Members"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+          </button>
+        )}
       </div>
 
-      {/* Messages */}
-      <div 
-        ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin"
-        onClick={() => setShowEmojiPicker(null)}
-        onScroll={handleScroll}
-      >
+      {/* Main content area with messages and optional members panel */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Messages */}
+        <div 
+          ref={messagesContainerRef}
+          className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin"
+          onClick={() => setShowEmojiPicker(null)}
+          onScroll={handleScroll}
+        >
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -494,6 +514,69 @@ export default function ChatWindow({ conversation, onBack, onMeetingUpdate, isOn
             })}
             <div ref={messagesEndRef} />
           </>
+        )}
+        </div>
+
+        {/* Members Panel - slides in from right */}
+        {conversation.is_group && showMembersPanel && (
+          <div className="w-64 border-l border-white/5 bg-[hsl(240_3%_11%)] overflow-y-auto">
+            <div className="p-4 border-b border-white/5">
+              <h3 className="font-semibold text-white flex items-center gap-2">
+                <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+                Members ({conversation.members?.length || 0})
+              </h3>
+            </div>
+            <div className="p-2">
+              {conversation.members?.map(member => {
+                const user = member.users
+                const displayName = user?.display_name || user?.email?.split('@')[0] || 'Unknown'
+                const initials = displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+                const memberIsOnline = isOnline ? isOnline(member.user_id) : false
+                const isCurrentUser = member.user_id === currentUserId
+                
+                return (
+                  <div 
+                    key={member.user_id}
+                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors"
+                  >
+                    {/* Avatar with online indicator */}
+                    <div className="relative">
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 text-primary border border-primary/20 flex items-center justify-center text-xs font-semibold">
+                        {initials}
+                      </div>
+                      <div 
+                        className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-[hsl(240_3%_11%)] ${
+                          memberIsOnline 
+                            ? 'bg-green-500 shadow-lg shadow-green-500/50' 
+                            : 'bg-gray-500'
+                        }`}
+                      />
+                    </div>
+                    
+                    {/* Name and status */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-white truncate">
+                          {displayName}
+                        </span>
+                        {isCurrentUser && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-white/50">you</span>
+                        )}
+                        {member.is_admin && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary">admin</span>
+                        )}
+                      </div>
+                      <span className={`text-xs ${memberIsOnline ? 'text-green-400' : 'text-white/40'}`}>
+                        {memberIsOnline ? 'Online' : 'Offline'}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         )}
       </div>
 
