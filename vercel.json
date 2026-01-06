@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/auto-invoice",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/keep-alive",
+      "schedule": "0 0 */5 * *"
     }
   ]
 }
