@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { RealtimeChannel } from '@supabase/supabase-js'
 
@@ -16,10 +16,11 @@ export function usePresence(currentUserId: string | null) {
   const channelRef = useRef<RealtimeChannel | null>(null)
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null)
 
-  const supabase = createBrowserClient(
+  // Memoize supabase client to prevent re-creation on every render
+  const supabase = useMemo(() => createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  ), [])
 
   useEffect(() => {
     if (!currentUserId) {
@@ -81,6 +82,7 @@ export function usePresence(currentUserId: string | null) {
           online_at: new Date().toISOString(),
         })
         console.log('[Presence] Track result:', trackResult)
+      }
     })
 
     channelRef.current = presenceChannel
