@@ -274,10 +274,13 @@ export default function ChatWindow({ conversation, onBack, onMeetingUpdate }: Ch
   const handleStartMeeting = async () => {
     setStartingMeeting(true)
     
-    // Generate a deterministic meeting URL based on conversation ID
-    // Using Jitsi Meet - free, no login required, same link = same room
-    const roomName = `nexus-${conversation.id.slice(0, 8)}`
-    const meetingUrl = `https://meet.jit.si/${roomName}`
+    // Generate a deterministic meeting room name based on conversation
+    // This ensures all participants in the same conversation join the same room
+    const roomName = `NexusRoom${conversation.id.replace(/-/g, '').slice(0, 16)}`
+    
+    // Use jitsi.riot.im - a public Jitsi server without moderator requirements
+    // Alternative servers: meet.element.io, jitsi.member.fsf.org
+    const meetingUrl = `https://jitsi.riot.im/${roomName}`
     
     const { success, error } = await startMeeting(conversation.id, meetingUrl)
     
