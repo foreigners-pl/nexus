@@ -1,15 +1,8 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { RealtimeChannel } from '@supabase/supabase-js'
-
-interface PresenceState {
-  [userId: string]: {
-    online: boolean
-    lastSeen: string
-  }
-}
 
 /**
  * Hook to track online/offline status of users using Supabase Presence
@@ -20,7 +13,8 @@ interface PresenceState {
  */
 export function usePresence(currentUserId: string | null) {
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set())
-  const [channel, setChannel] = useState<RealtimeChannel | null>(null)
+  const channelRef = useRef<RealtimeChannel | null>(null)
+  const heartbeatRef = useRef<NodeJS.Timeout | null>(null)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -53,7 +47,7 @@ export function usePresence(currentUserId: string | null) {
     })
 
     // Handle user joining
-    presenceChannel.on('presence', { event: 'join' }, ({ key, newPresences }) => {
+    presenceChannel.on('presence', { event: 'join' }, ({ key }) => {
       setOnlineUsers(prev => {
         const next = new Set(prev)
         next.add(key)
@@ -62,7 +56,7 @@ export function usePresence(currentUserId: string | null) {
     })
 
     // Handle user leaving
-    presenceChannel.on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+    presenceChannel.on('presence', { event: 'leave' }, ({ key }) => {
       setOnlineUsers(prev => {
         const next = new Set(prev)
         next.delete(key)
@@ -80,10 +74,36 @@ export function usePresence(currentUserId: string | null) {
       }
     })
 
-    setChannel(presenceChannel)
+    channelRef.current = presenceChannel
+
+    // Heartbeat: Re-track presence every 30 seconds to stay alive in background tabs
+    // This prevents the browser from marking us as offline when tab is not focused
+    heartbeatRef.current = setInterval(async () => {
+      if (presenceChannel.state === 'joined') {
+        await presenceChannel.track({
+          user_id: currentUserId,
+          online_at: new Date().toISOString(),
+        })
+      }
+    }, 30000) // Every 30 seconds
+
+    // Also re-track when tab becomes visible again
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && presenceChannel.state === 'joined') {
+        await presenceChannel.track({
+          user_id: currentUserId,
+          online_at: new Date().toISOString(),
+        })
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     // Cleanup on unmount
     return () => {
+      if (heartbeatRef.current) {
+        clearInterval(heartbeatRef.current)
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
       presenceChannel.unsubscribe()
     }
   }, [currentUserId, supabase])
