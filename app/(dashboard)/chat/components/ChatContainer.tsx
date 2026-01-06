@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
 import { ConversationWithDetails, Message, getConversations } from '@/app/actions/chat'
 import { useConversationsCache } from '@/lib/query'
+import { usePresence } from '@/hooks/usePresence'
 import ConversationList from './ConversationList'
 import ChatWindow from './ChatWindow'
 import NewChatModal from './NewChatModal'
@@ -21,6 +22,9 @@ export default function ChatContainer({ initialConversations }: ChatContainerPro
   const [isMobileListVisible, setIsMobileListVisible] = useState(true)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const searchParams = useSearchParams()
+  
+  // Track online users
+  const { isOnline } = usePresence(currentUserId)
   
   // Use ref to track if we've already handled the URL param
   const urlParamHandled = useRef(false)
@@ -195,6 +199,8 @@ export default function ChatContainer({ initialConversations }: ChatContainerPro
           onSelect={handleSelectConversation}
           onNewChat={() => setShowNewChatModal(true)}
           onDelete={handleDeleteConversation}
+          currentUserId={currentUserId}
+          isOnline={isOnline}
         />
       </div>
 
@@ -204,6 +210,7 @@ export default function ChatContainer({ initialConversations }: ChatContainerPro
           <ChatWindow 
             conversation={selectedConversation}
             onBack={handleBackToList}
+            isOnline={isOnline}
           />
         ) : (
           <div className="flex-1 flex items-center justify-center">

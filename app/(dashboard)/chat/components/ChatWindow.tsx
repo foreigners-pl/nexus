@@ -23,9 +23,10 @@ interface ChatWindowProps {
   conversation: ConversationWithDetails
   onBack: () => void
   onMeetingUpdate?: () => void
+  isOnline?: (userId: string) => boolean
 }
 
-export default function ChatWindow({ conversation, onBack, onMeetingUpdate }: ChatWindowProps) {
+export default function ChatWindow({ conversation, onBack, onMeetingUpdate, isOnline }: ChatWindowProps) {
   const { getCached: getCachedMessages, setCached: setCachedMessages } = useMessagesCache(conversation.id)
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
@@ -344,23 +345,51 @@ export default function ChatWindow({ conversation, onBack, onMeetingUpdate }: Ch
           </svg>
         </button>
 
-        <div className={`w-11 h-11 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-semibold shadow-lg ${
-          conversation.is_group 
-            ? 'bg-gradient-to-br from-purple-500/30 to-purple-600/20 text-purple-400 border border-purple-500/20' 
-            : 'bg-gradient-to-br from-primary/30 to-primary/10 text-primary border border-primary/20'
-        }`}>
-          {conversation.is_group ? (
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-          ) : (
-            getConversationName().split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-          )}
+        {/* Avatar with online indicator */}
+        <div className="relative flex-shrink-0">
+          <div className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold shadow-lg ${
+            conversation.is_group 
+              ? 'bg-gradient-to-br from-purple-500/30 to-purple-600/20 text-purple-400 border border-purple-500/20' 
+              : 'bg-gradient-to-br from-primary/30 to-primary/10 text-primary border border-primary/20'
+          }`}>
+            {conversation.is_group ? (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+            ) : (
+              getConversationName().split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+            )}
+          </div>
+          {/* Online indicator for direct chats */}
+          {!conversation.is_group && isOnline && (() => {
+            const otherMember = conversation.members?.find(m => m.user_id !== currentUserId)
+            const isOtherOnline = otherMember?.user_id ? isOnline(otherMember.user_id) : false
+            return (
+              <div 
+                className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[hsl(240_3%_11%)] ${
+                  isOtherOnline 
+                    ? 'bg-green-500 shadow-lg shadow-green-500/50' 
+                    : 'bg-gray-500'
+                }`}
+              />
+            )
+          })()}
         </div>
 
         <div className="flex-1 min-w-0">
           <h2 className="font-semibold truncate text-white">{getConversationName()}</h2>
-          <p className="text-sm text-white/50 truncate">{getConversationSubtitle()}</p>
+          {/* Show online status text for direct chats */}
+          {!conversation.is_group && isOnline ? (() => {
+            const otherMember = conversation.members?.find(m => m.user_id !== currentUserId)
+            const isOtherOnline = otherMember?.user_id ? isOnline(otherMember.user_id) : false
+            return (
+              <p className={`text-sm truncate ${isOtherOnline ? 'text-green-400' : 'text-white/50'}`}>
+                {isOtherOnline ? 'Online' : getConversationSubtitle()}
+              </p>
+            )
+          })() : (
+            <p className="text-sm text-white/50 truncate">{getConversationSubtitle()}</p>
+          )}
         </div>
 
         {/* Meeting button */}

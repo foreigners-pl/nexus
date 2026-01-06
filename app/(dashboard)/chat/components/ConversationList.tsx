@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { ConversationWithDetails, deleteConversation } from '@/app/actions/chat'
-import { createBrowserClient } from '@supabase/ssr'
 
 interface ConversationListProps {
   conversations: ConversationWithDetails[]
@@ -11,6 +10,8 @@ interface ConversationListProps {
   onSelect: (id: string) => void
   onNewChat: () => void
   onDelete: (id: string) => void
+  currentUserId: string | null
+  isOnline: (userId: string) => boolean
 }
 
 export default function ConversationList({ 
@@ -18,21 +19,11 @@ export default function ConversationList({
   selectedId, 
   onSelect, 
   onNewChat,
-  onDelete
+  onDelete,
+  currentUserId,
+  isOnline
 }: ConversationListProps) {
   const [searchQuery, setSearchQuery] = useState('')
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setCurrentUserId(data.user?.id || null)
-    })
-  }, [supabase])
 
   const filteredConversations = conversations.filter(conv => {
     if (!searchQuery) return true
@@ -91,6 +82,7 @@ export default function ConversationList({
                 currentUserId={currentUserId}
                 onClick={() => onSelect(conv.id)}
                 onDelete={() => onDelete(conv.id)}
+                isOnline={isOnline}
               />
             ))}
           </div>
@@ -106,9 +98,10 @@ interface ConversationItemProps {
   currentUserId: string | null
   onClick: () => void
   onDelete: () => void
+  isOnline: (userId: string) => boolean
 }
 
-function ConversationItem({ conversation, isSelected, currentUserId, onClick, onDelete }: ConversationItemProps) {
+function ConversationItem({ conversation, isSelected, currentUserId, onClick, onDelete, isOnline }: ConversationItemProps) {
   const [showMenu, setShowMenu] = useState(false)
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 })
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -118,6 +111,13 @@ function ConversationItem({ conversation, isSelected, currentUserId, onClick, on
   const name = getConversationName(conversation, currentUserId)
   const lastMessage = conversation.last_message
   const unreadCount = conversation.unread_count || 0
+  
+  // For direct chats, find the other user to check online status
+  const otherMember = !conversation.is_group 
+    ? conversation.members?.find(m => m.user_id !== currentUserId)
+    : null
+  const otherUserId = otherMember?.user_id
+  const isOtherOnline = otherUserId ? isOnline(otherUserId) : false
   
   // Check if current user can delete (is creator or admin)
   const isCreator = conversation.created_by === currentUserId
@@ -186,18 +186,31 @@ function ConversationItem({ conversation, isSelected, currentUserId, onClick, on
         }`}
         style={{ width: 'calc(100% - 16px)' }}
       >
-        {/* Avatar */}
-        <div className={`w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-semibold shadow-lg ${
-          conversation.is_group 
-            ? 'bg-gradient-to-br from-purple-500/30 to-purple-600/20 text-purple-400 border border-purple-500/20' 
-            : 'bg-gradient-to-br from-primary/30 to-primary/10 text-primary border border-primary/20'
-        }`}>
-          {conversation.is_group ? (
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-          ) : (
-            getInitials(name)
+        {/* Avatar with online indicator */}
+        <div className="relative flex-shrink-0">
+          <div className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-semibold shadow-lg ${
+            conversation.is_group 
+              ? 'bg-gradient-to-br from-purple-500/30 to-purple-600/20 text-purple-400 border border-purple-500/20' 
+              : 'bg-gradient-to-br from-primary/30 to-primary/10 text-primary border border-primary/20'
+          }`}>
+            {conversation.is_group ? (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+            ) : (
+              getInitials(name)
+            )}
+          </div>
+          {/* Online indicator - only show for direct chats */}
+          {!conversation.is_group && (
+            <div 
+              className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-[hsl(240_3%_11%)] ${
+                isOtherOnline 
+                  ? 'bg-green-500 shadow-lg shadow-green-500/50' 
+                  : 'bg-gray-500'
+              }`}
+              title={isOtherOnline ? 'Online' : 'Offline'}
+            />
           )}
         </div>
 
