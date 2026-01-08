@@ -194,12 +194,12 @@ export async function findConflictingClients(clientId: string) {
     }
   }
 
-  // 2. Check for matching email
+  // 2. Check for matching email (case-insensitive)
   if (client.contact_email) {
     const { data: matchingEmail } = await supabase
       .from('clients')
       .select('*, contact_numbers(*)')
-      .eq('contact_email', client.contact_email)
+      .ilike('contact_email', client.contact_email)
       .neq('id', clientId)
 
     if (matchingEmail) {
@@ -218,13 +218,13 @@ export async function findConflictingClients(clientId: string) {
     }
   }
 
-  // 3. Check for matching first AND last name (both must match)
+  // 3. Check for matching first AND last name (both must match, case-insensitive)
   if (client.first_name && client.last_name) {
     const { data: matchingName } = await supabase
       .from('clients')
       .select('*, contact_numbers(*)')
-      .eq('first_name', client.first_name)
-      .eq('last_name', client.last_name)
+      .ilike('first_name', client.first_name)
+      .ilike('last_name', client.last_name)
       .neq('id', clientId)
 
     if (matchingName) {
