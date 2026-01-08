@@ -36,15 +36,19 @@ export function ConflictAlert({
   }, [clientId])
 
   async function checkForConflicts() {
+    console.log('[ConflictAlert] Checking conflicts for clientId:', clientId)
     setLoading(true)
     const result = await findConflictingClients(clientId)
+    console.log('[ConflictAlert] Result:', result)
     if (result.conflicts) {
+      console.log('[ConflictAlert] Found conflicts:', result.conflicts.length)
       setConflicts(result.conflicts)
     }
     setLoading(false)
   }
 
   if (loading || conflicts.length === 0) {
+    console.log('[ConflictAlert] Not showing - loading:', loading, 'conflicts:', conflicts.length)
     return null
   }
 

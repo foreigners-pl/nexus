@@ -144,6 +144,8 @@ export async function getClient(id: string) {
 export async function findConflictingClients(clientId: string) {
   const supabase = await createClient()
 
+  console.log('[findConflictingClients] Looking for conflicts for client:', clientId)
+
   // Get the current client's data
   const { data: client, error: clientError } = await supabase
     .from('clients')
@@ -152,8 +154,11 @@ export async function findConflictingClients(clientId: string) {
     .single()
 
   if (clientError || !client) {
+    console.log('[findConflictingClients] Client not found:', clientError)
     return { error: 'Client not found', conflicts: [] }
   }
+
+  console.log('[findConflictingClients] Found client:', client.first_name, client.last_name, client.contact_email)
 
   const conflicts: {
     client: any
@@ -220,12 +225,15 @@ export async function findConflictingClients(clientId: string) {
 
   // 3. Check for matching first AND last name (both must match, case-insensitive)
   if (client.first_name && client.last_name) {
-    const { data: matchingName } = await supabase
+    console.log('[findConflictingClients] Checking name match for:', client.first_name, client.last_name)
+    const { data: matchingName, error: nameError } = await supabase
       .from('clients')
       .select('*, contact_numbers(*)')
       .ilike('first_name', client.first_name)
       .ilike('last_name', client.last_name)
       .neq('id', clientId)
+
+    console.log('[findConflictingClients] Name matches:', matchingName?.length, 'Error:', nameError)
 
     if (matchingName) {
       for (const c of matchingName) {
@@ -243,6 +251,7 @@ export async function findConflictingClients(clientId: string) {
     }
   }
 
+  console.log('[findConflictingClients] Total conflicts found:', conflicts.length)
   return { conflicts, currentClient: client }
 }
 
