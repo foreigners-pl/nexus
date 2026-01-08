@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Modal } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
 import { mergeClients } from '@/app/actions/clients'
-import { AlertTriangle, Check, ArrowRight, User, Mail, Phone } from 'lucide-react'
+import { ArrowRight, Mail, Phone, Calendar } from 'lucide-react'
 import type { Client, ContactNumber } from '@/types/database'
 
 interface ClientWithPhones extends Client {
@@ -69,51 +69,45 @@ export function MergeClientsModal({
     return (
       <div 
         className={`
-          border-2 rounded-lg p-4 cursor-pointer transition-all
+          flex-1 border rounded-xl p-4 cursor-pointer transition-all
           ${isMain 
-            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
-            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+            ? 'border-blue-500 bg-blue-500/10' 
+            : 'border-[hsl(var(--color-border))] hover:border-[hsl(var(--color-border-hover))]'
           }
         `}
         onClick={onSelect}
       >
         <div className="flex items-center justify-between mb-3">
-          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+          <span className="text-xs font-mono text-[hsl(var(--color-text-muted))]">
             {client.client_code}
           </span>
           {isMain && (
-            <span className="text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50 px-2 py-1 rounded">
-              Main Client
+            <span className="text-xs font-medium text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded">
+              Main
             </span>
           )}
         </div>
 
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-gray-900 dark:text-white">
-            <User className="w-4 h-4 text-gray-400" />
-            <span className="font-medium">{getClientName(client)}</span>
-          </div>
+        <h3 className="font-semibold text-[hsl(var(--color-text-primary))] mb-3">
+          {getClientName(client)}
+        </h3>
 
+        <div className="space-y-1.5 text-sm">
           {client.contact_email && (
-            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
-              <Mail className="w-4 h-4 text-gray-400" />
-              <span className="text-sm">{client.contact_email}</span>
+            <div className="flex items-center gap-2 text-[hsl(var(--color-text-secondary))]">
+              <Mail className="w-3.5 h-3.5 text-[hsl(var(--color-text-muted))]" />
+              <span className="truncate">{client.contact_email}</span>
             </div>
           )}
-
           {client.contact_numbers && client.contact_numbers.length > 0 && (
-            <div className="flex items-start gap-2 text-gray-600 dark:text-gray-300">
-              <Phone className="w-4 h-4 text-gray-400 mt-0.5" />
-              <div className="text-sm">
-                {client.contact_numbers.map(p => (
-                  <div key={p.id}>{p.number}</div>
-                ))}
-              </div>
+            <div className="flex items-center gap-2 text-[hsl(var(--color-text-secondary))]">
+              <Phone className="w-3.5 h-3.5 text-[hsl(var(--color-text-muted))]" />
+              <span>{client.contact_numbers[0].number}</span>
             </div>
           )}
-
-          <div className="text-xs text-gray-500 dark:text-gray-400 pt-2 border-t border-gray-200 dark:border-gray-700">
-            Created: {new Date(client.created_at).toLocaleDateString()}
+          <div className="flex items-center gap-2 text-[hsl(var(--color-text-muted))] text-xs pt-1">
+            <Calendar className="w-3.5 h-3.5" />
+            <span>Created {new Date(client.created_at).toLocaleDateString()}</span>
           </div>
         </div>
       </div>
@@ -121,22 +115,20 @@ export function MergeClientsModal({
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Merge Duplicate Clients">
-      <div className="space-y-6">
-        {/* Conflict reasons */}
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
-          <p className="text-sm text-amber-800 dark:text-amber-200">
-            <strong>Conflict detected:</strong> {conflictReasons.join(' • ')}
-          </p>
+    <Modal isOpen={isOpen} onClose={onClose} title="Merge Duplicate Clients" maxWidth="lg">
+      <div className="space-y-5">
+        {/* Conflict reason */}
+        <div className="text-sm text-amber-400 bg-amber-500/10 px-3 py-2 rounded-lg">
+          <strong>Conflict:</strong> {conflictReasons.join(', ')}
         </div>
 
         {/* Client comparison */}
         <div>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-            Select which client should be the <strong>main</strong> record. Data from the other client will be merged in.
+          <p className="text-sm text-[hsl(var(--color-text-secondary))] mb-3">
+            Select which client to keep as the <strong>main</strong> record:
           </p>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="flex gap-4">
             <ClientCard 
               client={clientA} 
               isMain={mainClientId === clientA.id}
@@ -150,54 +142,70 @@ export function MergeClientsModal({
           </div>
         </div>
 
-        {/* What will happen */}
-        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-          <h4 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-            <ArrowRight className="w-4 h-4" />
-            What will happen:
-          </h4>
-          <ul className="text-sm text-gray-600 dark:text-gray-300 space-y-1 ml-6 list-disc">
-            <li>Missing details will transfer from <strong>{getClientName(secondaryClient)}</strong> to <strong>{getClientName(mainClient)}</strong></li>
-            <li>All cases, notes, and documents will be moved to the main client</li>
-            <li>A note will be added with the merged client's original details</li>
-            <li><strong>{getClientName(secondaryClient)}</strong> ({secondaryClient.client_code}) will be deleted</li>
-          </ul>
+        {/* What will happen - compact */}
+        <div className="text-sm text-[hsl(var(--color-text-secondary))] bg-[hsl(var(--color-surface))] rounded-lg p-3 space-y-1">
+          <div className="flex items-center gap-2">
+            <ArrowRight className="w-4 h-4 text-[hsl(var(--color-text-muted))]" />
+            <span>Missing details from <strong>{getClientName(secondaryClient)}</strong> will transfer to <strong>{getClientName(mainClient)}</strong></span>
+          </div>
+          <div className="flex items-center gap-2">
+            <ArrowRight className="w-4 h-4 text-[hsl(var(--color-text-muted))]" />
+            <span>All cases, notes, and documents will move to the main client</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <ArrowRight className="w-4 h-4 text-[hsl(var(--color-text-muted))]" />
+            <span><strong>{secondaryClient.client_code}</strong> will be deleted</span>
+          </div>
         </div>
 
-        {/* Confirmation checkbox */}
-        <label className="flex items-start gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={confirmed}
-            onChange={(e) => setConfirmed(e.target.checked)}
-            className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-          />
-          <span className="text-sm text-gray-700 dark:text-gray-300">
-            I understand that merging will <strong>permanently delete</strong> the secondary client record 
-            ({secondaryClient.client_code}) and transfer all its data to the main client.
+        {/* Confirmation */}
+        <label className="flex items-center gap-3 cursor-pointer select-none">
+          <div 
+            className={`
+              w-5 h-5 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0
+              ${confirmed 
+                ? 'bg-blue-500 border-blue-500' 
+                : 'border-[hsl(var(--color-border))] hover:border-[hsl(var(--color-border-hover))]'
+              }
+            `}
+            onClick={(e) => {
+              e.preventDefault()
+              setConfirmed(!confirmed)
+            }}
+          >
+            {confirmed && (
+              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+          </div>
+          <span className="text-sm text-[hsl(var(--color-text-secondary))]">
+            I understand this will permanently delete <strong>{secondaryClient.client_code}</strong>
           </span>
         </label>
 
         {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
-            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          <div className="text-sm text-red-400 bg-red-500/10 px-3 py-2 rounded-lg">
+            {error}
           </div>
         )}
 
         {/* Actions */}
-        <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex justify-end gap-3 pt-2">
           <Button variant="ghost" onClick={onClose} disabled={submitting}>
             Cancel
           </Button>
           <Button 
             onClick={handleMerge} 
             disabled={!confirmed || submitting}
-            className="bg-amber-600 hover:bg-amber-700"
           >
             {submitting ? 'Merging...' : 'Merge Clients'}
           </Button>
         </div>
       </div>
+    </Modal>
+  )
+}
     </Modal>
   )
 }

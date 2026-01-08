@@ -11,7 +11,6 @@ import { ContactInfo } from './components/ContactInfo'
 import { LocationInfo } from './components/LocationInfo'
 import { CasesSection } from './components/CasesSection'
 import { NotesSection } from './components/NotesSection'
-import { ConflictAlert } from './components/ConflictAlert'
 import type { Client, ContactNumber, ClientNote, Case, Status } from '@/types/database'
 
 interface CaseWithStatus extends Case {
@@ -265,14 +264,9 @@ export default function ClientPage({ params }: ClientPageProps) {
   return (
     <div className="space-y-6">
       <ClientHeader 
-        client={client} 
-        onDelete={() => setIsDeleteModalOpen(true)} 
-      />
-
-      <ConflictAlert
-        clientId={client.id}
-        currentClient={client}
-        currentPhoneNumbers={phoneNumbers}
+        client={client}
+        phoneNumbers={phoneNumbers}
+        onDelete={() => setIsDeleteModalOpen(true)}
         onMergeComplete={fetchAllData}
       />
 
