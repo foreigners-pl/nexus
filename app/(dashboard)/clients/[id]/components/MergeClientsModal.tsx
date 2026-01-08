@@ -206,6 +206,3 @@ export function MergeClientsModal({
     </Modal>
   )
 }
-    </Modal>
-  )
-}
