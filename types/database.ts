@@ -316,3 +316,30 @@ export interface UserActivityPreferences {
   created_at: string
   updated_at: string
 }
+// Form Submissions (website leads)
+export interface FormSubmission {
+  id: string
+  full_name: string
+  email?: string
+  phone_country_code?: string
+  phone?: string
+  description?: string
+  source?: string
+  privacy_accepted: boolean
+  ip_address?: string
+  city?: string
+  country?: string
+  user_agent?: string
+  referrer?: string
+  utm_campaign?: string
+  utm_source?: string
+  utm_medium?: string
+  status: 'new' | 'contacted' | 'converted' | 'spam' | 'rejected'
+  notes?: string
+  client_id?: string
+  case_id?: string
+  created_at: string
+  processed_at?: string
+  processed_by?: string
+  raw_payload?: Record<string, unknown>
+}
