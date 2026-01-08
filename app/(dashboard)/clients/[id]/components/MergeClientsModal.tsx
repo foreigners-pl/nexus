@@ -69,7 +69,7 @@ export function MergeClientsModal({
     return (
       <div 
         className={`
-          flex-1 border rounded-xl p-4 cursor-pointer transition-all
+          flex-1 border rounded-xl p-4 cursor-pointer transition-all min-h-[160px]
           ${isMain 
             ? 'border-blue-500 bg-blue-500/10' 
             : 'border-[hsl(var(--color-border))] hover:border-[hsl(var(--color-border-hover))]'
@@ -143,17 +143,17 @@ export function MergeClientsModal({
         </div>
 
         {/* What will happen - compact */}
-        <div className="text-sm text-[hsl(var(--color-text-secondary))] bg-[hsl(var(--color-surface))] rounded-lg p-3 space-y-1">
+        <div className="text-sm text-amber-400 bg-amber-500/10 rounded-lg p-3 space-y-1">
           <div className="flex items-center gap-2">
-            <ArrowRight className="w-4 h-4 text-[hsl(var(--color-text-muted))]" />
+            <ArrowRight className="w-4 h-4 text-amber-500/70" />
             <span>Missing details from <strong>{getClientName(secondaryClient)}</strong> will transfer to <strong>{getClientName(mainClient)}</strong></span>
           </div>
           <div className="flex items-center gap-2">
-            <ArrowRight className="w-4 h-4 text-[hsl(var(--color-text-muted))]" />
+            <ArrowRight className="w-4 h-4 text-amber-500/70" />
             <span>All cases, notes, and documents will move to the main client</span>
           </div>
           <div className="flex items-center gap-2">
-            <ArrowRight className="w-4 h-4 text-[hsl(var(--color-text-muted))]" />
+            <ArrowRight className="w-4 h-4 text-amber-500/70" />
             <span><strong>{secondaryClient.client_code}</strong> will be deleted</span>
           </div>
         </div>

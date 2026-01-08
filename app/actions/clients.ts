@@ -289,14 +289,14 @@ export async function mergeClients(mainClientId: string, secondaryClientId: stri
 
   // Build merge comment with secondary client's details before deletion
   const secondaryDetails = [
-    `🔀 **Merged with client record**`,
+    `🔀 MERGED WITH CLIENT RECORD`,
     ``,
     `The following client record was merged into this one:`,
-    `- **Client Code:** ${secondaryClient.client_code || 'N/A'}`,
-    `- **Name:** ${[secondaryClient.first_name, secondaryClient.last_name].filter(Boolean).join(' ') || 'N/A'}`,
-    `- **Email:** ${secondaryClient.contact_email || 'N/A'}`,
-    `- **Phone(s):** ${secondaryClient.contact_numbers?.map((p: any) => p.number).join(', ') || 'N/A'}`,
-    `- **Created:** ${new Date(secondaryClient.created_at).toLocaleDateString()}`,
+    `• Client Code: ${secondaryClient.client_code || 'N/A'}`,
+    `• Name: ${[secondaryClient.first_name, secondaryClient.last_name].filter(Boolean).join(' ') || 'N/A'}`,
+    `• Email: ${secondaryClient.contact_email || 'N/A'}`,
+    `• Phone(s): ${secondaryClient.contact_numbers?.map((p: any) => p.number).join(', ') || 'N/A'}`,
+    `• Created: ${new Date(secondaryClient.created_at).toLocaleDateString()}`,
   ]
 
   // 1. Update main client with missing fields from secondary
@@ -304,23 +304,23 @@ export async function mergeClients(mainClientId: string, secondaryClientId: stri
   
   if (!mainClient.first_name && secondaryClient.first_name) {
     updates.first_name = secondaryClient.first_name
-    secondaryDetails.push(`- Transferred first name: ${secondaryClient.first_name}`)
+    secondaryDetails.push(`→ Transferred first name: ${secondaryClient.first_name}`)
   }
   if (!mainClient.last_name && secondaryClient.last_name) {
     updates.last_name = secondaryClient.last_name
-    secondaryDetails.push(`- Transferred last name: ${secondaryClient.last_name}`)
+    secondaryDetails.push(`→ Transferred last name: ${secondaryClient.last_name}`)
   }
   if (!mainClient.contact_email && secondaryClient.contact_email) {
     updates.contact_email = secondaryClient.contact_email
-    secondaryDetails.push(`- Transferred email: ${secondaryClient.contact_email}`)
+    secondaryDetails.push(`→ Transferred email: ${secondaryClient.contact_email}`)
   }
   if (!mainClient.country_of_origin && secondaryClient.country_of_origin) {
     updates.country_of_origin = secondaryClient.country_of_origin
-    secondaryDetails.push(`- Transferred country`)
+    secondaryDetails.push(`→ Transferred country`)
   }
   if (!mainClient.city_in_poland && secondaryClient.city_in_poland) {
     updates.city_in_poland = secondaryClient.city_in_poland
-    secondaryDetails.push(`- Transferred city`)
+    secondaryDetails.push(`→ Transferred city`)
   }
   if (!mainClient.stripe_customer_id && secondaryClient.stripe_customer_id) {
     updates.stripe_customer_id = secondaryClient.stripe_customer_id
@@ -345,7 +345,7 @@ export async function mergeClients(mainClientId: string, secondaryClientId: stri
         .from('contact_numbers')
         .update({ client_id: mainClientId })
         .eq('id', phone.id)
-      secondaryDetails.push(`- Transferred phone: ${phone.number}`)
+      secondaryDetails.push(`→ Transferred phone: ${phone.number}`)
     }
   }
 
@@ -360,7 +360,7 @@ export async function mergeClients(mainClientId: string, secondaryClientId: stri
       .from('cases')
       .update({ client_id: mainClientId })
       .eq('client_id', secondaryClientId)
-    secondaryDetails.push(`- Transferred ${secondaryCases.length} case(s): ${secondaryCases.map(c => c.case_code).join(', ')}`)
+    secondaryDetails.push(`→ Transferred ${secondaryCases.length} case(s): ${secondaryCases.map(c => c.case_code).join(', ')}`)
   }
 
   // 4. Transfer client notes from secondary to main
@@ -374,7 +374,7 @@ export async function mergeClients(mainClientId: string, secondaryClientId: stri
       .from('client_notes')
       .update({ client_id: mainClientId })
       .eq('client_id', secondaryClientId)
-    secondaryDetails.push(`- Transferred ${secondaryNotes.length} note(s)`)
+    secondaryDetails.push(`→ Transferred ${secondaryNotes.length} note(s)`)
   }
 
   // 5. Transfer client documents from secondary to main
@@ -388,7 +388,7 @@ export async function mergeClients(mainClientId: string, secondaryClientId: stri
       .from('client_documents')
       .update({ client_id: mainClientId })
       .eq('client_id', secondaryClientId)
-    secondaryDetails.push(`- Transferred ${secondaryDocs.length} document(s)`)
+    secondaryDetails.push(`→ Transferred ${secondaryDocs.length} document(s)`)
   }
 
   // 6. Update form_submissions that pointed to secondary

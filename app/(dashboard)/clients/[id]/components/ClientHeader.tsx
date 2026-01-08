@@ -89,9 +89,15 @@ export function ClientHeader({ client, phoneNumbers, onDelete, onMergeComplete }
                 setShowMergeModal(true)
               }}
               className="flex items-center gap-2 px-3 py-1.5 text-sm text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 rounded-lg transition-colors"
+              title={conflicts.map(c => `${c.client.client_code}: ${c.conflictReasons.join(', ')}`).join('\n')}
             >
               <AlertTriangle className="w-4 h-4" />
-              <span>{conflicts.length} Duplicate{conflicts.length > 1 ? 's' : ''} Found</span>
+              <span>
+                {conflicts.length === 1 
+                  ? `Duplicate: ${conflicts[0].client.client_code}` 
+                  : `${conflicts.length} Duplicates Found`
+                }
+              </span>
             </button>
           )}
           
