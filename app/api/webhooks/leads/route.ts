@@ -8,7 +8,7 @@ const supabase = createClient(
 )
 
 // Webhook secret to verify requests are from your website
-const WEBHOOK_SECRET = process.env.FORM_WEBHOOK_SECRET
+const WEBHOOK_SECRET = process.env.CRM_WEBHOOK_SECRET
 
 interface LeadSubmission {
   full_name: string
