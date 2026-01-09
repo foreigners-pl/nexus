@@ -32,8 +32,10 @@ interface LeadSubmission {
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify webhook secret
-    const authHeader = request.headers.get('authorization')
+    console.log("CRM webhook called at /api/webhooks/leads");
+    const authHeader = request.headers.get('authorization');
+    console.log("Authorization header:", authHeader);
+
     if (WEBHOOK_SECRET && authHeader !== `Bearer ${WEBHOOK_SECRET}`) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -41,7 +43,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body: LeadSubmission = await request.json()
+    const body: LeadSubmission = await request.json();
+    console.log("CRM webhook received body:", body);
 
     // Validate required fields
     if (!body.full_name) {
@@ -74,28 +77,28 @@ export async function POST(request: NextRequest) {
         status: 'new',
       })
       .select('id')
-      .single()
+      .single();
 
     if (error) {
-      console.error('Error storing form submission:', error)
+      console.error('Error storing form submission:', error);
       return NextResponse.json(
         { error: 'Failed to store submission' },
         { status: 500 }
-      )
+      );
     }
 
     return NextResponse.json({
       success: true,
       submission_id: data.id,
       message: 'Form submission received'
-    })
+    });
 
   } catch (error) {
-    console.error('Webhook error:', error)
+    console.error('Webhook error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
-    )
+    );
   }
 }
 
