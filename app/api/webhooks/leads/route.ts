@@ -32,7 +32,7 @@ interface LeadSubmission {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log("CRM webhook called at /api/webhooks/leads");
+    console.log("CRM webhook called for ANY submission at /api/webhooks/leads");
     const authHeader = request.headers.get('authorization');
     console.log("Authorization header:", authHeader);
 
@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
 
     // Store the submission
     const { data, error } = await supabase
