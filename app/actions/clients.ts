@@ -66,12 +66,16 @@ export async function updateClient(id: string, formData: FormData) {
     contact_email: formData.get('email') as string,
   }
 
+  // Debug log
+  console.log('[updateClient] id:', id, 'data:', data)
+
   const { error } = await supabase
     .from('clients')
     .update(data)
     .eq('id', id)
 
   if (error) {
+    console.error('[updateClient] error:', error)
     return { error: error.message }
   }
 
