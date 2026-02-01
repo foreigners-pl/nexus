@@ -1255,13 +1255,12 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
   ] = await Promise.all([
     // Unassigned cases (all cases with their assignees)
     supabase.from('cases').select('*, clients(first_name, last_name, contact_email), case_assignees(user_id)').order('created_at', { ascending: false }),
-    // My cases - include contact_numbers, case_services for the Cases tab
+    // My cases - simplified query first, then fetch additional data
     caseIds.length > 0 
       ? supabase.from('cases').select(`
           id, case_code, created_at, updated_at, due_date, 
           status:status_id(id, name, color), 
-          clients(id, first_name, last_name, contact_email, contact_numbers(id, number, country_code, is_primary)),
-          case_services!fk_case_services_case(id, services(id, name))
+          clients!inner(id, first_name, last_name, contact_email)
         `).in('id', caseIds).order('created_at', { ascending: false })
       : Promise.resolve({ data: [] }),
     // My cards/tasks
@@ -1303,7 +1302,12 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
     c => !c.case_assignees || c.case_assignees.length === 0
   )
 
-  // Process my cases - include contact_numbers and case_services for the Cases tab
+  // Debug: Check if myCasesResult has error
+  if (myCasesResult && 'error' in myCasesResult && myCasesResult.error) {
+    console.error('[Dashboard] myCasesResult error:', myCasesResult.error)
+  }
+
+  // Process my cases
   const myCases = (myCasesResult.data || []).map(c => {
     const client = Array.isArray(c.clients) ? c.clients[0] || null : c.clients
     return {
@@ -1313,11 +1317,8 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
       updated_at: c.updated_at,
       due_date: c.due_date,
       status: Array.isArray(c.status) ? c.status[0] || null : c.status,
-      clients: client ? {
-        ...client,
-        contact_numbers: Array.isArray(client.contact_numbers) ? client.contact_numbers : []
-      } : null,
-      case_services: Array.isArray(c.case_services) ? c.case_services : []
+      clients: client || null,
+      case_services: []
     }
   })
 
