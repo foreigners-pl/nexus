@@ -1259,7 +1259,7 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
     caseIds.length > 0 
       ? supabase.from('cases').select(`
           id, case_code, created_at, updated_at, due_date, 
-          status(id, name, color), 
+          status:status_id(id, name, color), 
           clients(id, first_name, last_name, contact_email, contact_numbers(id, number, country_code, is_primary)),
           case_services!fk_case_services_case(id, services(id, name))
         `).in('id', caseIds).order('created_at', { ascending: false })
