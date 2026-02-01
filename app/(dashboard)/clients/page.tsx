@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useClientsCache, useDeepPrefetchClients } from '@/lib/query'
 import { ClientsHeader } from './components/ClientsHeader'
@@ -23,8 +23,11 @@ export default function ClientsPage() {
   const [hasMore, setHasMore] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const supabase = createClient()
+  const isMountedRef = useRef(true)
 
   useEffect(() => {
+    isMountedRef.current = true
+    
     // Try cache first for instant load
     const cached = getCachedClients()
     if (cached && cached.length > 0) {
@@ -33,14 +36,18 @@ export default function ClientsPage() {
       setLoading(false)
       // Deep prefetch: Load full details for top 20 clients
       deepPrefetchClients()
-      // Still refresh in background
-      fetchClientsBackground()
+      // Still refresh in background (but only update cache, not state)
+      fetchClientsBackground(true)
     } else {
       fetchClients()
     }
+    
+    return () => {
+      isMountedRef.current = false
+    }
   }, [])
 
-  const fetchClientsBackground = async () => {
+  const fetchClientsBackground = async (cacheOnly = false) => {
     const { data } = await supabase
       .from('clients')
       .select(`*, contact_numbers (id, number, country_code, is_on_whatsapp)`)
@@ -48,9 +55,13 @@ export default function ClientsPage() {
       .range(0, CLIENTS_PER_PAGE - 1)
 
     if (data) {
-      setClients(data)
+      // Always update cache
       setCachedClients(data)
-      setHasMore(data.length === CLIENTS_PER_PAGE)
+      // Only update state if not navigating away and not cache-only mode
+      if (!cacheOnly && isMountedRef.current) {
+        setClients(data)
+        setHasMore(data.length === CLIENTS_PER_PAGE)
+      }
     }
   }
 
