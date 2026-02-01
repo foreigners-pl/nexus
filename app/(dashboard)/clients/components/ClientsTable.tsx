@@ -115,9 +115,10 @@ export function ClientsTable({ clients, loading, loadingMore, onLoadMore }: Clie
       const matchesFirstName = !filters.firstName || client.first_name?.toLowerCase().includes(filters.firstName.toLowerCase())
       const matchesLastName = !filters.lastName || client.last_name?.toLowerCase().includes(filters.lastName.toLowerCase())
       const matchesEmail = !filters.email || client.contact_email?.toLowerCase().includes(filters.email.toLowerCase())
-      const matchesPhone = !filters.phone || client.contact_numbers?.some(phone => 
-        phone.number.toLowerCase().includes(filters.phone.toLowerCase())
-      )
+      const matchesPhone = !filters.phone || client.contact_numbers?.some(phone => {
+        const fullPhone = phone.country_code ? `${phone.country_code} ${phone.number}` : phone.number
+        return fullPhone.toLowerCase().includes(filters.phone.toLowerCase())
+      })
       
       // Date filtering
       const clientDate = new Date(client.created_at)
