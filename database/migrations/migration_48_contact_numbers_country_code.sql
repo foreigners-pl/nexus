@@ -37,7 +37,7 @@ BEGIN
     END IF;
 
     -- Update the form submission with the client reference
-    UPDATE form_submissions 
+    UPDATE form_submissions
     SET converted_to_client_id = new_client_id
     WHERE id = NEW.id;
 

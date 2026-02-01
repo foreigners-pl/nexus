@@ -116,7 +116,7 @@ export function DashboardPanel({ myCases, myTasks, myPayments, myOverdue, todayC
     },
     { 
       id: 'cases' as TabType, 
-      label: 'My Cases', 
+      label: 'Cases', 
       count: myCases.length, 
       colorClass: 'text-blue-400', 
       bgClass: 'bg-blue-400/20',
@@ -128,7 +128,7 @@ export function DashboardPanel({ myCases, myTasks, myPayments, myOverdue, todayC
     },
     { 
       id: 'tasks' as TabType, 
-      label: 'Open Tasks', 
+      label: 'Tasks', 
       count: myTasks.length, 
       colorClass: 'text-purple-400', 
       bgClass: 'bg-purple-400/20',
@@ -140,7 +140,7 @@ export function DashboardPanel({ myCases, myTasks, myPayments, myOverdue, todayC
     },
     { 
       id: 'payments' as TabType, 
-      label: 'Pending', 
+      label: 'Payments', 
       count: pendingTotal > 0 ? `${pendingTotal.toLocaleString()} PLN` : '0 PLN', 
       colorClass: 'text-green-400', 
       bgClass: 'bg-green-400/20',
@@ -245,7 +245,7 @@ interface TimelineItem {
 function TimelineTab({ todayCounts }: { todayCounts: { cases: number; tasks: number; payments: number } }) {
   const router = useRouter()
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => getStartOfWeek(new Date()))
-  const [timelineFilter, setTimelineFilter] = useState<'cases' | 'tasks' | 'payments'>('cases')
+  const [timelineFilter, setTimelineFilter] = useState<'all' | 'cases' | 'tasks' | 'payments'>('all')
   const [items, setItems] = useState<TimelineItem[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -304,7 +304,21 @@ function TimelineTab({ todayCounts }: { todayCounts: { cases: number; tasks: num
   // CRITICAL: Check cache SYNCHRONOUSLY before first paint
   // This prevents the loading spinner from appearing when we have cached data
   useLayoutEffect(() => {
-    if (timelineFilter === 'cases') {
+    if (timelineFilter === 'all') {
+      const cachedCases = getCachedCases()
+      const cachedTasks = getCachedTasks()
+      const cachedPayments = getCachedPayments()
+      if (cachedCases?.cases || cachedTasks?.cards || cachedPayments?.payments) {
+        const allItems = [
+          ...transformCases(cachedCases?.cases || []),
+          ...transformTasks(cachedTasks?.cards || []),
+          ...transformPayments(cachedPayments?.payments || [])
+        ]
+        setItems(allItems)
+        setLoading(false)
+        return
+      }
+    } else if (timelineFilter === 'cases') {
       const cached = getCachedCases()
       if (cached?.cases) {
         setItems(transformCases(cached.cases))
@@ -341,49 +355,43 @@ function TimelineTab({ todayCounts }: { todayCounts: { cases: number; tasks: num
     console.log('[TimelineTab] Loading items for:', startDateStr, 'filter:', timelineFilter)
 
     // Check if we have cached data (set by useLayoutEffect)
-    const hadCachedCases = timelineFilter === 'cases' && getCachedCases()?.cases
-    const hadCachedTasks = timelineFilter === 'tasks' && getCachedTasks()?.cards
-    const hadCachedPayments = timelineFilter === 'payments' && getCachedPayments()?.payments
-    const hadCache = hadCachedCases || hadCachedTasks || hadCachedPayments
-
-    if (hadCache) {
-      // Had cache - just refresh in background (don't show loading)
-      console.log('[TimelineTab] Refreshing in background')
-      if (timelineFilter === 'cases') {
-        const result = await getWeeklyCases(startDateStr)
-        setItems(transformCases(result.cases))
-        setCachedCases(result)
-      } else if (timelineFilter === 'tasks') {
-        const result = await getWeeklyCards(startDateStr)
-        setItems(transformTasks(result.cards))
-        setCachedTasks(result)
-      } else {
-        const result = await getWeeklyPayments(startDateStr)
-        setItems(transformPayments(result.payments))
-        setCachedPayments(result)
-      }
+    const hadCachedCases = getCachedCases()?.cases
+    const hadCachedTasks = getCachedTasks()?.cards
+    const hadCachedPayments = getCachedPayments()?.payments
+    
+    if (timelineFilter === 'all') {
+      // Load all three types
+      const [casesResult, tasksResult, paymentsResult] = await Promise.all([
+        getWeeklyCases(startDateStr),
+        getWeeklyCards(startDateStr),
+        getWeeklyPayments(startDateStr)
+      ])
+      
+      setCachedCases(casesResult)
+      setCachedTasks(tasksResult)
+      setCachedPayments(paymentsResult)
+      
+      const allItems = [
+        ...transformCases(casesResult.cases),
+        ...transformTasks(tasksResult.cards),
+        ...transformPayments(paymentsResult.payments)
+      ]
+      setItems(allItems)
+      setLoading(false)
+    } else if (timelineFilter === 'cases') {
+      const result = await getWeeklyCases(startDateStr)
+      setItems(transformCases(result.cases))
+      setCachedCases(result)
+      setLoading(false)
+    } else if (timelineFilter === 'tasks') {
+      const result = await getWeeklyCards(startDateStr)
+      setItems(transformTasks(result.cards))
+      setCachedTasks(result)
+      setLoading(false)
     } else {
-      // No cache - loading state already set by useLayoutEffect, fetch fresh
-      console.log('[TimelineTab] No cache, fetching fresh')
-      let newItems: TimelineItem[] = []
-
-      if (timelineFilter === 'cases') {
-        const result = await getWeeklyCases(startDateStr)
-        console.log('[TimelineTab] Cases received:', result.cases?.length, 'Error:', result.error)
-        newItems = transformCases(result.cases)
-        setCachedCases(result)
-      } else if (timelineFilter === 'tasks') {
-        const result = await getWeeklyCards(startDateStr)
-        newItems = transformTasks(result.cards)
-        setCachedTasks(result)
-      } else {
-        const result = await getWeeklyPayments(startDateStr)
-        newItems = transformPayments(result.payments)
-        setCachedPayments(result)
-      }
-
-      console.log('[TimelineTab] Items loaded:', newItems.length)
-      setItems(newItems)
+      const result = await getWeeklyPayments(startDateStr)
+      setItems(transformPayments(result.payments))
+      setCachedPayments(result)
       setLoading(false)
     }
   }
@@ -406,12 +414,14 @@ function TimelineTab({ todayCounts }: { todayCounts: { cases: number; tasks: num
   }
 
   const filterButtons = [
+    { id: 'all' as const, label: 'All', count: todayCounts.cases + todayCounts.tasks + todayCounts.payments, color: 'cyan' },
     { id: 'cases' as const, label: 'Cases', count: todayCounts.cases, color: 'blue' },
     { id: 'tasks' as const, label: 'Tasks', count: todayCounts.tasks, color: 'purple' },
     { id: 'payments' as const, label: 'Payments', count: todayCounts.payments, color: 'green' }
   ]
 
   const filterColors = {
+    all: { active: 'bg-cyan-500 shadow-[0_2px_12px_rgb(6_182_212/0.4)]', badge: 'bg-cyan-500', badgeActive: 'bg-white/20' },
     cases: { active: 'bg-blue-500 shadow-[0_2px_12px_rgb(59_130_246/0.4)]', badge: 'bg-blue-500', badgeActive: 'bg-white/20' },
     tasks: { active: 'bg-purple-500 shadow-[0_2px_12px_rgb(168_85_247/0.4)]', badge: 'bg-purple-500', badgeActive: 'bg-white/20' },
     payments: { active: 'bg-green-500 shadow-[0_2px_12px_rgb(34_197_94/0.4)]', badge: 'bg-green-500', badgeActive: 'bg-white/20' }
@@ -567,26 +577,34 @@ function TimelineTab({ todayCounts }: { todayCounts: { cases: number; tasks: num
                     {dayItems.length === 0 ? (
                       <div className="text-xs text-[hsl(var(--color-text-secondary))] text-center py-4"></div>
                     ) : (
-                      dayItems.map(item => (
-                        <div
-                          key={item.id}
-                          onClick={() => handleItemClick(item)}
-                          className={cn(
-                            "p-2 rounded-lg text-xs cursor-pointer transition-all duration-200 border",
-                            "hover:scale-[1.02] hover:shadow-[0_4px_12px_rgb(0_0_0/0.3)]",
-                            past && !today
-                              ? "bg-red-900/50 hover:bg-red-900/70 border-red-500/40"
-                              : today
-                                ? "bg-[hsl(var(--color-surface))] hover:bg-[hsl(var(--color-surface-active))] border-[hsl(var(--color-border-hover))]"
-                                : "bg-[hsl(var(--color-surface-hover))] hover:bg-[hsl(var(--color-surface-active))] border-[hsl(var(--color-border))]"
-                          )}
-                        >
-                          <div className={cn("font-semibold truncate", past && !today ? "text-red-300" : "text-white")}>
-                            {item.title}
+                      dayItems.map(item => {
+                        const typeColors = {
+                          cases: { bg: 'bg-blue-500/20', border: 'border-blue-500/40', text: 'text-blue-300', hoverBg: 'hover:bg-blue-500/30' },
+                          tasks: { bg: 'bg-purple-500/20', border: 'border-purple-500/40', text: 'text-purple-300', hoverBg: 'hover:bg-purple-500/30' },
+                          payments: { bg: 'bg-green-500/20', border: 'border-green-500/40', text: 'text-green-300', hoverBg: 'hover:bg-green-500/30' }
+                        }
+                        const colors = typeColors[item.type]
+                        const isOverdue = past && !today
+                        
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => handleItemClick(item)}
+                            className={cn(
+                              "p-2 rounded-lg text-xs cursor-pointer transition-all duration-200 border",
+                              "hover:scale-[1.02] hover:shadow-[0_4px_12px_rgb(0_0_0/0.3)]",
+                              isOverdue
+                                ? "bg-red-900/50 hover:bg-red-900/70 border-red-500/40"
+                                : `${colors.bg} ${colors.border} ${colors.hoverBg}`
+                            )}
+                          >
+                            <div className={cn("font-semibold truncate", isOverdue ? "text-red-300" : colors.text)}>
+                              {item.title}
+                            </div>
+                            <div className={cn("truncate", isOverdue ? "text-red-300/70" : "text-gray-300")}>{item.subtitle}</div>
                           </div>
-                          <div className={cn("truncate", past && !today ? "text-red-300/70" : "text-gray-300")}>{item.subtitle}</div>
-                        </div>
-                      ))
+                        )
+                      })
                     )}
                   </div>
                 </div>
@@ -600,64 +618,135 @@ function TimelineTab({ todayCounts }: { todayCounts: { cases: number; tasks: num
 }
 
 // ============================================
-// MY CASES TAB
+// CASES TAB
 // ============================================
+
+type CasesSortField = 'client' | 'phone' | 'case_code' | 'services' | 'due_date' | 'last_interacted'
+type SortDirection = 'asc' | 'desc'
 
 function MyCasesTab({ cases }: { cases: any[] }) {
   const router = useRouter()
-  const [search, setSearch] = useState('')
+  const [sortField, setSortField] = useState<CasesSortField>('due_date')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
 
-  const filteredCases = search 
-    ? cases.filter(c => {
-        const clientName = [c.clients?.first_name, c.clients?.last_name].filter(Boolean).join(' ').toLowerCase()
-        const caseCode = (c.case_code || '').toLowerCase()
-        return clientName.includes(search.toLowerCase()) || caseCode.includes(search.toLowerCase())
-      })
-    : cases
+  const handleSort = (field: CasesSortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDirection('asc')
+    }
+  }
+
+  const sortedCases = [...cases].sort((a, b) => {
+    let aVal: any = ''
+    let bVal: any = ''
+    
+    switch (sortField) {
+      case 'client':
+        aVal = [a.clients?.first_name, a.clients?.last_name].filter(Boolean).join(' ').toLowerCase()
+        bVal = [b.clients?.first_name, b.clients?.last_name].filter(Boolean).join(' ').toLowerCase()
+        break
+      case 'phone':
+        aVal = a.clients?.contact_numbers?.[0]?.number || ''
+        bVal = b.clients?.contact_numbers?.[0]?.number || ''
+        break
+      case 'case_code':
+        aVal = a.case_code || ''
+        bVal = b.case_code || ''
+        break
+      case 'services':
+        aVal = a.case_services?.length || 0
+        bVal = b.case_services?.length || 0
+        break
+      case 'due_date':
+        aVal = a.due_date ? new Date(a.due_date).getTime() : Infinity
+        bVal = b.due_date ? new Date(b.due_date).getTime() : Infinity
+        break
+      case 'last_interacted':
+        aVal = a.updated_at ? new Date(a.updated_at).getTime() : 0
+        bVal = b.updated_at ? new Date(b.updated_at).getTime() : 0
+        break
+    }
+    
+    if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
+    if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
+    return 0
+  })
+
+  const SortHeader = ({ field, children }: { field: CasesSortField; children: React.ReactNode }) => (
+    <button
+      onClick={() => handleSort(field)}
+      className={cn(
+        "flex items-center gap-1 text-xs font-medium uppercase tracking-wider transition-colors",
+        sortField === field ? "text-blue-400" : "text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))]"
+      )}
+    >
+      {children}
+      {sortField === field && (
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
+        </svg>
+      )}
+    </button>
+  )
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
 
   return (
     <div className="h-full flex flex-col">
-      <div className="pb-3">
-        <Input
-          placeholder="Search cases..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="h-9"
-        />
+      {/* Header row */}
+      <div className="grid grid-cols-12 gap-2 pb-2 border-b border-[hsl(var(--color-border))] mb-2">
+        <div className="col-span-2"><SortHeader field="client">Client</SortHeader></div>
+        <div className="col-span-2"><SortHeader field="phone">Phone</SortHeader></div>
+        <div className="col-span-2"><SortHeader field="case_code">Case #</SortHeader></div>
+        <div className="col-span-2"><SortHeader field="services">Services</SortHeader></div>
+        <div className="col-span-2"><SortHeader field="due_date">Due Date</SortHeader></div>
+        <div className="col-span-2"><SortHeader field="last_interacted">Last Activity</SortHeader></div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin space-y-2">
-        {filteredCases.length === 0 ? (
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin space-y-1">
+        {sortedCases.length === 0 ? (
           <div className="text-center py-8 text-[hsl(var(--color-text-secondary))]">
-            {search ? 'No cases match your search' : 'No cases assigned to you'}
+            No cases assigned to you
           </div>
         ) : (
-          filteredCases.map(c => {
+          sortedCases.map(c => {
             const clientName = [c.clients?.first_name, c.clients?.last_name].filter(Boolean).join(' ')
-            const statusColor = c.status?.color || '#888'
+            const phone = c.clients?.contact_numbers?.[0]
+            const phoneDisplay = phone ? (phone.country_code ? `${phone.country_code} ${phone.number}` : phone.number) : '—'
+            const services = c.case_services || []
+            const serviceNames = services.map((s: any) => s.services?.name).filter(Boolean).join(', ')
+            const isOverdue = c.due_date && new Date(c.due_date) < today
             
             return (
               <div
                 key={c.id}
                 onClick={() => router.push(`/cases/${c.id}`)}
-                className="p-3 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] backdrop-blur-sm hover:bg-[hsl(var(--color-surface-hover))] cursor-pointer transition-all duration-200 hover:scale-[1.01] hover:shadow-[0_4px_16px_rgb(0_0_0/0.2)]"
+                className={cn(
+                  "grid grid-cols-12 gap-2 p-2 rounded-lg cursor-pointer transition-all duration-200",
+                  "hover:bg-[hsl(var(--color-surface-hover))]",
+                  isOverdue && "bg-red-500/10 hover:bg-red-500/15 border border-red-500/30"
+                )}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-[hsl(var(--color-text-primary))]">{c.case_code || 'No code'}</span>
-                      <span 
-                        className="px-2 py-0.5 text-xs rounded-full text-white"
-                        style={{ backgroundColor: statusColor }}
-                      >
-                        {c.status?.name || 'Unknown'}
-                      </span>
-                    </div>
-                    <div className="text-sm text-[hsl(var(--color-text-secondary))]">{clientName || 'Unknown client'}</div>
-                  </div>
-                  <div className="text-xs text-[hsl(var(--color-text-secondary))]">
-                    {c.due_date ? formatDueDate(c.due_date) : 'No due date'}
-                  </div>
+                <div className="col-span-2 text-sm text-[hsl(var(--color-text-primary))] truncate font-medium">
+                  {clientName || '—'}
+                </div>
+                <div className="col-span-2 text-sm text-[hsl(var(--color-text-secondary))] truncate font-mono">
+                  {phoneDisplay}
+                </div>
+                <div className="col-span-2 text-sm text-blue-400 truncate font-medium">
+                  {c.case_code || '—'}
+                </div>
+                <div className="col-span-2 text-sm text-[hsl(var(--color-text-secondary))] truncate" title={serviceNames}>
+                  {services.length > 0 ? (services.length === 1 ? serviceNames : `${services.length} services`) : '—'}
+                </div>
+                <div className={cn("col-span-2 text-sm truncate", isOverdue ? "text-red-500 font-medium" : "text-[hsl(var(--color-text-secondary))]")}>
+                  {c.due_date ? formatDueDate(c.due_date) : '—'}
+                </div>
+                <div className="col-span-2 text-sm text-[hsl(var(--color-text-secondary))] truncate">
+                  {c.updated_at ? new Date(c.updated_at).toLocaleDateString() : '—'}
                 </div>
               </div>
             )
@@ -669,7 +758,7 @@ function MyCasesTab({ cases }: { cases: any[] }) {
 }
 
 // ============================================
-// OPEN TASKS TAB
+// TASKS TAB
 // ============================================
 
 function OpenTasksTab({ tasks }: { tasks: any[] }) {
@@ -682,6 +771,9 @@ function OpenTasksTab({ tasks }: { tasks: any[] }) {
     if (!tasksByBoard[boardName]) tasksByBoard[boardName] = []
     tasksByBoard[boardName].push(t)
   })
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
 
   return (
     <div className="h-full overflow-y-auto scrollbar-thin space-y-4">
@@ -697,36 +789,35 @@ function OpenTasksTab({ tasks }: { tasks: any[] }) {
             <div className="space-y-2">
               {boardTasks.map(t => {
                 const statusColor = t.board_statuses?.color || '#888'
-                const isOverdue = t.due_date && new Date(t.due_date) < new Date()
+                const isOverdue = t.due_date && new Date(t.due_date) < today
                 
                 return (
                   <div
                     key={t.id}
                     onClick={() => router.push(`/board/${t.board_id}?cardId=${t.id}`)}
                     className={cn(
-                      "p-3 rounded-xl border cursor-pointer transition-all duration-200 backdrop-blur-sm",
-                      "hover:scale-[1.01] hover:shadow-[0_4px_16px_rgb(0_0_0/0.15)]",
+                      "p-3 rounded-xl border cursor-pointer transition-all duration-200 backdrop-blur-sm overflow-hidden",
                       isOverdue 
                         ? "border-red-500/40 bg-red-500/10 hover:bg-red-500/15"
                         : "border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] hover:bg-[hsl(var(--color-surface-hover))]"
                     )}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-between min-w-0">
+                      <div className="flex-1 min-w-0 overflow-hidden">
+                        <div className="flex items-center gap-2 min-w-0">
                           <div 
                             className="w-2 h-2 rounded-full flex-shrink-0"
                             style={{ backgroundColor: statusColor }}
                           />
-                          <span className={cn("font-medium truncate", isOverdue ? "text-red-600" : "text-[hsl(var(--color-text-primary))]")}>
+                          <span className={cn("font-medium truncate", isOverdue ? "text-red-400" : "text-[hsl(var(--color-text-primary))]")}>
                             {t.title}
                           </span>
                         </div>
-                        <div className="text-xs text-[hsl(var(--color-text-secondary))] ml-4">
+                        <div className="text-xs text-[hsl(var(--color-text-secondary))] ml-4 truncate">
                           {t.board_statuses?.name || 'No status'}
                         </div>
                       </div>
-                      <div className={cn("text-xs", isOverdue ? "text-red-500 font-medium" : "text-[hsl(var(--color-text-secondary))]")}>
+                      <div className={cn("text-xs flex-shrink-0 ml-2", isOverdue ? "text-red-500 font-medium" : "text-[hsl(var(--color-text-secondary))]")}>
                         {formatDueDate(t.due_date)}
                       </div>
                     </div>
@@ -742,89 +833,123 @@ function OpenTasksTab({ tasks }: { tasks: any[] }) {
 }
 
 // ============================================
-// PENDING PAYMENTS TAB
+// PAYMENTS TAB
 // ============================================
 
 function PendingPaymentsTab({ cases }: { cases: any[] }) {
   const router = useRouter()
+  
+  // Get current month name and collect all installments
+  const now = new Date()
+  const currentMonth = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  
+  // Flatten all installments from all cases with case/client info
+  const allInstallments: any[] = []
+  cases.forEach(c => {
+    (c.installments || []).forEach((inst: any) => {
+      allInstallments.push({
+        ...inst,
+        case_id: c.case_id,
+        case_code: c.case_code,
+        client_name: c.client_name,
+        service_name: inst.label || 'Payment'
+      })
+    })
+  })
+
+  // Calculate this month's payments
+  const thisMonthPaid = allInstallments
+    .filter(inst => {
+      if (!inst.paid || !inst.due_date) return false
+      const instDate = new Date(inst.due_date)
+      return instDate.getMonth() === now.getMonth() && instDate.getFullYear() === now.getFullYear()
+    })
+    .reduce((sum, inst) => sum + (inst.amount || 0), 0)
+
+  // Sort by due_date, overdue first
+  const sortedInstallments = [...allInstallments].sort((a, b) => {
+    const aDate = a.due_date ? new Date(a.due_date).getTime() : Infinity
+    const bDate = b.due_date ? new Date(b.due_date).getTime() : Infinity
+    return aDate - bDate
+  })
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
 
   return (
-    <div className="h-full overflow-y-auto scrollbar-thin space-y-3">
-      {cases.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-full text-[hsl(var(--color-text-secondary))]">
-          <span className="text-4xl mb-2"></span>
-          <span>No pending payments!</span>
-        </div>
-      ) : (
-        cases.map(c => {
-          const nextPayment = c.installments[0]
-          const isOverdue = nextPayment?.due_date && new Date(nextPayment.due_date) < new Date()
-          
-          return (
-            <div
-              key={c.case_id}
-              onClick={() => router.push(`/cases/${c.case_id}`)}
-              className={cn(
-                "p-3 rounded-xl border cursor-pointer transition-all duration-200 backdrop-blur-sm",
-                "hover:scale-[1.01] hover:shadow-[0_4px_16px_rgb(0_0_0/0.15)]",
-                isOverdue
-                  ? "border-red-500/40 bg-red-500/10 hover:bg-red-500/15"
-                  : "border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] hover:bg-[hsl(var(--color-surface-hover))]"
-              )}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <span className="font-medium text-[hsl(var(--color-text-primary))]">{c.case_code || 'No code'}</span>
-                  <span className="text-[hsl(var(--color-text-secondary))] text-sm ml-2">{c.client_name}</span>
-                </div>
-              </div>
+    <div className="h-full flex flex-col">
+      {/* Month Summary */}
+      <div className="mb-4 p-3 rounded-xl bg-green-500/10 border border-green-500/30">
+        <div className="text-xs text-green-400 mb-1">{currentMonth}</div>
+        <div className="text-2xl font-bold text-green-400">{thisMonthPaid.toLocaleString()} PLN</div>
+        <div className="text-xs text-[hsl(var(--color-text-secondary))]">received this month</div>
+      </div>
 
-              {/* Progress bar */}
-              <div className="mb-2">
-                <div className="flex justify-between text-xs text-[hsl(var(--color-text-secondary))] mb-1">
-                  <span>Paid: {c.total_paid.toLocaleString()} PLN</span>
-                  <span>Total: {c.total_price.toLocaleString()} PLN</span>
-                </div>
-                <div className="h-2 bg-[hsl(var(--color-surface-secondary))] rounded-full overflow-hidden backdrop-blur-sm">
-                  <div 
-                    className="h-full bg-gradient-to-r from-green-500 to-emerald-400 rounded-full transition-all duration-500 shadow-[0_0_8px_rgb(34_197_94/0.5)]"
-                    style={{ width: `${c.total_price > 0 ? (c.total_paid / c.total_price) * 100 : 0}%` }}
-                  />
-                </div>
-              </div>
+      {/* Installments List Header */}
+      <div className="grid grid-cols-12 gap-2 pb-2 border-b border-[hsl(var(--color-border))] mb-2 text-xs font-medium uppercase tracking-wider text-[hsl(var(--color-text-secondary))]">
+        <div className="col-span-2">Amount</div>
+        <div className="col-span-2">Service</div>
+        <div className="col-span-2">Client</div>
+        <div className="col-span-2">Due Date</div>
+        <div className="col-span-2">Created</div>
+        <div className="col-span-2">Status</div>
+      </div>
 
-              {/* Upcoming payments */}
-              <div className="space-y-1">
-                {c.installments.slice(0, 3).map((inst: any) => {
-                  const instOverdue = inst.due_date && new Date(inst.due_date) < new Date()
-                  return (
-                    <div key={inst.id} className="flex justify-between text-xs">
-                      <span className={cn(instOverdue ? "text-red-500" : "text-[hsl(var(--color-text-secondary))]")}>
-                        {inst.label || 'Payment'}: {inst.amount.toLocaleString()} PLN
-                      </span>
-                      <span className={cn(instOverdue ? "text-red-500 font-medium" : "text-[hsl(var(--color-text-secondary))]")}>
-                        {formatDueDate(inst.due_date)}
-                      </span>
-                    </div>
-                  )
-                })}
-                {c.installments.length > 3 && (
-                  <div className="text-xs text-[hsl(var(--color-text-secondary))]">
-                    +{c.installments.length - 3} more payments
-                  </div>
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin space-y-1">
+        {sortedInstallments.length === 0 ? (
+          <div className="text-center py-8 text-[hsl(var(--color-text-secondary))]">
+            No installments found
+          </div>
+        ) : (
+          sortedInstallments.map((inst, idx) => {
+            const isOverdue = !inst.paid && inst.due_date && new Date(inst.due_date) < today
+            
+            return (
+              <div
+                key={`${inst.id}-${idx}`}
+                onClick={() => router.push(`/cases/${inst.case_id}`)}
+                className={cn(
+                  "grid grid-cols-12 gap-2 p-2 rounded-lg cursor-pointer transition-all duration-200",
+                  "hover:bg-[hsl(var(--color-surface-hover))]",
+                  isOverdue && "bg-red-500/10 hover:bg-red-500/15 border border-red-500/30",
+                  inst.paid && "opacity-60"
                 )}
-              </div>
-
-              {/* Unscheduled warning */}
-              {c.unscheduled > 0 && (
-                <div className="mt-2 px-2 py-1 bg-yellow-500/10 border border-yellow-500/30 rounded text-xs text-yellow-600">
-                   {c.unscheduled.toLocaleString()} PLN unscheduled
+              >
+                <div className={cn("col-span-2 text-sm font-medium", inst.paid ? "text-green-400" : isOverdue ? "text-red-400" : "text-[hsl(var(--color-text-primary))]")}>
+                  {inst.amount?.toLocaleString()} PLN
                 </div>
-              )}
-            </div>
-          )
-        })
-      )}
+                <div className="col-span-2 text-sm text-[hsl(var(--color-text-secondary))] truncate">
+                  {inst.service_name}
+                </div>
+                <div className="col-span-2 text-sm text-[hsl(var(--color-text-primary))] truncate">
+                  {inst.client_name}
+                </div>
+                <div className={cn("col-span-2 text-sm", isOverdue ? "text-red-500 font-medium" : "text-[hsl(var(--color-text-secondary))]")}>
+                  {inst.due_date ? new Date(inst.due_date).toLocaleDateString() : '—'}
+                </div>
+                <div className="col-span-2 text-sm text-[hsl(var(--color-text-secondary))]">
+                  {inst.created_at ? new Date(inst.created_at).toLocaleDateString() : '—'}
+                </div>
+                <div className="col-span-2">
+                  {inst.paid ? (
+                    <span className="px-2 py-0.5 text-xs rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
+                      Paid
+                    </span>
+                  ) : isOverdue ? (
+                    <span className="px-2 py-0.5 text-xs rounded-full bg-red-500/20 text-red-400 border border-red-500/30">
+                      Overdue
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 text-xs rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                      Pending
+                    </span>
+                  )}
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
     </div>
   )
 }
@@ -835,29 +960,54 @@ function PendingPaymentsTab({ cases }: { cases: any[] }) {
 
 function OverdueTab({ items }: { items: { cases: any[]; tasks: any[]; payments: any[] } }) {
   const router = useRouter()
-  const [activeSection, setActiveSection] = useState<'cases' | 'tasks' | 'payments'>('cases')
+  const [activeSection, setActiveSection] = useState<'all' | 'cases' | 'tasks' | 'payments'>('all')
 
   const totalOverdue = items.cases.length + items.tasks.length + items.payments.length
 
   if (totalOverdue === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-[hsl(var(--color-text-secondary))]">
-        <span className="text-4xl mb-2"></span>
+        <span className="text-4xl mb-2">✓</span>
         <span>Nothing overdue!</span>
       </div>
     )
   }
 
   const sections = [
+    { id: 'all' as const, label: 'All', count: totalOverdue, color: 'red' },
     { id: 'cases' as const, label: 'Cases', count: items.cases.length, color: 'blue' },
     { id: 'tasks' as const, label: 'Tasks', count: items.tasks.length, color: 'purple' },
     { id: 'payments' as const, label: 'Payments', count: items.payments.length, color: 'green' }
   ]
 
   const sectionColors = {
+    all: { active: 'bg-red-500 shadow-[0_2px_12px_rgb(239_68_68/0.4)]', badge: 'bg-red-500', badgeActive: 'bg-white/20' },
     cases: { active: 'bg-blue-500 shadow-[0_2px_12px_rgb(59_130_246/0.4)]', badge: 'bg-blue-500', badgeActive: 'bg-white/20' },
     tasks: { active: 'bg-purple-500 shadow-[0_2px_12px_rgb(168_85_247/0.4)]', badge: 'bg-purple-500', badgeActive: 'bg-white/20' },
     payments: { active: 'bg-green-500 shadow-[0_2px_12px_rgb(34_197_94/0.4)]', badge: 'bg-green-500', badgeActive: 'bg-white/20' }
+  }
+
+  // Combine all items for "All" view with type info
+  const allItems = [
+    ...items.cases.map(c => ({ ...c, type: 'case' as const })),
+    ...items.tasks.map(t => ({ ...t, type: 'task' as const })),
+    ...items.payments.map(p => ({ ...p, type: 'payment' as const }))
+  ].sort((a, b) => (b.days_overdue || 0) - (a.days_overdue || 0)) // Most overdue first
+
+  const typeColors = {
+    case: { bg: 'bg-blue-500/10', border: 'border-blue-500/40', text: 'text-blue-400', label: 'Case' },
+    task: { bg: 'bg-purple-500/10', border: 'border-purple-500/40', text: 'text-purple-400', label: 'Task' },
+    payment: { bg: 'bg-green-500/10', border: 'border-green-500/40', text: 'text-green-400', label: 'Payment' }
+  }
+
+  const handleItemClick = (item: any) => {
+    if (item.type === 'case') {
+      router.push(`/cases/${item.id}`)
+    } else if (item.type === 'task') {
+      router.push(`/board/${item.board_id}?cardId=${item.id}`)
+    } else {
+      router.push(`/cases/${item.case_id}`)
+    }
   }
 
   return (
@@ -890,6 +1040,43 @@ function OverdueTab({ items }: { items: { cases: any[]; tasks: any[]; payments: 
 
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin space-y-2">
+        {activeSection === 'all' && (
+          allItems.map((item, idx) => {
+            const itemType = item.type as 'case' | 'task' | 'payment'
+            const colors = typeColors[itemType]
+            return (
+              <div
+                key={`${item.type}-${item.id}-${idx}`}
+                onClick={() => handleItemClick(item)}
+                className={cn(
+                  "p-3 rounded-xl border cursor-pointer transition-all duration-200",
+                  "hover:bg-red-500/15",
+                  "bg-red-500/10 border-red-500/40"
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <span className={cn("px-2 py-0.5 text-xs rounded-full", colors.bg, colors.text, colors.border, "border")}>
+                      {colors.label}
+                    </span>
+                    <span className="font-medium text-red-400 truncate">
+                      {item.type === 'case' ? (item.case_code || 'No code') : 
+                       item.type === 'task' ? item.title : 
+                       `${item.amount?.toLocaleString()} PLN`}
+                    </span>
+                    <span className="text-[hsl(var(--color-text-secondary))] text-sm truncate">
+                      {item.type === 'case' ? item.client_name : 
+                       item.type === 'task' ? item.board_name : 
+                       item.client_name}
+                    </span>
+                  </div>
+                  <span className="text-xs text-red-500 font-medium flex-shrink-0 ml-2">{item.days_overdue}d overdue</span>
+                </div>
+              </div>
+            )
+          })
+        )}
+
         {activeSection === 'cases' && (
           items.cases.length === 0 ? (
             <div className="text-center py-8 text-[hsl(var(--color-text-secondary))]">No overdue cases</div>
@@ -898,11 +1085,11 @@ function OverdueTab({ items }: { items: { cases: any[]; tasks: any[]; payments: 
               <div
                 key={c.id}
                 onClick={() => router.push(`/cases/${c.id}`)}
-                className="p-3 rounded-xl border border-red-500/40 bg-red-500/10 backdrop-blur-sm hover:bg-red-500/15 cursor-pointer transition-all duration-200 hover:scale-[1.01] hover:shadow-[0_4px_16px_rgb(239_68_68/0.2)]"
+                className="p-3 rounded-xl border border-red-500/40 bg-red-500/10 backdrop-blur-sm hover:bg-red-500/15 cursor-pointer transition-all duration-200"
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="font-medium text-red-600">{c.case_code || 'No code'}</span>
+                    <span className="font-medium text-red-400">{c.case_code || 'No code'}</span>
                     <span className="text-[hsl(var(--color-text-secondary))] text-sm ml-2">{c.client_name}</span>
                   </div>
                   <span className="text-xs text-red-500 font-medium">{c.days_overdue}d overdue</span>
@@ -920,11 +1107,11 @@ function OverdueTab({ items }: { items: { cases: any[]; tasks: any[]; payments: 
               <div
                 key={t.id}
                 onClick={() => router.push(`/board/${t.board_id}?cardId=${t.id}`)}
-                className="p-3 rounded-xl border border-red-500/40 bg-red-500/10 backdrop-blur-sm hover:bg-red-500/15 cursor-pointer transition-all duration-200 hover:scale-[1.01] hover:shadow-[0_4px_16px_rgb(239_68_68/0.2)]"
+                className="p-3 rounded-xl border border-red-500/40 bg-red-500/10 backdrop-blur-sm hover:bg-red-500/15 cursor-pointer transition-all duration-200"
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="font-medium text-red-600">{t.title}</span>
+                    <span className="font-medium text-red-400">{t.title}</span>
                     <span className="text-[hsl(var(--color-text-secondary))] text-sm ml-2">{t.board_name}</span>
                   </div>
                   <span className="text-xs text-red-500 font-medium">{t.days_overdue}d overdue</span>
@@ -942,11 +1129,11 @@ function OverdueTab({ items }: { items: { cases: any[]; tasks: any[]; payments: 
               <div
                 key={p.id}
                 onClick={() => router.push(`/cases/${p.case_id}`)}
-                className="p-3 rounded-xl border border-red-500/40 bg-red-500/10 backdrop-blur-sm hover:bg-red-500/15 cursor-pointer transition-all duration-200 hover:scale-[1.01] hover:shadow-[0_4px_16px_rgb(239_68_68/0.2)]"
+                className="p-3 rounded-xl border border-red-500/40 bg-red-500/10 backdrop-blur-sm hover:bg-red-500/15 cursor-pointer transition-all duration-200"
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="font-medium text-red-600">{p.amount.toLocaleString()} PLN</span>
+                    <span className="font-medium text-red-400">{p.amount.toLocaleString()} PLN</span>
                     <span className="text-[hsl(var(--color-text-secondary))] text-sm ml-2">{p.client_name}</span>
                     {p.case_code && <span className="text-xs text-[hsl(var(--color-text-secondary))] ml-2">({p.case_code})</span>}
                   </div>
