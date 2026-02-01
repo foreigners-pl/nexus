@@ -659,7 +659,7 @@ export async function getMyOpenTasks(): Promise<{ tasks: OpenTaskItem[]; error?:
 
   const cardIds = cardAssignments.map(a => a.card_id)
 
-  // Get those cards
+  // Get those cards with their status position info
   const { data, error } = await supabase
     .from('cards')
     .select(`
@@ -670,7 +670,7 @@ export async function getMyOpenTasks(): Promise<{ tasks: OpenTaskItem[]; error?:
       board_id,
       status_id,
       boards(id, name),
-      board_statuses(id, name, color)
+      board_statuses(id, name, color, position)
     `)
     .in('id', cardIds)
     .order('due_date', { ascending: true, nullsFirst: false })
@@ -680,21 +680,42 @@ export async function getMyOpenTasks(): Promise<{ tasks: OpenTaskItem[]; error?:
     return { tasks: [], error: error.message }
   }
 
-  // Transform tasks
-  const openTasks: OpenTaskItem[] = (data || []).map(t => {
-    const boards = Array.isArray(t.boards) ? t.boards[0] || null : t.boards
-    const board_statuses = Array.isArray(t.board_statuses) ? t.board_statuses[0] || null : t.board_statuses
-    return {
-      id: t.id,
-      title: t.title,
-      description: t.description,
-      due_date: t.due_date,
-      board_id: t.board_id,
-      status_id: t.status_id,
-      boards,
-      board_statuses
+  // Get all unique board IDs from the cards
+  const boardIds = [...new Set((data || []).map(t => t.board_id))]
+  
+  // Get the final (highest position) status for each board
+  const finalStatusIds = new Set<string>()
+  
+  for (const boardId of boardIds) {
+    const { data: statuses } = await supabase
+      .from('board_statuses')
+      .select('id, position')
+      .eq('board_id', boardId)
+      .order('position', { ascending: false })
+      .limit(1)
+    
+    if (statuses && statuses.length > 0) {
+      finalStatusIds.add(statuses[0].id)
     }
-  })
+  }
+
+  // Transform tasks and filter out completed ones (in final status)
+  const openTasks: OpenTaskItem[] = (data || [])
+    .filter(t => !finalStatusIds.has(t.status_id)) // Exclude tasks in final status
+    .map(t => {
+      const boards = Array.isArray(t.boards) ? t.boards[0] || null : t.boards
+      const board_statuses = Array.isArray(t.board_statuses) ? t.board_statuses[0] || null : t.board_statuses
+      return {
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        due_date: t.due_date,
+        board_id: t.board_id,
+        status_id: t.status_id,
+        boards,
+        board_statuses
+      }
+    })
 
   return { tasks: openTasks }
 }
@@ -885,7 +906,7 @@ export async function getMyOverdueItems(): Promise<{ items: OverdueItems; error?
 
   const cardIds = (cardAssignments || []).map(a => a.card_id)
 
-  // Get overdue tasks (cards not complete)
+  // Get overdue tasks (cards not in final status)
   const { data: overdueTasks } = cardIds.length > 0 ? await supabase
     .from('cards')
     .select(`
@@ -893,12 +914,29 @@ export async function getMyOverdueItems(): Promise<{ items: OverdueItems; error?
       title,
       due_date,
       board_id,
+      status_id,
       boards(name),
       board_statuses(name, color)
     `)
     .in('id', cardIds)
     .lt('due_date', todayStr)
     .order('due_date', { ascending: true }) : { data: [] }
+
+  // Get final status IDs for boards with overdue tasks
+  const overdueTaskBoards = [...new Set((overdueTasks || []).map(t => t.board_id))]
+  const finalStatusIdsForOverdue = new Set<string>()
+  for (const boardId of overdueTaskBoards) {
+    const { data: statuses } = await supabase
+      .from('board_statuses')
+      .select('id')
+      .eq('board_id', boardId)
+      .order('position', { ascending: false })
+      .limit(1)
+    
+    if (statuses && statuses.length > 0) {
+      finalStatusIdsForOverdue.add(statuses[0].id)
+    }
+  }
 
   // Get overdue payments for assigned cases
   const { data: overduePayments } = caseIds.length > 0 ? await supabase
@@ -935,12 +973,8 @@ export async function getMyOverdueItems(): Promise<{ items: OverdueItems; error?
   })
 
   const tasks: OverdueTask[] = (overdueTasks || [])
-    // Filter out tasks that are in a "Done" status (completed tasks shouldn't be overdue)
-    .filter(t => {
-      const status = Array.isArray(t.board_statuses) ? t.board_statuses[0] : t.board_statuses
-      const statusName = status?.name?.toLowerCase() || ''
-      return !statusName.includes('done') && !statusName.includes('complete')
-    })
+    // Filter out tasks that are in final status (completed tasks shouldn't be overdue)
+    .filter(t => !finalStatusIdsForOverdue.has(t.status_id))
     .map(t => {
     const boards = Array.isArray(t.boards) ? t.boards[0] : t.boards
     return {
@@ -995,11 +1029,46 @@ export async function getDashboardStats(): Promise<{ stats: DashboardStats; erro
     .select('*', { count: 'exact', head: true })
     .eq('user_id', user.id)
 
-  // Get my tasks (cards) count
-  const { count: tasksCount } = await supabase
+  // Get card IDs assigned to this user
+  const { data: cardAssignments } = await supabase
     .from('card_assignees')
-    .select('*', { count: 'exact', head: true })
+    .select('card_id')
     .eq('user_id', user.id)
+
+  const cardIds = (cardAssignments || []).map(a => a.card_id)
+
+  // Get open tasks count (excluding tasks in final status of each board)
+  let tasksCount = 0
+  if (cardIds.length > 0) {
+    // Get cards with their board_id and status_id
+    const { data: cards } = await supabase
+      .from('cards')
+      .select('id, board_id, status_id')
+      .in('id', cardIds)
+
+    if (cards && cards.length > 0) {
+      // Get unique board IDs
+      const boardIds = [...new Set(cards.map(c => c.board_id))]
+      
+      // Get the final (highest position) status for each board
+      const finalStatusIds = new Set<string>()
+      for (const boardId of boardIds) {
+        const { data: statuses } = await supabase
+          .from('board_statuses')
+          .select('id')
+          .eq('board_id', boardId)
+          .order('position', { ascending: false })
+          .limit(1)
+        
+        if (statuses && statuses.length > 0) {
+          finalStatusIds.add(statuses[0].id)
+        }
+      }
+      
+      // Count cards not in final status
+      tasksCount = cards.filter(c => !finalStatusIds.has(c.status_id)).length
+    }
+  }
 
   // Get case IDs assigned to this user
   const { data: caseAssignments } = await supabase
@@ -1008,14 +1077,6 @@ export async function getDashboardStats(): Promise<{ stats: DashboardStats; erro
     .eq('user_id', user.id)
 
   const caseIds = (caseAssignments || []).map(a => a.case_id)
-
-  // Get card IDs assigned to this user
-  const { data: cardAssignments } = await supabase
-    .from('card_assignees')
-    .select('card_id')
-    .eq('user_id', user.id)
-
-  const cardIds = (cardAssignments || []).map(a => a.card_id)
 
   // Get pending payments total from my cases
   let pendingTotal = 0
@@ -1039,21 +1100,37 @@ export async function getDashboardStats(): Promise<{ stats: DashboardStats; erro
     overdueCasesCount = count || 0
   }
 
-  // Get overdue cards count (excluding completed/done statuses)
+  // Get overdue cards count (excluding tasks in final status of each board)
   let overdueCardsCount = 0
   if (cardIds.length > 0) {
     const { data: overdueCards } = await supabase
       .from('cards')
-      .select('id, board_statuses(name)')
+      .select('id, board_id, status_id')
       .in('id', cardIds)
       .lt('due_date', today)
     
-    // Filter out cards in Done/Complete status
-    overdueCardsCount = (overdueCards || []).filter(card => {
-      const status = Array.isArray(card.board_statuses) ? card.board_statuses[0] : card.board_statuses
-      const statusName = status?.name?.toLowerCase() || ''
-      return !statusName.includes('done') && !statusName.includes('complete')
-    }).length
+    if (overdueCards && overdueCards.length > 0) {
+      // Get unique board IDs from overdue cards
+      const overdueBoards = [...new Set(overdueCards.map(c => c.board_id))]
+      
+      // Get the final (highest position) status for each board
+      const finalStatusIds = new Set<string>()
+      for (const boardId of overdueBoards) {
+        const { data: statuses } = await supabase
+          .from('board_statuses')
+          .select('id')
+          .eq('board_id', boardId)
+          .order('position', { ascending: false })
+          .limit(1)
+        
+        if (statuses && statuses.length > 0) {
+          finalStatusIds.add(statuses[0].id)
+        }
+      }
+      
+      // Count overdue cards not in final status
+      overdueCardsCount = overdueCards.filter(c => !finalStatusIds.has(c.status_id)).length
+    }
   }
 
   // Get overdue payments count
