@@ -1273,7 +1273,7 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
       : Promise.resolve({ data: [] }),
     // Overdue cards
     cardIds.length > 0
-      ? supabase.from('cards').select('id, title, due_date, board_id, boards(name), board_statuses(name, color)').in('id', cardIds).lt('due_date', todayStr).order('due_date', { ascending: true })
+      ? supabase.from('cards').select('id, title, due_date, board_id, status_id, boards(name), board_statuses(name, color)').in('id', cardIds).lt('due_date', todayStr).order('due_date', { ascending: true })
       : Promise.resolve({ data: [] }),
     // Overdue installments
     caseIds.length > 0
@@ -1308,17 +1308,35 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
     clients: Array.isArray(c.clients) ? c.clients[0] || null : c.clients
   }))
 
-  // Process my tasks
-  const myTasks = (myCardsResult.data || []).map(t => ({
-    id: t.id,
-    title: t.title,
-    description: t.description,
-    due_date: t.due_date,
-    board_id: t.board_id,
-    status_id: t.status_id,
-    boards: Array.isArray(t.boards) ? t.boards[0] || null : t.boards,
-    board_statuses: Array.isArray(t.board_statuses) ? t.board_statuses[0] || null : t.board_statuses
-  }))
+  // Get final status IDs for all boards that have cards assigned to user
+  const taskBoardIds = [...new Set((myCardsResult.data || []).map(t => t.board_id))]
+  const finalStatusIdsForTasks = new Set<string>()
+  for (const boardId of taskBoardIds) {
+    const { data: statuses } = await supabase
+      .from('board_statuses')
+      .select('id')
+      .eq('board_id', boardId)
+      .order('position', { ascending: false })
+      .limit(1)
+    
+    if (statuses && statuses.length > 0) {
+      finalStatusIdsForTasks.add(statuses[0].id)
+    }
+  }
+
+  // Process my tasks (filter out tasks in final status)
+  const myTasks = (myCardsResult.data || [])
+    .filter(t => !finalStatusIdsForTasks.has(t.status_id))
+    .map(t => ({
+      id: t.id,
+      title: t.title,
+      description: t.description,
+      due_date: t.due_date,
+      board_id: t.board_id,
+      status_id: t.status_id,
+      boards: Array.isArray(t.boards) ? t.boards[0] || null : t.boards,
+      board_statuses: Array.isArray(t.board_statuses) ? t.board_statuses[0] || null : t.board_statuses
+    }))
 
   // Process pending payments
   const myPayments: any[] = []
@@ -1367,14 +1385,26 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
     }
   })
 
+  // Get final status IDs for boards with overdue cards
+  const overdueTaskBoardIds = [...new Set((overdueCardsResult.data || []).map((t: any) => t.board_id))]
+  const finalStatusIdsForOverdueTasks = new Set<string>()
+  for (const boardId of overdueTaskBoardIds) {
+    const { data: statuses } = await supabase
+      .from('board_statuses')
+      .select('id')
+      .eq('board_id', boardId)
+      .order('position', { ascending: false })
+      .limit(1)
+    
+    if (statuses && statuses.length > 0) {
+      finalStatusIdsForOverdueTasks.add(statuses[0].id)
+    }
+  }
+
   const overdueTasks = (overdueCardsResult.data || [])
-    // Filter out tasks that are in a "Done" status (completed tasks shouldn't be overdue)
-    .filter(t => {
-      const status = Array.isArray(t.board_statuses) ? t.board_statuses[0] : t.board_statuses
-      const statusName = status?.name?.toLowerCase() || ''
-      return !statusName.includes('done') && !statusName.includes('complete')
-    })
-    .map(t => {
+    // Filter out tasks that are in final status (completed tasks shouldn't be overdue)
+    .filter((t: any) => !finalStatusIdsForOverdueTasks.has(t.status_id))
+    .map((t: any) => {
     const boards = Array.isArray(t.boards) ? t.boards[0] : t.boards
     return {
       id: t.id,
