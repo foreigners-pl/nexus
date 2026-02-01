@@ -84,7 +84,7 @@ async function prefetchAllTabs(queryClient: ReturnType<typeof useQueryClient>) {
           const result = await getConversations()
           return result
         },
-        staleTime: 60 * 1000, // 1 minute
+        staleTime: 5 * 60 * 1000, // 1 minute
       }),
 
       // 2. Dashboard data (includes all home page data except timeline)
@@ -94,7 +94,7 @@ async function prefetchAllTabs(queryClient: ReturnType<typeof useQueryClient>) {
           const result = await getAllDashboardData()
           return result
         },
-        staleTime: 60 * 1000,
+        staleTime: 5 * 60 * 1000,
       }),
 
       // 3. Weekly cases (for timeline "Today" tab)
@@ -104,7 +104,7 @@ async function prefetchAllTabs(queryClient: ReturnType<typeof useQueryClient>) {
           const result = await getWeeklyCases(weekStartStr)
           return result
         },
-        staleTime: 60 * 1000,
+        staleTime: 5 * 60 * 1000,
       }),
 
       // 4. Weekly tasks (for timeline)
@@ -114,7 +114,7 @@ async function prefetchAllTabs(queryClient: ReturnType<typeof useQueryClient>) {
           const result = await getWeeklyCards(weekStartStr)
           return result
         },
-        staleTime: 60 * 1000,
+        staleTime: 5 * 60 * 1000,
       }),
 
       // 5. Weekly payments (for timeline)
@@ -124,7 +124,7 @@ async function prefetchAllTabs(queryClient: ReturnType<typeof useQueryClient>) {
           const result = await getWeeklyPayments(weekStartStr)
           return result
         },
-        staleTime: 60 * 1000,
+        staleTime: 5 * 60 * 1000,
       }),
 
       // 6. Boards list
@@ -134,7 +134,7 @@ async function prefetchAllTabs(queryClient: ReturnType<typeof useQueryClient>) {
           const result = await getUserBoards()
           return result
         },
-        staleTime: 60 * 1000,
+        staleTime: 5 * 60 * 1000,
       }),
 
       // 7. Cases board data (default board)
@@ -144,7 +144,7 @@ async function prefetchAllTabs(queryClient: ReturnType<typeof useQueryClient>) {
           const result = await getCasesBoardData()
           return result
         },
-        staleTime: 60 * 1000,
+        staleTime: 5 * 60 * 1000,
       }),
 
       // 8. Wiki folders (private)
@@ -155,7 +155,7 @@ async function prefetchAllTabs(queryClient: ReturnType<typeof useQueryClient>) {
           console.log('[Prefetch] Wiki folders (private) loaded:', result?.length)
           return result
         },
-        staleTime: 60 * 1000,
+        staleTime: 5 * 60 * 1000,
       }),
 
       // 9. Wiki folders (shared)
@@ -166,7 +166,7 @@ async function prefetchAllTabs(queryClient: ReturnType<typeof useQueryClient>) {
           console.log('[Prefetch] Wiki folders (shared) loaded:', result?.length)
           return result
         },
-        staleTime: 60 * 1000,
+        staleTime: 5 * 60 * 1000,
       }),
 
       // 10. Clients (first page)
@@ -182,7 +182,7 @@ async function prefetchAllTabs(queryClient: ReturnType<typeof useQueryClient>) {
             .range(0, 19)
           return data || []
         },
-        staleTime: 60 * 1000,
+        staleTime: 5 * 60 * 1000,
       }),
     ])
 
@@ -200,7 +200,7 @@ async function prefetchAllTabs(queryClient: ReturnType<typeof useQueryClient>) {
               const msgResult = await getMessages(conv.id, 10)
               return msgResult
             },
-            staleTime: 60 * 1000,
+            staleTime: 5 * 60 * 1000,
           })
         )
       )
@@ -228,7 +228,7 @@ export function usePrefetchMessages() {
           const result = await getMessages(conversationId, 10)
           return result
         },
-        staleTime: 60 * 1000,
+        staleTime: 5 * 60 * 1000,
       })
     },
     [queryClient]
@@ -477,7 +477,7 @@ export function useDeepPrefetchChat() {
               const result = await getMessages(conv.id, 20) // 20 messages per conversation
               return result
             },
-            staleTime: 60 * 1000,
+            staleTime: 5 * 60 * 1000,
           })
         )
       )
@@ -522,7 +522,7 @@ export function useDeepPrefetchBoard() {
             const result = await getBoardWithData(board.id)
             return result
           },
-          staleTime: 60 * 1000,
+          staleTime: 5 * 60 * 1000,
         })
       )
     )
@@ -562,7 +562,7 @@ export function useDeepPrefetchClients() {
             const result = await getClient(client.id)
             return result
           },
-          staleTime: 60 * 1000,
+          staleTime: 5 * 60 * 1000,
         })
       )
     )

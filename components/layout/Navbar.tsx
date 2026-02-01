@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { logout } from '@/app/actions/auth'
 import { Button } from '@/components/ui/Button'
@@ -76,6 +76,7 @@ const navItems = [
 
 export function Navbar() {
   const pathname = usePathname()
+  const router = useRouter()
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -97,6 +98,14 @@ export function Navbar() {
   } catch {
     // Context not available yet
   }
+
+  // Prefetch all nav routes on mount for instant navigation
+  useEffect(() => {
+    navItems.forEach(item => {
+      router.prefetch(item.href)
+    })
+    router.prefetch('/settings')
+  }, [router])
 
   useEffect(() => {
     // Load collapsed state from localStorage
