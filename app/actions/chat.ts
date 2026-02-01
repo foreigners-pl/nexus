@@ -719,3 +719,40 @@ export async function sendBuzz(conversationId: string): Promise<{ success: boole
 
   return { success: true }
 }
+
+// Get a fresh signed URL for a chat attachment
+// This extracts the file path from the stored URL and generates a new signed URL
+export async function getChatAttachmentUrl(storedUrl: string): Promise<{ url?: string; error?: string }> {
+  const supabase = await createClient()
+  
+  try {
+    // Extract file path from the stored URL
+    // URLs look like: https://xxx.supabase.co/storage/v1/object/public/chat-attachments/conv-id/filename.ext
+    // or signed: https://xxx.supabase.co/storage/v1/object/sign/chat-attachments/conv-id/filename.ext?token=...
+    const bucketName = 'chat-attachments'
+    const bucketIndex = storedUrl.indexOf(bucketName)
+    
+    if (bucketIndex === -1) {
+      return { error: 'Invalid attachment URL' }
+    }
+    
+    // Extract path after bucket name, removing any query params
+    let filePath = storedUrl.substring(bucketIndex + bucketName.length + 1)
+    filePath = filePath.split('?')[0] // Remove query params
+    
+    // Generate new signed URL (valid for 1 hour)
+    const { data, error } = await supabase.storage
+      .from(bucketName)
+      .createSignedUrl(filePath, 3600)
+    
+    if (error) {
+      console.error('Error creating signed URL:', error)
+      return { error: 'Failed to get attachment URL' }
+    }
+    
+    return { url: data.signedUrl }
+  } catch (err) {
+    console.error('Error parsing attachment URL:', err)
+    return { error: 'Invalid attachment URL' }
+  }
+}

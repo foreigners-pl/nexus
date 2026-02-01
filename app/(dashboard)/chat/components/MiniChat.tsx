@@ -287,12 +287,15 @@ export default function MiniChat() {
 
       if (error) throw error
 
-      const { data: { publicUrl } } = supabase.storage
+      // Use signed URL for private bucket (valid for 24 hours)
+      const { data: signedData, error: signedError } = await supabase.storage
         .from('chat-attachments')
-        .getPublicUrl(fileName)
+        .createSignedUrl(fileName, 86400) // 24 hour expiry
+
+      if (signedError) throw signedError
 
       setAttachment({
-        url: publicUrl,
+        url: signedData.signedUrl,
         name: file.name,
         type: file.type
       })

@@ -143,11 +143,17 @@ export async function downloadAttachment(filePath: string) {
 export async function getAttachmentUrl(filePath: string) {
   const supabase = await createClient()
   
-  const { data } = supabase.storage
+  // Use signed URL for private buckets (valid for 1 hour)
+  const { data, error } = await supabase.storage
     .from('case_attachments')
-    .getPublicUrl(filePath)
+    .createSignedUrl(filePath, 3600) // 1 hour expiry
 
-  return data.publicUrl
+  if (error) {
+    console.error('Error creating signed URL:', error)
+    return null
+  }
+
+  return data.signedUrl
 }
 
 export async function deleteAttachment(attachmentId: string, filePath: string, caseId?: string) {

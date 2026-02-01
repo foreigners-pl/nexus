@@ -112,11 +112,19 @@ export function AttachmentsSection({ caseId, attachments, onUpdate, onAddClick }
 
   const handleView = async (attachment: CaseAttachment) => {
     const url = await getAttachmentUrl(attachment.file_path)
-    window.open(url, '_blank')
+    if (url) {
+      window.open(url, '_blank')
+    } else {
+      alert('Failed to load attachment')
+    }
   }
 
   const handleDownload = async (attachment: CaseAttachment) => {
     const url = await getAttachmentUrl(attachment.file_path)
+    if (!url) {
+      alert('Failed to load attachment')
+      return
+    }
     const link = document.createElement('a')
     link.href = url
     link.download = attachment.file_name
