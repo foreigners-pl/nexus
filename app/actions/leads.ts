@@ -121,13 +121,23 @@ export async function convertSubmissionToClient(submissionId: string) {
       ? `${submission.phone_country_code} ${submission.phone}`
       : submission.phone
 
-    await supabase
+    console.log('[convertSubmissionToClient] Phone data:', {
+      phone_country_code: submission.phone_country_code,
+      phone: submission.phone,
+      combined: phoneNumber
+    })
+
+    const { error: phoneError } = await supabase
       .from('contact_numbers')
       .insert({
         client_id: client.id,
         number: phoneNumber,
         is_on_whatsapp: false,
       })
+
+    if (phoneError) {
+      console.error('[convertSubmissionToClient] Error adding phone:', phoneError)
+    }
   }
 
   // 3. Get "New" status for the case

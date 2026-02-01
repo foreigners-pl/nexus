@@ -34,9 +34,10 @@ export async function POST(request: NextRequest) {
   try {
     console.log("CRM webhook called for ANY submission at /api/webhooks/leads");
     const authHeader = request.headers.get('authorization');
-    console.log("Authorization header:", authHeader);
+    console.log("Authorization header:", authHeader ? "Present" : "Missing");
 
     if (WEBHOOK_SECRET && authHeader !== `Bearer ${WEBHOOK_SECRET}`) {
+      console.log("Webhook auth failed - expected Bearer token");
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -44,7 +45,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body: LeadSubmission = await request.json();
-    console.log("CRM webhook received body:", body);
+    console.log("CRM webhook received body:", JSON.stringify(body, null, 2));
+    console.log("Phone data specifically:", {
+      phone_country_code: body.phone_country_code,
+      phone: body.phone
+    });
 
     // Validate required fields
     if (!body.full_name) {
