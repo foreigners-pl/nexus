@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useState, useRef, useEffect, KeyboardEvent } from 'react'
+import { useState, useRef, useEffect, KeyboardEvent, DragEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { createBrowserClient } from '@supabase/ssr'
 import { sendBuzz } from '@/app/actions/chat'
@@ -23,6 +23,7 @@ export default function MessageInput({ onSend, disabled, conversationId }: Messa
   const [showBuzzConfirm, setShowBuzzConfirm] = useState(false)
   const [buzzing, setBuzzing] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
   const [emojiPickerPosition, setEmojiPickerPosition] = useState({ top: 0, left: 0 })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -91,6 +92,36 @@ export default function MessageInput({ onSend, disabled, conversationId }: Messa
     const file = e.target.files?.[0]
     if (!file) return
 
+    await processFile(file)
+    
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const handleEmojiSelect = (emoji: string) => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const newMessage = message.substring(0, start) + emoji + message.substring(end)
+    setMessage(newMessage)
+    setShowEmoji(false)
+    
+    // Focus back to textarea
+    setTimeout(() => {
+      textarea.focus()
+      textarea.setSelectionRange(start + emoji.length, start + emoji.length)
+    }, 0)
+  }
+
+  const removeAttachment = () => {
+    setAttachment(null)
+  }
+
+  // Process a file for upload (shared by both input and drag/drop)
+  const processFile = async (file: File) => {
     setUploading(true)
     
     try {
@@ -119,31 +150,31 @@ export default function MessageInput({ onSend, disabled, conversationId }: Messa
       console.error('Upload error:', error)
     } finally {
       setUploading(false)
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
     }
   }
 
-  const handleEmojiSelect = (emoji: string) => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    const newMessage = message.substring(0, start) + emoji + message.substring(end)
-    setMessage(newMessage)
-    setShowEmoji(false)
+  // Drag and drop handlers
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
     
-    // Focus back to textarea
-    setTimeout(() => {
-      textarea.focus()
-      textarea.setSelectionRange(start + emoji.length, start + emoji.length)
-    }, 0)
+    const file = e.dataTransfer.files?.[0]
+    if (file) {
+      processFile(file)
+    }
   }
 
-  const removeAttachment = () => {
-    setAttachment(null)
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
   }
 
   const handleBuzz = async () => {
@@ -157,7 +188,24 @@ export default function MessageInput({ onSend, disabled, conversationId }: Messa
   }
 
   return (
-    <div className="border-t border-white/5 p-4 bg-[hsl(240_3%_11%)]/80 backdrop-blur-xl">
+    <div 
+      className={`border-t border-white/5 p-4 bg-[hsl(240_3%_11%)]/80 backdrop-blur-xl relative transition-colors ${isDragging ? 'bg-primary/10' : ''}`}
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+    >
+      {/* Drag overlay */}
+      {isDragging && (
+        <div className="absolute inset-0 bg-primary/20 border-2 border-dashed border-primary rounded-lg flex items-center justify-center z-10 pointer-events-none">
+          <div className="text-center">
+            <svg className="w-8 h-8 text-primary mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <p className="text-primary font-medium">Drop file to attach</p>
+          </div>
+        </div>
+      )}
+
       {/* Attachment preview */}
       {attachment && (
         <div className="mb-3 p-3 bg-white/5 rounded-xl flex items-center gap-3 border border-white/10">

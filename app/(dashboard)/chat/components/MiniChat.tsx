@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, DragEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { createBrowserClient } from '@supabase/ssr'
 import { 
@@ -48,6 +48,7 @@ export default function MiniChat() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [showReactionPicker, setShowReactionPicker] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
   const [attachment, setAttachment] = useState<{ url: string; name: string; type: string } | null>(null)
   const [showBuzzConfirm, setShowBuzzConfirm] = useState(false)
   const [buzzing, setBuzzing] = useState(false)
@@ -271,9 +272,8 @@ export default function MiniChat() {
     }
   }
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !selectedConversation) return
+  const processFile = async (file: File) => {
+    if (!selectedConversation) return
 
     setUploading(true)
     
@@ -307,6 +307,35 @@ export default function MiniChat() {
         fileInputRef.current.value = ''
       }
     }
+  }
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    await processFile(file)
+  }
+
+  const handleDrop = async (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+    
+    const file = e.dataTransfer.files[0]
+    if (file) {
+      await processFile(file)
+    }
+  }
+
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
   }
 
   const handleEmojiSelect = (emoji: string) => {
@@ -595,7 +624,23 @@ export default function MiniChat() {
             )}
 
             {/* Input */}
-            <div className="p-2 border-t border-white/10">
+            <div 
+              className="p-2 border-t border-white/10 relative"
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+            >
+              {/* Drag overlay */}
+              {isDragging && (
+                <div className="absolute inset-0 bg-primary/20 border-2 border-dashed border-primary rounded-lg flex items-center justify-center z-10">
+                  <div className="text-center">
+                    <svg className="w-6 h-6 mx-auto text-primary mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <p className="text-xs text-primary font-medium">Drop file here</p>
+                  </div>
+                </div>
+              )}
               <div className="flex items-center gap-1">
                 {/* Attachment button */}
                 <button
