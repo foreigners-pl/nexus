@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 
-export async function addPhoneNumber(clientId: string, number: string, isOnWhatsapp: boolean) {
+export async function addPhoneNumber(clientId: string, number: string, isOnWhatsapp: boolean, countryCode?: string) {
   const supabase = await createClient()
 
   const { error } = await supabase
@@ -11,6 +11,7 @@ export async function addPhoneNumber(clientId: string, number: string, isOnWhats
     .insert([{
       client_id: clientId,
       number: number,
+      country_code: countryCode || null,
       is_on_whatsapp: isOnWhatsapp
     }])
 
@@ -38,12 +39,12 @@ export async function deletePhoneNumber(phoneId: string, clientId: string) {
   return { success: true }
 }
 
-export async function updatePhoneNumber(phoneId: string, clientId: string, number: string) {
+export async function updatePhoneNumber(phoneId: string, clientId: string, number: string, countryCode?: string) {
   const supabase = await createClient()
 
   const { error } = await supabase
     .from('contact_numbers')
-    .update({ number })
+    .update({ number, country_code: countryCode || null })
     .eq('id', phoneId)
 
   if (error) {

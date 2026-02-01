@@ -17,6 +17,7 @@ export interface ContactNumber {
   id: string
   client_id: string
   number: string
+  country_code?: string
   is_on_whatsapp: boolean
 }
 

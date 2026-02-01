@@ -9,7 +9,7 @@ import { ClientsTable } from './components/ClientsTable'
 import type { Client } from '@/types/database'
 
 interface ClientWithPhones extends Client {
-  contact_numbers?: Array<{ id: string; number: string; is_on_whatsapp: boolean }>
+  contact_numbers?: Array<{ id: string; number: string; country_code?: string; is_on_whatsapp: boolean }>
 }
 
 const CLIENTS_PER_PAGE = 20
@@ -43,7 +43,7 @@ export default function ClientsPage() {
   const fetchClientsBackground = async () => {
     const { data } = await supabase
       .from('clients')
-      .select(`*, contact_numbers (id, number, is_on_whatsapp)`)
+      .select(`*, contact_numbers (id, number, country_code, is_on_whatsapp)`)
       .order('created_at', { ascending: false })
       .range(0, CLIENTS_PER_PAGE - 1)
 
@@ -58,7 +58,7 @@ export default function ClientsPage() {
     setLoading(true)
     const { data, error } = await supabase
       .from('clients')
-      .select(`*, contact_numbers (id, number, is_on_whatsapp)`)
+      .select(`*, contact_numbers (id, number, country_code, is_on_whatsapp)`)
       .order('created_at', { ascending: false })
       .range(0, CLIENTS_PER_PAGE - 1)
 
@@ -83,7 +83,7 @@ export default function ClientsPage() {
 
     const { data, error } = await supabase
       .from('clients')
-      .select(`*, contact_numbers (id, number, is_on_whatsapp)`)
+      .select(`*, contact_numbers (id, number, country_code, is_on_whatsapp)`)
       .order('created_at', { ascending: false })
       .range(from, to)
 

@@ -115,23 +115,19 @@ export async function convertSubmissionToClient(submissionId: string) {
     return { error: 'Failed to create client' }
   }
 
-  // 2. Add phone number if provided
+  // 2. Add phone number if provided (store country_code separately)
   if (submission.phone) {
-    const phoneNumber = submission.phone_country_code 
-      ? `${submission.phone_country_code} ${submission.phone}`
-      : submission.phone
-
     console.log('[convertSubmissionToClient] Phone data:', {
       phone_country_code: submission.phone_country_code,
-      phone: submission.phone,
-      combined: phoneNumber
+      phone: submission.phone
     })
 
     const { error: phoneError } = await supabase
       .from('contact_numbers')
       .insert({
         client_id: client.id,
-        number: phoneNumber,
+        number: submission.phone,
+        country_code: submission.phone_country_code || null,
         is_on_whatsapp: false,
       })
 

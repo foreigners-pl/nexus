@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/Input'
 import type { Client } from '@/types/database'
 
 interface ClientWithPhones extends Client {
-  contact_numbers?: Array<{ id: string; number: string; is_on_whatsapp: boolean }>
+  contact_numbers?: Array<{ id: string; number: string; country_code?: string; is_on_whatsapp: boolean }>
 }
 
 interface ClientsTableProps {
@@ -372,7 +372,7 @@ export function ClientsTable({ clients, loading, loadingMore, onLoadMore }: Clie
                       <div className="space-y-1.5">
                         {client.contact_numbers.map((phone) => (
                           <div key={phone.id} className="flex items-center gap-2">
-                            <span className="font-mono text-sm">{phone.number}</span>
+                            <span className="font-mono text-sm">{phone.country_code ? `${phone.country_code} ${phone.number}` : phone.number}</span>
                             {phone.is_on_whatsapp && (
                               <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/20 shadow-[0_0_10px_rgb(34_197_94/0.1)]">
                                 WhatsApp

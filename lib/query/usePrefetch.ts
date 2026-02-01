@@ -177,7 +177,7 @@ async function prefetchAllTabs(queryClient: ReturnType<typeof useQueryClient>) {
           const supabase = createClient()
           const { data } = await supabase
             .from('clients')
-            .select('*, contact_numbers (id, number, is_on_whatsapp)')
+            .select('*, contact_numbers (id, number, country_code, is_on_whatsapp)')
             .order('created_at', { ascending: false })
             .range(0, 19)
           return data || []

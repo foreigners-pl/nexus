@@ -18,6 +18,7 @@ export function ContactInfo({ client, phoneNumbers, onUpdate }: ContactInfoProps
   const [isEditing, setIsEditing] = useState(false)
   const [isPhoneModalOpen, setIsPhoneModalOpen] = useState(false)
   const [newPhone, setNewPhone] = useState('')
+  const [newCountryCode, setNewCountryCode] = useState('+48')
   const [isWhatsapp, setIsWhatsapp] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   
@@ -26,7 +27,7 @@ export function ContactInfo({ client, phoneNumbers, onUpdate }: ContactInfoProps
     firstName: client.first_name || '',
     lastName: client.last_name || '',
     email: client.contact_email || '',
-    phones: new Map<string, { number: string; whatsapp: boolean }>()
+    phones: new Map<string, { number: string; countryCode: string; whatsapp: boolean }>()
   })
 
   const handleDone = async () => {
@@ -47,8 +48,8 @@ export function ContactInfo({ client, phoneNumbers, onUpdate }: ContactInfoProps
     for (const [phoneId, data] of pendingChanges.phones) {
       const originalPhone = phoneNumbers.find(p => p.id === phoneId)
       if (originalPhone) {
-        if (data.number !== originalPhone.number) {
-          await updatePhoneNumber(phoneId, client.id, data.number)
+        if (data.number !== originalPhone.number || data.countryCode !== (originalPhone.country_code || '')) {
+          await updatePhoneNumber(phoneId, client.id, data.number, data.countryCode || undefined)
         }
         if (data.whatsapp !== originalPhone.is_on_whatsapp) {
           await updateWhatsAppStatus(phoneId, client.id, data.whatsapp)
@@ -71,10 +72,11 @@ export function ContactInfo({ client, phoneNumbers, onUpdate }: ContactInfoProps
     if (!newPhone.trim()) return
     
     setSubmitting(true)
-    const result = await addPhoneNumber(client.id, newPhone, isWhatsapp)
+    const result = await addPhoneNumber(client.id, newPhone, isWhatsapp, newCountryCode || undefined)
     
     if (!result?.error) {
       setNewPhone('')
+      setNewCountryCode('+48')
       setIsWhatsapp(false)
       setIsPhoneModalOpen(false)
       onUpdate()
@@ -85,6 +87,14 @@ export function ContactInfo({ client, phoneNumbers, onUpdate }: ContactInfoProps
   const handleDeletePhone = async (phoneId: string) => {
     await deletePhoneNumber(phoneId, client.id)
     onUpdate()
+  }
+
+  // Format phone display with country code
+  const formatPhoneDisplay = (phone: ContactNumber) => {
+    if (phone.country_code) {
+      return `${phone.country_code} ${phone.number}`
+    }
+    return phone.number
   }
 
   return (
@@ -148,6 +158,7 @@ export function ContactInfo({ client, phoneNumbers, onUpdate }: ContactInfoProps
                 phoneNumbers.map((phone) => {
                   const pendingPhone = pendingChanges.phones.get(phone.id) || { 
                     number: phone.number, 
+                    countryCode: phone.country_code || '',
                     whatsapp: phone.is_on_whatsapp 
                   }
                   
@@ -157,6 +168,16 @@ export function ContactInfo({ client, phoneNumbers, onUpdate }: ContactInfoProps
                         <>
                           <div className="flex-1 flex items-center gap-2">
                             <Input
+                              value={pendingPhone.countryCode}
+                              onChange={(e) => {
+                                const newPhones = new Map(pendingChanges.phones)
+                                newPhones.set(phone.id, { ...pendingPhone, countryCode: e.target.value })
+                                setPendingChanges({...pendingChanges, phones: newPhones})
+                              }}
+                              placeholder="+48"
+                              className="w-20"
+                            />
+                            <Input
                               value={pendingPhone.number}
                               onChange={(e) => {
                                 const newPhones = new Map(pendingChanges.phones)
@@ -164,6 +185,7 @@ export function ContactInfo({ client, phoneNumbers, onUpdate }: ContactInfoProps
                                 setPendingChanges({...pendingChanges, phones: newPhones})
                               }}
                               className="flex-1"
+                              placeholder="Phone number"
                             />
                             <label className="flex items-center gap-2 whitespace-nowrap">
                               <input
@@ -183,7 +205,7 @@ export function ContactInfo({ client, phoneNumbers, onUpdate }: ContactInfoProps
                         </>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <p className="text-[hsl(var(--color-text-primary))]">{phone.number}</p>
+                          <p className="text-[hsl(var(--color-text-primary))]">{formatPhoneDisplay(phone)}</p>
                           {phone.is_on_whatsapp && (
                             <span className="text-xs bg-green-500/20 text-green-500 px-2 py-0.5 rounded">WhatsApp</span>
                           )}
@@ -205,7 +227,22 @@ export function ContactInfo({ client, phoneNumbers, onUpdate }: ContactInfoProps
 
       <Modal isOpen={isPhoneModalOpen} onClose={() => setIsPhoneModalOpen(false)} title="Add Phone Number">
         <div className="space-y-4">
-          <Input label="Phone Number" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="+48 123 456 789" />
+          <div className="flex gap-2">
+            <Input 
+              label="Country Code" 
+              value={newCountryCode} 
+              onChange={(e) => setNewCountryCode(e.target.value)} 
+              placeholder="+48" 
+              className="w-24"
+            />
+            <Input 
+              label="Phone Number" 
+              value={newPhone} 
+              onChange={(e) => setNewPhone(e.target.value)} 
+              placeholder="123 456 789" 
+              className="flex-1"
+            />
+          </div>
           <div className="flex items-center gap-2">
             <input type="checkbox" checked={isWhatsapp} onChange={(e) => setIsWhatsapp(e.target.checked)} className="w-4 h-4 rounded border-[hsl(var(--color-border))]" />
             <label className="text-sm text-[hsl(var(--color-text-primary))]">Available on WhatsApp</label>
