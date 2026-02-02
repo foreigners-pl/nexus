@@ -1378,7 +1378,11 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
 
   // Process pending payments - include ALL installments for the Payments tab history
   // DEBUG: Log the raw installments data
-  console.log('[Dashboard] myInstallmentsResult:', JSON.stringify(myInstallmentsResult, null, 2))
+  console.log('[Dashboard] myInstallmentsResult error:', myInstallmentsResult?.error)
+  console.log('[Dashboard] myInstallmentsResult data count:', myInstallmentsResult?.data?.length)
+  if (myInstallmentsResult?.data?.length > 0) {
+    console.log('[Dashboard] First case from myInstallmentsResult:', JSON.stringify(myInstallmentsResult.data[0], null, 2))
+  }
   
   const myPayments: any[] = []
   for (const c of myInstallmentsResult.data || []) {
@@ -1392,7 +1396,7 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
     const unscheduled = totalPrice - totalScheduled
     
     // DEBUG: Log each case's installments
-    console.log('[Dashboard] Case', c.id, 'installments count:', installments.length)
+    console.log('[Dashboard] Case', c.id, 'case_code:', c.case_code, 'installments:', c.installments, 'count:', installments.length)
     
     // Get service names from case_services
     const serviceNames = caseServices
