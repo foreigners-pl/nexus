@@ -840,12 +840,42 @@ function OpenTasksTab({ tasks }: { tasks: any[] }) {
 // PAYMENTS TAB
 // ============================================
 
+type PaymentDateFilter = 'this_month' | 'last_month' | 'custom'
+
 function PendingPaymentsTab({ cases }: { cases: any[] }) {
   const router = useRouter()
+  const [dateFilter, setDateFilter] = useState<PaymentDateFilter>('this_month')
+  const [customStart, setCustomStart] = useState<string>('')
+  const [customEnd, setCustomEnd] = useState<string>('')
   
-  // Get current month name and collect all installments
   const now = new Date()
-  const currentMonth = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  
+  // Calculate date ranges
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
+  
+  // Get current filter date range
+  let filterStart: Date
+  let filterEnd: Date
+  let filterLabel: string
+  
+  if (dateFilter === 'this_month') {
+    filterStart = thisMonthStart
+    filterEnd = thisMonthEnd
+    filterLabel = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  } else if (dateFilter === 'last_month') {
+    filterStart = lastMonthStart
+    filterEnd = lastMonthEnd
+    filterLabel = lastMonthStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  } else {
+    filterStart = customStart ? new Date(customStart) : new Date(0)
+    filterEnd = customEnd ? new Date(customEnd) : new Date()
+    filterLabel = customStart && customEnd 
+      ? `${new Date(customStart).toLocaleDateString()} - ${new Date(customEnd).toLocaleDateString()}`
+      : 'Custom Range'
+  }
   
   // Flatten all installments from all cases with case/client info
   const allInstallments: any[] = []
@@ -861,17 +891,24 @@ function PendingPaymentsTab({ cases }: { cases: any[] }) {
     })
   })
 
-  // Calculate this month's payments
-  const thisMonthPaid = allInstallments
-    .filter(inst => {
-      if (!inst.paid || !inst.due_date) return false
-      const instDate = new Date(inst.due_date)
-      return instDate.getMonth() === now.getMonth() && instDate.getFullYear() === now.getFullYear()
-    })
+  // Filter installments by date range (based on due_date)
+  const filteredInstallments = allInstallments.filter(inst => {
+    if (!inst.due_date) return dateFilter === 'custom' && !customStart && !customEnd
+    const instDate = new Date(inst.due_date)
+    instDate.setHours(0, 0, 0, 0)
+    return instDate >= filterStart && instDate <= filterEnd
+  })
+
+  // Calculate paid total for the filtered period
+  const periodPaid = filteredInstallments
+    .filter(inst => inst.paid)
+    .reduce((sum, inst) => sum + (inst.amount || 0), 0)
+  
+  const periodTotal = filteredInstallments
     .reduce((sum, inst) => sum + (inst.amount || 0), 0)
 
-  // Sort by due_date, overdue first
-  const sortedInstallments = [...allInstallments].sort((a, b) => {
+  // Sort by due_date
+  const sortedInstallments = [...filteredInstallments].sort((a, b) => {
     const aDate = a.due_date ? new Date(a.due_date).getTime() : Infinity
     const bDate = b.due_date ? new Date(b.due_date).getTime() : Infinity
     return aDate - bDate
@@ -880,13 +917,59 @@ function PendingPaymentsTab({ cases }: { cases: any[] }) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
+  const filterButtons = [
+    { id: 'this_month' as const, label: 'This Month' },
+    { id: 'last_month' as const, label: 'Last Month' },
+    { id: 'custom' as const, label: 'Custom' }
+  ]
+
   return (
     <div className="h-full flex flex-col">
-      {/* Month Summary */}
+      {/* Date Filter Tabs */}
+      <div className="flex gap-1 mb-3 bg-[hsl(var(--color-surface))] p-1 rounded-xl border border-[hsl(var(--color-border))] w-fit">
+        {filterButtons.map(btn => (
+          <button
+            key={btn.id}
+            onClick={() => setDateFilter(btn.id)}
+            className={cn(
+              "px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer",
+              dateFilter === btn.id
+                ? "bg-green-500 text-white shadow-[0_2px_8px_rgb(34_197_94/0.3)]"
+                : "text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))] hover:bg-[hsl(var(--color-surface-hover))]"
+            )}
+          >
+            {btn.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Custom Date Range Picker */}
+      {dateFilter === 'custom' && (
+        <div className="flex gap-2 mb-3 items-center">
+          <input
+            type="date"
+            value={customStart}
+            onChange={(e) => setCustomStart(e.target.value)}
+            className="px-3 py-1.5 text-sm rounded-lg bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] text-[hsl(var(--color-text-primary))]"
+          />
+          <span className="text-[hsl(var(--color-text-secondary))]">to</span>
+          <input
+            type="date"
+            value={customEnd}
+            onChange={(e) => setCustomEnd(e.target.value)}
+            className="px-3 py-1.5 text-sm rounded-lg bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] text-[hsl(var(--color-text-primary))]"
+          />
+        </div>
+      )}
+
+      {/* Period Summary */}
       <div className="mb-4 p-3 rounded-xl bg-green-500/10 border border-green-500/30">
-        <div className="text-xs text-green-400 mb-1">{currentMonth}</div>
-        <div className="text-2xl font-bold text-green-400">{thisMonthPaid.toLocaleString()} PLN</div>
-        <div className="text-xs text-[hsl(var(--color-text-secondary))]">received this month</div>
+        <div className="text-xs text-green-400 mb-1">{filterLabel}</div>
+        <div className="flex items-baseline gap-2">
+          <span className="text-2xl font-bold text-green-400">{periodPaid.toLocaleString()} PLN</span>
+          <span className="text-sm text-[hsl(var(--color-text-secondary))]">/ {periodTotal.toLocaleString()} PLN</span>
+        </div>
+        <div className="text-xs text-[hsl(var(--color-text-secondary))]">received / total scheduled</div>
       </div>
 
       {/* Installments List Header */}
@@ -902,7 +985,7 @@ function PendingPaymentsTab({ cases }: { cases: any[] }) {
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin space-y-1">
         {sortedInstallments.length === 0 ? (
           <div className="text-center py-8 text-[hsl(var(--color-text-secondary))]">
-            No installments found
+            No installments in this period
           </div>
         ) : (
           sortedInstallments.map((inst, idx) => {
