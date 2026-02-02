@@ -228,8 +228,10 @@ export function SidebarPanel({ activities, cases, onRefreshActivities, onRefresh
       })
       alert(result.error)
     } else {
-      // Success - refresh to sync state (case already hidden so feels instant)
+      // Success - refresh both cases and activities (claim creates an activity)
       onRefreshCases()
+      onRefreshActivities()
+      setMarkedAllRead(false) // Reset optimistic read state since we have new activity
     }
     setClaimingId(null)
   }
