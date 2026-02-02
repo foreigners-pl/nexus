@@ -1270,9 +1270,9 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
     cardIds.length > 0
       ? supabase.from('cards').select('id, title, description, due_date, board_id, status_id, boards(id, name), board_statuses(id, name, color)').in('id', cardIds).order('due_date', { ascending: true, nullsFirst: false })
       : Promise.resolve({ data: [] }),
-    // My installments (for pending payments)
+    // My installments (for pending payments) - include case_services for service names
     caseIds.length > 0
-      ? supabase.from('cases').select('id, case_code, clients(first_name, last_name), case_services!fk_case_services_case(total_price), installments!fk_installments_case(id, amount, due_date, paid, label)').in('id', caseIds)
+      ? supabase.from('cases').select('id, case_code, clients(first_name, last_name), case_services!fk_case_services_case(total_price, services(name)), installments!fk_installments_case(id, amount, due_date, paid, created_at, position)').in('id', caseIds)
       : Promise.resolve({ data: [] }),
     // Overdue cases
     caseIds.length > 0
@@ -1381,11 +1381,18 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
   for (const c of myInstallmentsResult.data || []) {
     const client = Array.isArray(c.clients) ? c.clients[0] : c.clients
     const clientName = client ? [client.first_name, client.last_name].filter(Boolean).join(' ') : 'Unknown'
-    const totalPrice = (c.case_services || []).reduce((sum: number, s: any) => sum + (s.total_price || 0), 0)
+    const caseServices = c.case_services || []
+    const totalPrice = caseServices.reduce((sum: number, s: any) => sum + (s.total_price || 0), 0)
     const installments = c.installments || []
     const totalPaid = installments.filter((i: any) => i.paid).reduce((sum: number, i: any) => sum + (i.amount || 0), 0)
     const totalScheduled = installments.reduce((sum: number, i: any) => sum + (i.amount || 0), 0)
     const unscheduled = totalPrice - totalScheduled
+    
+    // Get service names from case_services
+    const serviceNames = caseServices
+      .map((s: any) => s.services?.name)
+      .filter(Boolean)
+      .join(', ') || 'Services'
     
     // Include all cases that have installments (for payment history)
     if (installments.length > 0) {
@@ -1397,12 +1404,18 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
         total_paid: totalPaid,
         total_scheduled: totalScheduled,
         unscheduled: unscheduled,
-        // Include ALL installments, not just unpaid
-        installments: installments.sort((a: any, b: any) => {
-          if (!a.due_date) return 1
-          if (!b.due_date) return -1
-          return new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
-        })
+        service_names: serviceNames,
+        // Include ALL installments with service info
+        installments: installments
+          .sort((a: any, b: any) => {
+            if (!a.due_date) return 1
+            if (!b.due_date) return -1
+            return new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
+          })
+          .map((inst: any) => ({
+            ...inst,
+            service_name: serviceNames
+          }))
       })
     }
   }

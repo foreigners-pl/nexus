@@ -886,7 +886,7 @@ function PendingPaymentsTab({ cases }: { cases: any[] }) {
         case_id: c.case_id,
         case_code: c.case_code,
         client_name: c.client_name,
-        service_name: inst.label || 'Payment'
+        service_name: inst.service_name || c.service_names || 'Payment'
       })
     })
   })
