@@ -1272,7 +1272,7 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
       : Promise.resolve({ data: [] }),
     // My installments (for pending payments) - include case_services for service names
     caseIds.length > 0
-      ? supabase.from('cases').select('id, case_code, clients(first_name, last_name), case_services!fk_case_services_case(total_price, services(name)), installments!fk_installments_case(id, amount, due_date, paid, created_at, position)').in('id', caseIds)
+      ? supabase.from('cases').select('id, case_code, clients(first_name, last_name), case_services(total_price, services(name)), installments(id, amount, due_date, paid, created_at, position)').in('id', caseIds)
       : Promise.resolve({ data: [] }),
     // Overdue cases
     caseIds.length > 0
