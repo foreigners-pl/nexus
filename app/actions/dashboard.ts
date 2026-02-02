@@ -1259,14 +1259,8 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
     supabase.from('card_assignees').select('card_id').eq('user_id', authUser.id)
   ])
 
-  // DEBUG: Log to see what's happening
-  console.log('[DEBUG] authUser.id:', authUser.id)
-  console.log('[DEBUG] caseAssignmentsResult:', JSON.stringify(caseAssignmentsResult))
-
   const caseIds = (caseAssignmentsResult.data || []).map(a => a.case_id)
   const cardIds = (cardAssignmentsResult.data || []).map(a => a.card_id)
-  
-  console.log('[DEBUG] caseIds:', caseIds)
 
   // Now fetch all case-related and card-related data in parallel
   const [
@@ -1546,18 +1540,350 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
       myPayments,
       myOverdue: { cases: overdueCases, tasks: overdueTasks, payments: overduePayments },
       todayCount,
-      todayCounts: { cases: todayCasesCount, tasks: todayTasksCount, payments: todayPaymentsCount },
-      // DEBUG - remove after fixing
-      _debug: {
-        authUserId: authUser.id,
-        caseAssignmentsResult: caseAssignmentsResult,
-        caseIds: caseIds,
-        myCasesResultData: myCasesResult.data,
-        myCasesResultError: 'error' in myCasesResult ? myCasesResult.error : null,
-        installmentsDataCount: installmentsData.length,
-        installmentsFirstCase: installmentsData.length > 0 ? installmentsData[0] : null,
-        myPaymentsCount: myPayments.length
-      }
+      todayCounts: { cases: todayCasesCount, tasks: todayTasksCount, payments: todayPaymentsCount }
     }
   }
+}
+
+// ============================================
+// FAST INITIAL LOAD - Just what's visible first
+// ============================================
+
+export interface EssentialDashboardData {
+  user: User | null
+  activities: ActivityLog[]
+  unassignedCases: any[]
+  todayCount: number
+  todayCounts: { cases: number; tasks: number; payments: number }
+}
+
+export async function getEssentialDashboardData(): Promise<{ data: EssentialDashboardData; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user: authUser } } = await supabase.auth.getUser()
+  
+  if (!authUser) {
+    return { 
+      data: {
+        user: null,
+        activities: [],
+        unassignedCases: [],
+        todayCount: 0,
+        todayCounts: { cases: 0, tasks: 0, payments: 0 }
+      },
+      error: 'Not authenticated' 
+    }
+  }
+
+  // Use local date formatting
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  const tomorrow = new Date(today)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`
+
+  // Fetch ONLY what's needed for initial view - all in parallel
+  const [
+    userResult,
+    activitiesResult,
+    allCasesResult,
+    caseAssignmentsResult,
+    cardAssignmentsResult
+  ] = await Promise.all([
+    supabase.from('users').select('*').eq('id', authUser.id).single(),
+    supabase.from('activity_log').select('*').eq('user_id', authUser.id).order('created_at', { ascending: false }).limit(15),
+    supabase.from('cases').select('id, case_code, created_at, clients(first_name, last_name, contact_email), case_assignees(user_id)').order('created_at', { ascending: false }),
+    supabase.from('case_assignees').select('case_id').eq('user_id', authUser.id),
+    supabase.from('card_assignees').select('card_id').eq('user_id', authUser.id)
+  ])
+
+  const caseIds = (caseAssignmentsResult.data || []).map(a => a.case_id)
+  const cardIds = (cardAssignmentsResult.data || []).map(a => a.card_id)
+
+  // Get today counts in parallel - these are fast count queries
+  const [todayCasesResult, todayCardsResult, todayInstallmentsResult] = await Promise.all([
+    caseIds.length > 0
+      ? supabase.from('cases').select('id', { count: 'exact', head: true }).in('id', caseIds).gte('due_date', todayStr).lt('due_date', tomorrowStr)
+      : Promise.resolve({ count: 0 }),
+    cardIds.length > 0
+      ? supabase.from('cards').select('id', { count: 'exact', head: true }).in('id', cardIds).gte('due_date', todayStr).lt('due_date', tomorrowStr)
+      : Promise.resolve({ count: 0 }),
+    caseIds.length > 0
+      ? supabase.from('installments').select('id', { count: 'exact', head: true }).in('case_id', caseIds).eq('paid', false).gte('due_date', todayStr).lt('due_date', tomorrowStr)
+      : Promise.resolve({ count: 0 })
+  ])
+
+  // Process unassigned cases
+  const unassignedCases = (allCasesResult.data || []).filter(
+    c => !c.case_assignees || c.case_assignees.length === 0
+  )
+
+  const todayCasesCount = todayCasesResult.count || 0
+  const todayTasksCount = todayCardsResult.count || 0
+  const todayPaymentsCount = todayInstallmentsResult.count || 0
+
+  return {
+    data: {
+      user: userResult.data,
+      activities: activitiesResult.data || [],
+      unassignedCases,
+      todayCount: todayCasesCount + todayTasksCount + todayPaymentsCount,
+      todayCounts: { cases: todayCasesCount, tasks: todayTasksCount, payments: todayPaymentsCount }
+    }
+  }
+}
+
+// ============================================
+// SECONDARY LOAD - Tab data loaded on demand
+// ============================================
+
+export async function getMyCasesData(): Promise<{ myCases: any[]; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user: authUser } } = await supabase.auth.getUser()
+  
+  if (!authUser) return { myCases: [], error: 'Not authenticated' }
+
+  const { data: assignments } = await supabase.from('case_assignees').select('case_id').eq('user_id', authUser.id)
+  const caseIds = (assignments || []).map(a => a.case_id)
+  
+  if (caseIds.length === 0) return { myCases: [] }
+
+  const { data: cases } = await supabase
+    .from('cases')
+    .select('id, case_code, created_at, due_date, status:status_id(id, name), clients(id, first_name, last_name, contact_email, contact_numbers(id, number, country_code)), case_services!fk_case_services_case(id, services(id, name))')
+    .in('id', caseIds)
+    .order('created_at', { ascending: false })
+
+  // Get last activity for each case
+  const { data: lastActivities } = await supabase
+    .from('activity_log')
+    .select('entity_id, created_at')
+    .eq('entity_type', 'case')
+    .in('entity_id', caseIds)
+    .order('created_at', { ascending: false })
+  
+  const caseLastActivityMap: Record<string, string | null> = {}
+  for (const activity of lastActivities || []) {
+    if (!caseLastActivityMap[activity.entity_id]) {
+      caseLastActivityMap[activity.entity_id] = activity.created_at
+    }
+  }
+
+  const myCases = (cases || []).map(c => {
+    const client = Array.isArray(c.clients) ? c.clients[0] || null : c.clients
+    return {
+      id: c.id,
+      case_code: c.case_code,
+      created_at: c.created_at,
+      due_date: c.due_date,
+      last_activity: caseLastActivityMap[c.id] || null,
+      status: Array.isArray(c.status) ? c.status[0] || null : c.status,
+      clients: client ? {
+        ...client,
+        contact_numbers: Array.isArray(client.contact_numbers) ? client.contact_numbers : []
+      } : null,
+      case_services: Array.isArray(c.case_services) ? c.case_services : []
+    }
+  })
+
+  return { myCases }
+}
+
+export async function getMyTasksData(): Promise<{ myTasks: any[]; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user: authUser } } = await supabase.auth.getUser()
+  
+  if (!authUser) return { myTasks: [], error: 'Not authenticated' }
+
+  const { data: assignments } = await supabase.from('card_assignees').select('card_id').eq('user_id', authUser.id)
+  const cardIds = (assignments || []).map(a => a.card_id)
+  
+  if (cardIds.length === 0) return { myTasks: [] }
+
+  const { data: cards } = await supabase
+    .from('cards')
+    .select('id, title, description, due_date, board_id, status_id, boards(id, name), board_statuses(id, name, color, position)')
+    .in('id', cardIds)
+    .order('due_date', { ascending: true, nullsFirst: false })
+
+  // Get final statuses to filter out completed tasks
+  const boardIds = [...new Set((cards || []).map(t => t.board_id))]
+  const finalStatusIds = new Set<string>()
+  
+  for (const boardId of boardIds) {
+    const { data: statuses } = await supabase
+      .from('board_statuses')
+      .select('id')
+      .eq('board_id', boardId)
+      .order('position', { ascending: false })
+      .limit(1)
+    if (statuses?.[0]) finalStatusIds.add(statuses[0].id)
+  }
+
+  const myTasks = (cards || [])
+    .filter(t => !finalStatusIds.has(t.status_id))
+    .map(t => ({
+      id: t.id,
+      title: t.title,
+      description: t.description,
+      due_date: t.due_date,
+      board_id: t.board_id,
+      status_id: t.status_id,
+      boards: Array.isArray(t.boards) ? t.boards[0] || null : t.boards,
+      board_statuses: Array.isArray(t.board_statuses) ? t.board_statuses[0] || null : t.board_statuses
+    }))
+
+  return { myTasks }
+}
+
+export async function getMyPaymentsData(): Promise<{ myPayments: any[]; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user: authUser } } = await supabase.auth.getUser()
+  
+  if (!authUser) return { myPayments: [], error: 'Not authenticated' }
+
+  const { data: assignments } = await supabase.from('case_assignees').select('case_id').eq('user_id', authUser.id)
+  const caseIds = (assignments || []).map(a => a.case_id)
+  
+  if (caseIds.length === 0) return { myPayments: [] }
+
+  // Get cases with their services for pricing info
+  const { data: cases } = await supabase
+    .from('cases')
+    .select('id, case_code, clients(first_name, last_name), case_services!fk_case_services_case(total_price, services(name))')
+    .in('id', caseIds)
+
+  // Get all installments
+  const { data: installments } = await supabase
+    .from('installments')
+    .select('*')
+    .in('case_id', caseIds)
+
+  // Build case info map
+  const caseInfoMap = new Map<string, any>()
+  for (const c of cases || []) {
+    const client = Array.isArray(c.clients) ? c.clients[0] : c.clients
+    const clientName = client ? [client.first_name, client.last_name].filter(Boolean).join(' ') : 'Unknown'
+    const caseServices = c.case_services || []
+    const serviceNames = caseServices.map((s: any) => s.services?.name).filter(Boolean).join(', ') || 'Services'
+    const totalPrice = caseServices.reduce((sum: number, s: any) => sum + (s.total_price || 0), 0)
+    caseInfoMap.set(c.id, { case_code: c.case_code, client_name: clientName, service_names: serviceNames, total_price: totalPrice })
+  }
+
+  // Group installments by case
+  const caseInstallmentsMap = new Map<string, any[]>()
+  for (const inst of installments || []) {
+    if (!inst.amount || inst.amount <= 0) continue
+    if (!caseInstallmentsMap.has(inst.case_id)) caseInstallmentsMap.set(inst.case_id, [])
+    caseInstallmentsMap.get(inst.case_id)!.push(inst)
+  }
+
+  const myPayments: any[] = []
+  for (const [caseId, insts] of caseInstallmentsMap) {
+    const caseInfo = caseInfoMap.get(caseId) || { case_code: 'Unknown', client_name: 'Unknown', service_names: 'Services', total_price: 0 }
+    const totalPaid = insts.filter(i => i.paid).reduce((sum, i) => sum + (i.amount || 0), 0)
+    const totalScheduled = insts.reduce((sum, i) => sum + (i.amount || 0), 0)
+    
+    myPayments.push({
+      case_id: caseId,
+      case_code: caseInfo.case_code,
+      client_name: caseInfo.client_name,
+      total_price: caseInfo.total_price,
+      total_paid: totalPaid,
+      total_scheduled: totalScheduled,
+      unscheduled: caseInfo.total_price - totalScheduled,
+      service_names: caseInfo.service_names,
+      installments: insts.sort((a, b) => {
+        if (!a.due_date) return 1
+        if (!b.due_date) return -1
+        return new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
+      }).map(inst => ({ ...inst, service_name: caseInfo.service_names }))
+    })
+  }
+
+  return { myPayments }
+}
+
+export async function getMyOverdueData(): Promise<{ myOverdue: { cases: any[]; tasks: any[]; payments: any[] }; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user: authUser } } = await supabase.auth.getUser()
+  
+  if (!authUser) return { myOverdue: { cases: [], tasks: [], payments: [] }, error: 'Not authenticated' }
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+
+  const calcDaysOverdue = (dateStr: string) => {
+    const date = new Date(dateStr)
+    return Math.floor((today.getTime() - date.getTime()) / (1000 * 60 * 60 * 24))
+  }
+
+  // Get assignments
+  const [caseAssignments, cardAssignments] = await Promise.all([
+    supabase.from('case_assignees').select('case_id').eq('user_id', authUser.id),
+    supabase.from('card_assignees').select('card_id').eq('user_id', authUser.id)
+  ])
+
+  const caseIds = (caseAssignments.data || []).map(a => a.case_id)
+  const cardIds = (cardAssignments.data || []).map(a => a.card_id)
+
+  // Fetch overdue items in parallel
+  const [overdueCasesResult, overdueCardsResult, overdueInstallmentsResult] = await Promise.all([
+    caseIds.length > 0
+      ? supabase.from('cases').select('id, case_code, due_date, clients(first_name, last_name)').in('id', caseIds).lt('due_date', todayStr)
+      : Promise.resolve({ data: [] }),
+    cardIds.length > 0
+      ? supabase.from('cards').select('id, title, due_date, board_id, status_id, boards(name)').in('id', cardIds).lt('due_date', todayStr)
+      : Promise.resolve({ data: [] }),
+    caseIds.length > 0
+      ? supabase.from('installments').select('id, amount, due_date, case_id, cases!fk_installments_case(case_code, clients(first_name, last_name))').in('case_id', caseIds).eq('paid', false).lt('due_date', todayStr)
+      : Promise.resolve({ data: [] })
+  ])
+
+  const overdueCases = (overdueCasesResult.data || []).map(c => {
+    const client = Array.isArray(c.clients) ? c.clients[0] : c.clients
+    return {
+      id: c.id,
+      case_code: c.case_code,
+      due_date: c.due_date!,
+      client_name: client ? [client.first_name, client.last_name].filter(Boolean).join(' ') : 'Unknown',
+      days_overdue: calcDaysOverdue(c.due_date!)
+    }
+  })
+
+  // Filter completed tasks from overdue
+  const boardIds = [...new Set((overdueCardsResult.data || []).map((t: any) => t.board_id))]
+  const finalStatusIds = new Set<string>()
+  for (const boardId of boardIds) {
+    const { data: statuses } = await supabase.from('board_statuses').select('id').eq('board_id', boardId).order('position', { ascending: false }).limit(1)
+    if (statuses?.[0]) finalStatusIds.add(statuses[0].id)
+  }
+
+  const overdueTasks = (overdueCardsResult.data || [])
+    .filter((t: any) => !finalStatusIds.has(t.status_id))
+    .map((t: any) => ({
+      id: t.id,
+      title: t.title,
+      due_date: t.due_date!,
+      board_id: t.board_id,
+      board_name: (Array.isArray(t.boards) ? t.boards[0] : t.boards)?.name || 'Unknown',
+      days_overdue: calcDaysOverdue(t.due_date!)
+    }))
+
+  const overduePayments = (overdueInstallmentsResult.data || []).map(p => {
+    const caseData = Array.isArray(p.cases) ? p.cases[0] : p.cases
+    const client = Array.isArray(caseData?.clients) ? caseData?.clients[0] : caseData?.clients
+    return {
+      id: p.id,
+      case_id: p.case_id,
+      case_code: caseData?.case_code || null,
+      client_name: client ? [client.first_name, client.last_name].filter(Boolean).join(' ') : 'Unknown',
+      amount: p.amount,
+      due_date: p.due_date!,
+      days_overdue: calcDaysOverdue(p.due_date!)
+    }
+  })
+
+  return { myOverdue: { cases: overdueCases, tasks: overdueTasks, payments: overduePayments } }
 }

@@ -90,15 +90,12 @@ interface DashboardPanelProps {
   myOverdue: { cases: any[]; tasks: any[]; payments: any[] }
   todayCount: number
   todayCounts: { cases: number; tasks: number; payments: number }
+  onPrefetchTab?: (tabId: string) => void
 }
 
-export function DashboardPanel({ myCases, myTasks, myPayments, myOverdue, todayCount, todayCounts }: DashboardPanelProps) {
+export function DashboardPanel({ myCases, myTasks, myPayments, myOverdue, todayCount, todayCounts, onPrefetchTab }: DashboardPanelProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabType>('timeline')
-
-  // DEBUG: Log what data we receive
-  console.log('[DashboardPanel] myCases received:', myCases)
-  console.log('[DashboardPanel] myCases.length:', myCases.length)
 
   // Calculate counts from actual data
   const overdueTotal = myOverdue.cases.length + myOverdue.tasks.length + myOverdue.payments.length
@@ -177,6 +174,7 @@ export function DashboardPanel({ myCases, myTasks, myPayments, myOverdue, todayC
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
+              onMouseEnter={() => onPrefetchTab?.(tab.id)}
               className={cn(
                 "flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-300 cursor-pointer",
                 "border backdrop-blur-sm",

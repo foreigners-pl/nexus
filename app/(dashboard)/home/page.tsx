@@ -1,10 +1,14 @@
 ﻿'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { DashboardPanel } from './components/DashboardPanel'
 import { SidebarPanel } from './components/SidebarPanel'
 import { 
-  getAllDashboardData,
+  getEssentialDashboardData,
+  getMyCasesData,
+  getMyTasksData,
+  getMyPaymentsData,
+  getMyOverdueData,
   getMyActivities, 
   getUnassignedCases,
   type DashboardData
@@ -33,16 +37,133 @@ function formatDate(): string {
   })
 }
 
+// Track which data has been prefetched to avoid duplicate fetches
+const prefetchedTabs = new Set<string>()
+
 export default function HomePage() {
   const { getCached: getCachedDashboard, setCached: setCachedDashboard } = useDashboardCache()
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(() => {
-    // Try to initialize from cache synchronously (will be null on first render but fast on navigation)
-    return null
-  })
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(() => null)
   const [loading, setLoading] = useState(true)
 
+  // Load essential data first (visible content), then background load the rest
   useEffect(() => {
-    loadDashboardData()
+    loadData()
+  }, [])
+
+  async function loadData() {
+    // Check cache first
+    const cached = getCachedDashboard()
+    if (cached?.data) {
+      setDashboardData(cached.data)
+      setLoading(false)
+      // Background refresh
+      refreshAllData()
+      return
+    }
+    
+    // PHASE 1: Load essential data FAST (what user sees first)
+    setLoading(true)
+    const essential = await getEssentialDashboardData()
+    
+    if (essential.data) {
+      // Show UI immediately with essential data + empty placeholders for tabs
+      setDashboardData({
+        user: essential.data.user,
+        activities: essential.data.activities,
+        unassignedCases: essential.data.unassignedCases,
+        myCases: [],
+        myTasks: [],
+        myPayments: [],
+        myOverdue: { cases: [], tasks: [], payments: [] },
+        todayCount: essential.data.todayCount,
+        todayCounts: essential.data.todayCounts
+      })
+      setLoading(false)
+      
+      // PHASE 2: Load tab data in background (not blocking UI)
+      loadBackgroundData()
+    }
+  }
+
+  async function loadBackgroundData() {
+    // Load all secondary data in parallel
+    const [casesResult, tasksResult, paymentsResult, overdueResult] = await Promise.all([
+      getMyCasesData(),
+      getMyTasksData(),
+      getMyPaymentsData(),
+      getMyOverdueData()
+    ])
+
+    setDashboardData(prev => {
+      if (!prev) return prev
+      const updated = {
+        ...prev,
+        myCases: casesResult.myCases || [],
+        myTasks: tasksResult.myTasks || [],
+        myPayments: paymentsResult.myPayments || [],
+        myOverdue: overdueResult.myOverdue || { cases: [], tasks: [], payments: [] }
+      }
+      // Cache the complete data
+      setCachedDashboard({ data: updated })
+      return updated
+    })
+    
+    // Mark all as prefetched
+    prefetchedTabs.add('cases')
+    prefetchedTabs.add('tasks')
+    prefetchedTabs.add('payments')
+    prefetchedTabs.add('overdue')
+  }
+
+  async function refreshAllData() {
+    const [essential, casesResult, tasksResult, paymentsResult, overdueResult] = await Promise.all([
+      getEssentialDashboardData(),
+      getMyCasesData(),
+      getMyTasksData(),
+      getMyPaymentsData(),
+      getMyOverdueData()
+    ])
+
+    if (essential.data) {
+      const updated = {
+        user: essential.data.user,
+        activities: essential.data.activities,
+        unassignedCases: essential.data.unassignedCases,
+        myCases: casesResult.myCases || [],
+        myTasks: tasksResult.myTasks || [],
+        myPayments: paymentsResult.myPayments || [],
+        myOverdue: overdueResult.myOverdue || { cases: [], tasks: [], payments: [] },
+        todayCount: essential.data.todayCount,
+        todayCounts: essential.data.todayCounts
+      }
+      setDashboardData(updated)
+      setCachedDashboard({ data: updated })
+    }
+  }
+
+  // Prefetch data when hovering over tabs
+  const prefetchTab = useCallback(async (tabId: string) => {
+    if (prefetchedTabs.has(tabId)) return
+    prefetchedTabs.add(tabId)
+    
+    switch (tabId) {
+      case 'cases':
+        const casesResult = await getMyCasesData()
+        setDashboardData(prev => prev ? { ...prev, myCases: casesResult.myCases || [] } : prev)
+        break
+      case 'tasks':
+        const tasksResult = await getMyTasksData()
+        setDashboardData(prev => prev ? { ...prev, myTasks: tasksResult.myTasks || [] } : prev)
+        break
+      case 'payments':
+        const paymentsResult = await getMyPaymentsData()
+        setDashboardData(prev => prev ? { ...prev, myPayments: paymentsResult.myPayments || [] } : prev)
+        break
+      case 'overdue':
+        const overdueResult = await getMyOverdueData()
+        setDashboardData(prev => prev ? { ...prev, myOverdue: overdueResult.myOverdue || { cases: [], tasks: [], payments: [] } } : prev)
+        break
+    }
   }, [])
 
   // Real-time subscription for activity updates
@@ -85,37 +206,6 @@ export default function HomePage() {
       supabase.removeChannel(channel)
     }
   }, [dashboardData?.user?.id])
-
-  async function loadDashboardData() {
-    // Try to use cached data first for instant loading
-    const cached = getCachedDashboard()
-    if (cached?.data) {
-      setDashboardData(cached.data)
-      setLoading(false)
-      // Still refresh in background
-      getAllDashboardData().then(result => {
-        console.log('[HomePage] getAllDashboardData result:', result)
-        console.log('[HomePage] myCases from result:', result.data?.myCases)
-        console.log('[HomePage] DEBUG INFO:', (result.data as any)?._debug)
-        if (result.data) {
-          setDashboardData(result.data)
-          setCachedDashboard(result)
-        }
-      })
-      return
-    }
-    
-    setLoading(true)
-    const result = await getAllDashboardData()
-    console.log('[HomePage] getAllDashboardData result:', result)
-    console.log('[HomePage] myCases from result:', result.data?.myCases)
-    console.log('[HomePage] DEBUG INFO:', (result.data as any)?._debug)
-    if (result.data) {
-      setDashboardData(result.data)
-      setCachedDashboard(result)
-    }
-    setLoading(false)
-  }
 
   const refreshActivities = async () => {
     const result = await getMyActivities(15)
@@ -217,6 +307,7 @@ export default function HomePage() {
             myOverdue={dashboardData.myOverdue}
             todayCount={dashboardData.todayCount}
             todayCounts={dashboardData.todayCounts}
+            onPrefetchTab={prefetchTab}
           />
         </div>
 
