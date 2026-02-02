@@ -1376,7 +1376,7 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
       board_statuses: Array.isArray(t.board_statuses) ? t.board_statuses[0] || null : t.board_statuses
     }))
 
-  // Process pending payments
+  // Process pending payments - include ALL installments for the Payments tab history
   const myPayments: any[] = []
   for (const c of myInstallmentsResult.data || []) {
     const client = Array.isArray(c.clients) ? c.clients[0] : c.clients
@@ -1386,9 +1386,9 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
     const totalPaid = installments.filter((i: any) => i.paid).reduce((sum: number, i: any) => sum + (i.amount || 0), 0)
     const totalScheduled = installments.reduce((sum: number, i: any) => sum + (i.amount || 0), 0)
     const unscheduled = totalPrice - totalScheduled
-    const hasUnpaid = installments.some((i: any) => !i.paid)
     
-    if (hasUnpaid || unscheduled > 0) {
+    // Include all cases that have installments (for payment history)
+    if (installments.length > 0) {
       myPayments.push({
         case_id: c.id,
         case_code: c.case_code,
@@ -1397,7 +1397,8 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
         total_paid: totalPaid,
         total_scheduled: totalScheduled,
         unscheduled: unscheduled,
-        installments: installments.filter((i: any) => !i.paid).sort((a: any, b: any) => {
+        // Include ALL installments, not just unpaid
+        installments: installments.sort((a: any, b: any) => {
           if (!a.due_date) return 1
           if (!b.due_date) return -1
           return new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
