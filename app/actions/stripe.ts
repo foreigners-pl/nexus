@@ -392,6 +392,32 @@ export async function markStripeInvoicePaid(invoiceId: string): Promise<{ succes
   }
 
   try {
+    // First check if already paid in Stripe
+    const stripeInvoice = await getStripe().invoices.retrieve(invoice.stripe_invoice_id)
+    
+    if (stripeInvoice.status === 'paid') {
+      // Already paid in Stripe - just sync our local database
+      await supabase
+        .from('invoices')
+        .update({
+          status: 'paid',
+          paid_at: stripeInvoice.status_transitions?.paid_at 
+            ? new Date(stripeInvoice.status_transitions.paid_at * 1000).toISOString() 
+            : new Date().toISOString(),
+        })
+        .eq('id', invoiceId)
+
+      if (invoice.installment_id) {
+        await supabase
+          .from('installments')
+          .update({ paid: true })
+          .eq('id', invoice.installment_id)
+      }
+
+      revalidatePath(`/cases/${invoice.case_id}`)
+      return { success: true }
+    }
+
     // Mark as paid in Stripe - this sends a receipt to the customer automatically
     await getStripe().invoices.pay(invoice.stripe_invoice_id, {
       paid_out_of_band: true,
@@ -694,4 +720,97 @@ export async function syncInvoiceStatus(invoiceId: string): Promise<{ status?: s
     console.error('Stripe status sync failed:', err)
     return { error: err.message || 'Failed to sync invoice status' }
   }
+}
+
+/**
+ * Bulk sync all invoices with Stripe to update their payment status
+ * Use this to catch up on invoices that were paid before webhooks were set up
+ */
+export async function bulkSyncInvoiceStatuses(): Promise<{ 
+  synced: number; 
+  errors: string[]; 
+  alreadyPaid: number;
+  nowPaid: number;
+}> {
+  if (!isStripeConfigured()) {
+    return { synced: 0, errors: ['Stripe is not configured'], alreadyPaid: 0, nowPaid: 0 }
+  }
+  
+  const supabase = await createClient()
+  
+  // Get all invoices that have a stripe_invoice_id and are not yet marked as paid
+  const { data: invoices, error } = await supabase
+    .from('invoices')
+    .select('id, stripe_invoice_id, status, case_id, installment_id')
+    .not('stripe_invoice_id', 'is', null)
+  
+  if (error || !invoices) {
+    return { synced: 0, errors: [error?.message || 'Failed to fetch invoices'], alreadyPaid: 0, nowPaid: 0 }
+  }
+  
+  let synced = 0
+  let alreadyPaid = 0
+  let nowPaid = 0
+  const errors: string[] = []
+  
+  for (const invoice of invoices) {
+    try {
+      const stripeInvoice = await getStripe().invoices.retrieve(invoice.stripe_invoice_id!)
+      
+      // Map Stripe status to our status
+      let newStatus: 'draft' | 'sent' | 'paid' | 'cancelled' = 'draft'
+      if (stripeInvoice.status === 'paid') {
+        newStatus = 'paid'
+      } else if (stripeInvoice.status === 'open') {
+        newStatus = 'sent'
+      } else if (stripeInvoice.status === 'void' || stripeInvoice.status === 'uncollectible') {
+        newStatus = 'cancelled'
+      } else if (stripeInvoice.status === 'draft') {
+        newStatus = 'draft'
+      }
+      
+      const isPaid = newStatus === 'paid'
+      const wasAlreadyPaid = invoice.status === 'paid'
+      
+      if (wasAlreadyPaid) {
+        alreadyPaid++
+      } else if (isPaid) {
+        nowPaid++
+      }
+      
+      // Update invoice status
+      await supabase
+        .from('invoices')
+        .update({
+          status: newStatus,
+          paid_at: isPaid && stripeInvoice.status_transitions?.paid_at 
+            ? new Date(stripeInvoice.status_transitions.paid_at * 1000).toISOString() 
+            : (isPaid ? new Date().toISOString() : null),
+          stripe_hosted_invoice_url: stripeInvoice.hosted_invoice_url,
+          stripe_invoice_pdf: stripeInvoice.invoice_pdf,
+        })
+        .eq('id', invoice.id)
+      
+      // If paid, also mark installment as paid
+      if (isPaid && invoice.installment_id) {
+        await supabase
+          .from('installments')
+          .update({ paid: true })
+          .eq('id', invoice.installment_id)
+      }
+      
+      synced++
+      
+      // Add a small delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+    } catch (err: any) {
+      errors.push(`Invoice ${invoice.id}: ${err.message}`)
+    }
+  }
+  
+  // Revalidate the home page to show updated data
+  revalidatePath('/home')
+  
+  return { synced, errors, alreadyPaid, nowPaid }
 }

@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { updateUserProfile } from '@/app/actions/users'
 import { toggleActivityPreference } from '@/app/actions/settings'
+import { bulkSyncInvoiceStatuses } from '@/app/actions/stripe'
 import { 
   ACTIVITY_TYPES, 
   CATEGORY_INFO,
@@ -42,6 +43,10 @@ export function SettingsContent({ initialProfile, initialPreferences }: Settings
   const [confirmPassword, setConfirmPassword] = useState('')
   const [savingPassword, setSavingPassword] = useState(false)
   const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+
+  // Stripe sync state
+  const [syncingStripe, setSyncingStripe] = useState(false)
+  const [stripeMessage, setStripeMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null)
 
   // Activity preferences state - use defaults if empty or null
   // Always use defaults for new users or when preferences are empty
@@ -156,6 +161,31 @@ export function SettingsContent({ initialProfile, initialPreferences }: Settings
     }
     
     setSavingActivity(null)
+  }
+
+  const handleSyncStripe = async () => {
+    setSyncingStripe(true)
+    setStripeMessage({ type: 'info', text: 'Syncing invoices with Stripe...' })
+    
+    const result = await bulkSyncInvoiceStatuses()
+    
+    if (result.errors.length > 0 && result.synced === 0) {
+      setStripeMessage({ type: 'error', text: result.errors[0] })
+    } else {
+      const parts = []
+      if (result.synced > 0) parts.push(`${result.synced} invoices synced`)
+      if (result.nowPaid > 0) parts.push(`${result.nowPaid} newly marked as paid`)
+      if (result.alreadyPaid > 0) parts.push(`${result.alreadyPaid} already paid`)
+      if (result.errors.length > 0) parts.push(`${result.errors.length} errors`)
+      
+      setStripeMessage({ 
+        type: result.nowPaid > 0 ? 'success' : 'info', 
+        text: parts.join(', ') || 'No invoices to sync'
+      })
+      setTimeout(() => setStripeMessage(null), 8000)
+    }
+    
+    setSyncingStripe(false)
   }
 
   // Toggle component
@@ -444,6 +474,44 @@ export function SettingsContent({ initialProfile, initialPreferences }: Settings
               >
                 Test
               </button>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* Stripe Sync Section */}
+      <Card>
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-indigo-600/10 border border-indigo-500/30 flex items-center justify-center">
+                <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-[hsl(var(--color-text-primary))]">Stripe Sync</h3>
+                <p className="text-sm text-[hsl(var(--color-text-secondary))]">Sync payment status from Stripe for all invoices</p>
+              </div>
+            </div>
+            <Button 
+              onClick={handleSyncStripe} 
+              disabled={syncingStripe}
+              variant="secondary"
+            >
+              {syncingStripe ? 'Syncing...' : 'Sync Now'}
+            </Button>
+          </div>
+          
+          {stripeMessage && (
+            <div className={`text-sm px-3 py-2 rounded-lg ${
+              stripeMessage.type === 'success' 
+                ? 'bg-green-500/10 text-green-400 border border-green-500/20' 
+                : stripeMessage.type === 'error'
+                ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+            }`}>
+              {stripeMessage.text}
             </div>
           )}
         </div>
