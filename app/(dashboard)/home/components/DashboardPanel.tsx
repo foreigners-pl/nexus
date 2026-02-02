@@ -660,16 +660,16 @@ function MyCasesTab({ cases }: { cases: any[] }) {
         bVal = b.case_code || ''
         break
       case 'services':
-        aVal = a.case_services?.length || 0
-        bVal = b.case_services?.length || 0
+        aVal = (a.case_services || []).map((s: any) => s.services?.name).filter(Boolean).join(', ').toLowerCase()
+        bVal = (b.case_services || []).map((s: any) => s.services?.name).filter(Boolean).join(', ').toLowerCase()
         break
       case 'due_date':
         aVal = a.due_date ? new Date(a.due_date).getTime() : Infinity
         bVal = b.due_date ? new Date(b.due_date).getTime() : Infinity
         break
       case 'last_interacted':
-        aVal = a.last_activity ? new Date(a.last_activity).getTime() : 0
-        bVal = b.last_activity ? new Date(b.last_activity).getTime() : 0
+        aVal = new Date(a.last_activity || a.created_at).getTime()
+        bVal = new Date(b.last_activity || b.created_at).getTime()
         break
     }
     
@@ -750,7 +750,7 @@ function MyCasesTab({ cases }: { cases: any[] }) {
                   {c.due_date ? formatDueDate(c.due_date) : <span className="italic">No due date</span>}
                 </div>
                 <div className="col-span-2 text-sm text-[hsl(var(--color-text-secondary))] truncate">
-                  {c.last_activity ? new Date(c.last_activity).toLocaleDateString() : <span className="italic">No activity</span>}
+                  {new Date(c.last_activity || c.created_at).toLocaleDateString()}
                 </div>
               </div>
             )
