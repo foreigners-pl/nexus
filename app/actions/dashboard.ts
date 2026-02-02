@@ -1193,6 +1193,7 @@ export interface DashboardData {
   myOverdue: { cases: any[]; tasks: any[]; payments: any[] }
   todayCount: number
   todayCounts: { cases: number; tasks: number; payments: number }
+  _debug?: any // Temporary debug field
 }
 
 export async function getAllDashboardData(): Promise<{ data: DashboardData; error?: string }> {
