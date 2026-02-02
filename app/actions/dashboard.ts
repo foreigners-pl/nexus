@@ -1270,9 +1270,9 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
     cardIds.length > 0
       ? supabase.from('cards').select('id, title, description, due_date, board_id, status_id, boards(id, name), board_statuses(id, name, color)').in('id', cardIds).order('due_date', { ascending: true, nullsFirst: false })
       : Promise.resolve({ data: [] }),
-    // My installments (for pending payments) - include case_services for service names
+    // My installments (for pending payments) - query installments directly
     caseIds.length > 0
-      ? supabase.from('cases').select('id, case_code, clients(first_name, last_name), case_services(total_price, services(name)), installments(id, amount, due_date, paid, created_at, position)').in('id', caseIds)
+      ? supabase.from('installments').select('id, amount, due_date, paid, created_at, position, case_id, cases!inner(id, case_code, clients(first_name, last_name), case_services(total_price, services(name)))').in('case_id', caseIds)
       : Promise.resolve({ data: [] }),
     // Overdue cases
     caseIds.length > 0
@@ -1376,27 +1376,44 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
       board_statuses: Array.isArray(t.board_statuses) ? t.board_statuses[0] || null : t.board_statuses
     }))
 
-  // Process pending payments - include ALL installments for the Payments tab history
+  // Process pending payments - query returns installments with nested case info
   // DEBUG: Log the raw installments data
   const installmentsData = myInstallmentsResult?.data || []
-  console.log('[Dashboard] myInstallmentsResult data count:', installmentsData.length)
+  console.log('[Dashboard] installmentsData count:', installmentsData.length)
   if (installmentsData.length > 0) {
-    console.log('[Dashboard] First case from myInstallmentsResult:', JSON.stringify(installmentsData[0], null, 2))
+    console.log('[Dashboard] First installment:', JSON.stringify(installmentsData[0], null, 2))
+  }
+  
+  // Group installments by case
+  const caseInstallmentsMap = new Map<string, { caseInfo: any, installments: any[] }>()
+  
+  for (const inst of installmentsData) {
+    const caseInfo = inst.cases
+    if (!caseInfo) continue
+    
+    const caseId = inst.case_id
+    if (!caseInstallmentsMap.has(caseId)) {
+      caseInstallmentsMap.set(caseId, { caseInfo, installments: [] })
+    }
+    caseInstallmentsMap.get(caseId)!.installments.push({
+      id: inst.id,
+      amount: inst.amount,
+      due_date: inst.due_date,
+      paid: inst.paid,
+      created_at: inst.created_at,
+      position: inst.position
+    })
   }
   
   const myPayments: any[] = []
-  for (const c of installmentsData) {
-    const client = Array.isArray(c.clients) ? c.clients[0] : c.clients
+  for (const [caseId, { caseInfo, installments }] of caseInstallmentsMap) {
+    const client = Array.isArray(caseInfo.clients) ? caseInfo.clients[0] : caseInfo.clients
     const clientName = client ? [client.first_name, client.last_name].filter(Boolean).join(' ') : 'Unknown'
-    const caseServices = c.case_services || []
+    const caseServices = caseInfo.case_services || []
     const totalPrice = caseServices.reduce((sum: number, s: any) => sum + (s.total_price || 0), 0)
-    const installments = c.installments || []
     const totalPaid = installments.filter((i: any) => i.paid).reduce((sum: number, i: any) => sum + (i.amount || 0), 0)
     const totalScheduled = installments.reduce((sum: number, i: any) => sum + (i.amount || 0), 0)
     const unscheduled = totalPrice - totalScheduled
-    
-    // DEBUG: Log each case's installments
-    console.log('[Dashboard] Case', c.id, 'case_code:', c.case_code, 'installments:', c.installments, 'count:', installments.length)
     
     // Get service names from case_services
     const serviceNames = caseServices
@@ -1404,35 +1421,30 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
       .filter(Boolean)
       .join(', ') || 'Services'
     
-    // Include all cases that have installments (for payment history)
-    if (installments.length > 0) {
-      myPayments.push({
-        case_id: c.id,
-        case_code: c.case_code,
-        client_name: clientName,
-        total_price: totalPrice,
-        total_paid: totalPaid,
-        total_scheduled: totalScheduled,
-        unscheduled: unscheduled,
-        service_names: serviceNames,
-        // Include ALL installments with service info
-        installments: installments
-          .sort((a: any, b: any) => {
-            if (!a.due_date) return 1
-            if (!b.due_date) return -1
-            return new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
-          })
-          .map((inst: any) => ({
-            ...inst,
-            service_name: serviceNames
-          }))
-      })
-    }
+    myPayments.push({
+      case_id: caseId,
+      case_code: caseInfo.case_code,
+      client_name: clientName,
+      total_price: totalPrice,
+      total_paid: totalPaid,
+      total_scheduled: totalScheduled,
+      unscheduled: unscheduled,
+      service_names: serviceNames,
+      installments: installments
+        .sort((a: any, b: any) => {
+          if (!a.due_date) return 1
+          if (!b.due_date) return -1
+          return new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
+        })
+        .map((inst: any) => ({
+          ...inst,
+          service_name: serviceNames
+        }))
+    })
   }
   
   // DEBUG: Log final myPayments
   console.log('[Dashboard] myPayments count:', myPayments.length)
-  console.log('[Dashboard] myPayments:', JSON.stringify(myPayments, null, 2))
 
   // Process overdue items
   const calcDaysOverdue = (dateStr: string) => {
