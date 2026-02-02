@@ -905,10 +905,12 @@ function PendingPaymentsTab({ cases }: { cases: any[] }) {
   // DEBUG: Log all installments
   console.log('[PendingPaymentsTab] All installments:', allInstallments)
 
-  // Filter installments by date range (based on due_date)
+  // Filter installments by date range
+  // Use due_date if available, otherwise use created_at for paid installments without due_date
   const filteredInstallments = allInstallments.filter(inst => {
-    if (!inst.due_date) return dateFilter === 'custom' && !customStart && !customEnd
-    const instDate = new Date(inst.due_date)
+    const dateToUse = inst.due_date || inst.created_at
+    if (!dateToUse) return dateFilter === 'custom' && !customStart && !customEnd
+    const instDate = new Date(dateToUse)
     instDate.setHours(0, 0, 0, 0)
     return instDate >= filterStart && instDate <= filterEnd
   })
