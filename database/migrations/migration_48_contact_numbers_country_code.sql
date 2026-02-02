@@ -21,7 +21,7 @@ DECLARE
     new_client_id UUID;
 BEGIN
     -- Only process new submissions that haven't been converted yet
-    IF NEW.converted_to_client_id IS NOT NULL THEN
+    IF NEW.client_id IS NOT NULL THEN
         RETURN NEW;
     END IF;
 
@@ -38,7 +38,7 @@ BEGIN
 
     -- Update the form submission with the client reference
     UPDATE form_submissions
-    SET converted_to_client_id = new_client_id
+    SET client_id = new_client_id
     WHERE id = NEW.id;
 
     RETURN NEW;
