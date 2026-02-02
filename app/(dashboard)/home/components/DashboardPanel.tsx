@@ -597,15 +597,16 @@ function TimelineTab({ todayCounts }: { todayCounts: { cases: number; tasks: num
                             className={cn(
                               "p-2 rounded-lg text-xs cursor-pointer transition-all duration-200 border",
                               "hover:scale-[1.02] hover:shadow-[0_4px_12px_rgb(0_0_0/0.3)]",
-                              isOverdue
-                                ? "bg-red-900/50 hover:bg-red-900/70 border-red-500/40"
-                                : `${colors.bg} ${colors.border} ${colors.hoverBg}`
+                              colors.bg, colors.border, colors.hoverBg
                             )}
                           >
-                            <div className={cn("font-semibold truncate", isOverdue ? "text-red-300" : colors.text)}>
-                              {item.title}
+                            <div className={cn("font-semibold truncate flex items-center gap-1", colors.text)}>
+                              {isOverdue && (
+                                <span className="text-red-400 shrink-0">!</span>
+                              )}
+                              <span className={cn("truncate", isOverdue && "text-red-400")}>{item.title}</span>
                             </div>
-                            <div className={cn("truncate", isOverdue ? "text-red-300/70" : "text-gray-300")}>{item.subtitle}</div>
+                            <div className={cn("truncate", isOverdue ? "text-red-400/70" : "text-gray-300")}>{item.subtitle}</div>
                           </div>
                         )
                       })
