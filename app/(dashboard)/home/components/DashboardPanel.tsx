@@ -96,6 +96,10 @@ export function DashboardPanel({ myCases, myTasks, myPayments, myOverdue, todayC
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabType>('timeline')
 
+  // DEBUG: Log what data we receive
+  console.log('[DashboardPanel] myCases received:', myCases)
+  console.log('[DashboardPanel] myCases.length:', myCases.length)
+
   // Calculate counts from actual data
   const overdueTotal = myOverdue.cases.length + myOverdue.tasks.length + myOverdue.payments.length
   const pendingTotal = myPayments.reduce((sum, c) => sum + (c.total_price - c.total_paid), 0)

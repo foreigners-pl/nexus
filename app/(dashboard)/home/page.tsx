@@ -94,6 +94,8 @@ export default function HomePage() {
       setLoading(false)
       // Still refresh in background
       getAllDashboardData().then(result => {
+        console.log('[HomePage] getAllDashboardData result:', result)
+        console.log('[HomePage] myCases from result:', result.data?.myCases)
         if (result.data) {
           setDashboardData(result.data)
           setCachedDashboard(result)
@@ -104,6 +106,8 @@ export default function HomePage() {
     
     setLoading(true)
     const result = await getAllDashboardData()
+    console.log('[HomePage] getAllDashboardData result:', result)
+    console.log('[HomePage] myCases from result:', result.data?.myCases)
     if (result.data) {
       setDashboardData(result.data)
       setCachedDashboard(result)
