@@ -1378,7 +1378,6 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
 
   // Process pending payments - simple installments query, need to get case info from myCases
   const installmentsData = myInstallmentsResult?.data || []
-  console.log('[Dashboard] installmentsData count:', installmentsData.length)
   
   // Build a map of case info from myCases (which we already fetched)
   const caseInfoMap = new Map<string, any>()
@@ -1447,8 +1446,6 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
         }))
     })
   }
-  
-  console.log('[Dashboard] myPayments count:', myPayments.length)
 
   // Process overdue items
   const calcDaysOverdue = (dateStr: string) => {

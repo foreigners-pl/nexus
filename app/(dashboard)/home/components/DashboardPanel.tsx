@@ -849,14 +849,6 @@ function PendingPaymentsTab({ cases }: { cases: any[] }) {
   const [customStart, setCustomStart] = useState<string>('')
   const [customEnd, setCustomEnd] = useState<string>('')
   
-  // DEBUG: Log incoming data
-  console.log('[PendingPaymentsTab] cases received:', cases)
-  console.log('[PendingPaymentsTab] cases count:', cases?.length)
-  if (cases?.length > 0) {
-    console.log('[PendingPaymentsTab] First case:', cases[0])
-    console.log('[PendingPaymentsTab] First case installments:', cases[0]?.installments)
-  }
-  
   const now = new Date()
   
   // Calculate date ranges
@@ -886,9 +878,6 @@ function PendingPaymentsTab({ cases }: { cases: any[] }) {
       : 'Custom Range'
   }
   
-  // DEBUG: Log date range
-  console.log('[PendingPaymentsTab] Filter:', dateFilter, 'Start:', filterStart, 'End:', filterEnd)
-  
   // Flatten all installments from all cases with case/client info
   const allInstallments: any[] = []
   cases.forEach(c => {
@@ -902,9 +891,6 @@ function PendingPaymentsTab({ cases }: { cases: any[] }) {
       })
     })
   })
-  
-  // DEBUG: Log all installments
-  console.log('[PendingPaymentsTab] All installments:', allInstallments)
 
   // Filter installments by date range
   // Use due_date if available, otherwise use created_at for paid installments without due_date
@@ -915,9 +901,6 @@ function PendingPaymentsTab({ cases }: { cases: any[] }) {
     instDate.setHours(0, 0, 0, 0)
     return instDate >= filterStart && instDate <= filterEnd
   })
-  
-  // DEBUG: Log filtered installments
-  console.log('[PendingPaymentsTab] Filtered installments:', filteredInstallments)
 
   // Calculate paid total for the filtered period
   const periodPaid = filteredInstallments

@@ -128,9 +128,36 @@ const categoryColors = {
   }
 } as const
 
-function getCategoryColors(actionType: string) {
-  const category = actionToCategory[actionType] || 'default'
-  return categoryColors[category as keyof typeof categoryColors] || categoryColors.default
+// Entity type colors (instead of action-based categories)
+const entityColors = {
+  case: {
+    icon: 'text-blue-400 bg-blue-400/20',
+    unread: 'bg-blue-500/15 border border-blue-500/30'
+  },
+  card: {
+    icon: 'text-purple-400 bg-purple-400/20',
+    unread: 'bg-purple-500/15 border border-purple-500/30'
+  },
+  installment: {
+    icon: 'text-green-400 bg-green-400/20',
+    unread: 'bg-green-500/15 border border-green-500/30'
+  },
+  invoice: {
+    icon: 'text-green-400 bg-green-400/20',
+    unread: 'bg-green-500/15 border border-green-500/30'
+  },
+  conversation: {
+    icon: 'text-yellow-400 bg-yellow-400/20',
+    unread: 'bg-yellow-500/15 border border-yellow-500/30'
+  },
+  default: {
+    icon: 'text-gray-400 bg-gray-400/20',
+    unread: 'bg-gray-500/15 border border-gray-500/30'
+  }
+} as const
+
+function getEntityColors(entityType: string) {
+  return entityColors[entityType as keyof typeof entityColors] || entityColors.default
 }
 
 export function SidebarPanel({ activities, cases, onRefreshActivities, onRefreshCases }: SidebarPanelProps) {
@@ -138,8 +165,12 @@ export function SidebarPanel({ activities, cases, onRefreshActivities, onRefresh
   const [activeTab, setActiveTab] = useState<TabType>('activity')
   const [loading, setLoading] = useState(false)
   const [claimingId, setClaimingId] = useState<string | null>(null)
+  const [hiddenCases, setHiddenCases] = useState<Set<string>>(new Set())
 
   const unreadCount = activities.filter(a => !a.is_read).length
+  
+  // Filter out cases that are being claimed (optimistic update)
+  const visibleCases = cases.filter(c => !hiddenCases.has(c.id))
 
   const handleMarkAllRead = async () => {
     setLoading(true)
@@ -173,11 +204,22 @@ export function SidebarPanel({ activities, cases, onRefreshActivities, onRefresh
   }
 
   const handleClaim = async (caseId: string) => {
+    // Optimistic update: hide the case immediately
+    setHiddenCases(prev => new Set(prev).add(caseId))
     setClaimingId(caseId)
+    
+    // Call server action in background
     const result = await claimCase(caseId)
     if (result.error) {
+      // Revert on error - show the case again
+      setHiddenCases(prev => {
+        const next = new Set(prev)
+        next.delete(caseId)
+        return next
+      })
       alert(result.error)
     } else {
+      // Success - refresh to sync state (case already hidden so feels instant)
       onRefreshCases()
     }
     setClaimingId(null)
@@ -203,7 +245,7 @@ export function SidebarPanel({ activities, cases, onRefreshActivities, onRefresh
     { 
       id: 'requests' as TabType, 
       label: 'New Requests', 
-      count: cases.length,
+      count: visibleCases.length,
       colorClass: 'text-orange-400',
       bgClass: 'bg-orange-400/20',
       icon: (
@@ -270,7 +312,7 @@ export function SidebarPanel({ activities, cases, onRefreshActivities, onRefresh
         {/* New Requests Tab */}
         {activeTab === 'requests' && (
           <div className="space-y-3">
-            {cases.length === 0 ? (
+            {visibleCases.length === 0 ? (
               <div className="text-center py-8">
                 <svg className="w-12 h-12 mx-auto text-[hsl(var(--color-text-secondary))] opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -283,7 +325,7 @@ export function SidebarPanel({ activities, cases, onRefreshActivities, onRefresh
                 </p>
               </div>
             ) : (
-              cases.map((caseItem) => {
+              visibleCases.map((caseItem) => {
                 const clientName = caseItem.clients 
                   ? [caseItem.clients.first_name, caseItem.clients.last_name].filter(Boolean).join(' ')
                   : null
@@ -359,8 +401,9 @@ export function SidebarPanel({ activities, cases, onRefreshActivities, onRefresh
               </p>
             ) : (
               activities.map((activity) => {
-                const colors = getCategoryColors(activity.action_type)
-                const entityLabel = activity.entity_type === 'case' ? 'Case' : activity.entity_type === 'card' ? 'Task' : activity.entity_type === 'conversation' ? 'Chat' : null
+                const colors = getEntityColors(activity.entity_type)
+                const entityLabel = activity.entity_type === 'case' ? 'Case' : activity.entity_type === 'card' ? 'Task' : activity.entity_type === 'installment' ? 'Payment' : activity.entity_type === 'conversation' ? 'Chat' : null
+                const clientName = activity.metadata?.client_name
                 return (
                 <div
                   key={activity.id}
@@ -380,7 +423,7 @@ export function SidebarPanel({ activities, cases, onRefreshActivities, onRefresh
                   <div className="flex-1 min-w-0">
                     {entityLabel && (
                       <span className="text-[10px] font-medium text-[hsl(var(--color-text-secondary))] uppercase tracking-wide">
-                        {entityLabel}
+                        {entityLabel}{clientName ? ` • ${clientName}` : ''}
                       </span>
                     )}
                     <p className="text-sm text-[hsl(var(--color-text-primary))]">
