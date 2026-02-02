@@ -1376,26 +1376,38 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
       board_statuses: Array.isArray(t.board_statuses) ? t.board_statuses[0] || null : t.board_statuses
     }))
 
-  // Process pending payments - query returns installments with nested case info
-  // DEBUG: Log the raw installments data
+  // Process pending payments - simple installments query, need to get case info from myCases
   const installmentsData = myInstallmentsResult?.data || []
   console.log('[Dashboard] installmentsData count:', installmentsData.length)
-  if (installmentsData.length > 0) {
-    console.log('[Dashboard] First installment:', JSON.stringify(installmentsData[0], null, 2))
+  
+  // Build a map of case info from myCases (which we already fetched)
+  const caseInfoMap = new Map<string, any>()
+  for (const c of myCasesResult.data || []) {
+    const client = Array.isArray(c.clients) ? c.clients[0] : c.clients
+    const clientName = client ? [client.first_name, client.last_name].filter(Boolean).join(' ') : 'Unknown'
+    const caseServices = c.case_services || []
+    const serviceNames = caseServices
+      .map((s: any) => s.services?.name)
+      .filter(Boolean)
+      .join(', ') || 'Services'
+    const totalPrice = caseServices.reduce((sum: number, s: any) => sum + (s.total_price || 0), 0)
+    
+    caseInfoMap.set(c.id, {
+      case_code: c.case_code,
+      client_name: clientName,
+      service_names: serviceNames,
+      total_price: totalPrice
+    })
   }
   
   // Group installments by case
-  const caseInstallmentsMap = new Map<string, { caseInfo: any, installments: any[] }>()
-  
+  const caseInstallmentsMap = new Map<string, any[]>()
   for (const inst of installmentsData) {
-    const caseInfo = inst.cases
-    if (!caseInfo) continue
-    
     const caseId = inst.case_id
     if (!caseInstallmentsMap.has(caseId)) {
-      caseInstallmentsMap.set(caseId, { caseInfo, installments: [] })
+      caseInstallmentsMap.set(caseId, [])
     }
-    caseInstallmentsMap.get(caseId)!.installments.push({
+    caseInstallmentsMap.get(caseId)!.push({
       id: inst.id,
       amount: inst.amount,
       due_date: inst.due_date,
@@ -1406,30 +1418,20 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
   }
   
   const myPayments: any[] = []
-  for (const [caseId, { caseInfo, installments }] of caseInstallmentsMap) {
-    const client = Array.isArray(caseInfo.clients) ? caseInfo.clients[0] : caseInfo.clients
-    const clientName = client ? [client.first_name, client.last_name].filter(Boolean).join(' ') : 'Unknown'
-    const caseServices = caseInfo.case_services || []
-    const totalPrice = caseServices.reduce((sum: number, s: any) => sum + (s.total_price || 0), 0)
+  for (const [caseId, installments] of caseInstallmentsMap) {
+    const caseInfo = caseInfoMap.get(caseId) || { case_code: 'Unknown', client_name: 'Unknown', service_names: 'Services', total_price: 0 }
     const totalPaid = installments.filter((i: any) => i.paid).reduce((sum: number, i: any) => sum + (i.amount || 0), 0)
     const totalScheduled = installments.reduce((sum: number, i: any) => sum + (i.amount || 0), 0)
-    const unscheduled = totalPrice - totalScheduled
-    
-    // Get service names from case_services
-    const serviceNames = caseServices
-      .map((s: any) => s.services?.name)
-      .filter(Boolean)
-      .join(', ') || 'Services'
     
     myPayments.push({
       case_id: caseId,
       case_code: caseInfo.case_code,
-      client_name: clientName,
-      total_price: totalPrice,
+      client_name: caseInfo.client_name,
+      total_price: caseInfo.total_price,
       total_paid: totalPaid,
       total_scheduled: totalScheduled,
-      unscheduled: unscheduled,
-      service_names: serviceNames,
+      unscheduled: caseInfo.total_price - totalScheduled,
+      service_names: caseInfo.service_names,
       installments: installments
         .sort((a: any, b: any) => {
           if (!a.due_date) return 1
@@ -1438,12 +1440,11 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
         })
         .map((inst: any) => ({
           ...inst,
-          service_name: serviceNames
+          service_name: caseInfo.service_names
         }))
     })
   }
   
-  // DEBUG: Log final myPayments
   console.log('[Dashboard] myPayments count:', myPayments.length)
 
   // Process overdue items
