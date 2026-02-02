@@ -1400,9 +1400,12 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
     })
   }
   
-  // Group installments by case
+  // Group installments by case - only include installments with amount > 0
   const caseInstallmentsMap = new Map<string, any[]>()
   for (const inst of installmentsData) {
+    // Skip empty installments (0 amount)
+    if (!inst.amount || inst.amount <= 0) continue
+    
     const caseId = inst.case_id
     if (!caseInstallmentsMap.has(caseId)) {
       caseInstallmentsMap.set(caseId, [])
