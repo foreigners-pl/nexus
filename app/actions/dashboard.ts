@@ -1270,9 +1270,9 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
     cardIds.length > 0
       ? supabase.from('cards').select('id, title, description, due_date, board_id, status_id, boards(id, name), board_statuses(id, name, color)').in('id', cardIds).order('due_date', { ascending: true, nullsFirst: false })
       : Promise.resolve({ data: [] }),
-    // My installments (for pending payments) - query installments directly
+    // My installments - simple direct query
     caseIds.length > 0
-      ? supabase.from('installments').select('id, amount, due_date, paid, created_at, position, case_id, cases!inner(id, case_code, clients(first_name, last_name), case_services(total_price, services(name)))').in('case_id', caseIds)
+      ? supabase.from('installments').select('*').in('case_id', caseIds)
       : Promise.resolve({ data: [] }),
     // Overdue cases
     caseIds.length > 0
