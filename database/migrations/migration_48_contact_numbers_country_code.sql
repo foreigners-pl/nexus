@@ -19,15 +19,23 @@ CREATE OR REPLACE FUNCTION create_client_from_submission()
 RETURNS TRIGGER AS $$
 DECLARE
     new_client_id UUID;
+    name_parts TEXT[];
+    first_name_val TEXT;
+    last_name_val TEXT;
 BEGIN
     -- Only process new submissions that haven't been converted yet
     IF NEW.client_id IS NOT NULL THEN
         RETURN NEW;
     END IF;
 
+    -- Split full_name into first and last name
+    name_parts := string_to_array(COALESCE(NEW.full_name, ''), ' ');
+    first_name_val := name_parts[1];
+    last_name_val := array_to_string(name_parts[2:], ' ');
+
     -- Create the new client
     INSERT INTO clients (first_name, last_name, contact_email)
-    VALUES (NEW.first_name, NEW.last_name, NEW.email)
+    VALUES (first_name_val, NULLIF(last_name_val, ''), NEW.email)
     RETURNING id INTO new_client_id;
 
     -- Add phone number with country code if provided
