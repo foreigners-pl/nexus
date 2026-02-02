@@ -1377,6 +1377,9 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
     }))
 
   // Process pending payments - include ALL installments for the Payments tab history
+  // DEBUG: Log the raw installments data
+  console.log('[Dashboard] myInstallmentsResult:', JSON.stringify(myInstallmentsResult, null, 2))
+  
   const myPayments: any[] = []
   for (const c of myInstallmentsResult.data || []) {
     const client = Array.isArray(c.clients) ? c.clients[0] : c.clients
@@ -1387,6 +1390,9 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
     const totalPaid = installments.filter((i: any) => i.paid).reduce((sum: number, i: any) => sum + (i.amount || 0), 0)
     const totalScheduled = installments.reduce((sum: number, i: any) => sum + (i.amount || 0), 0)
     const unscheduled = totalPrice - totalScheduled
+    
+    // DEBUG: Log each case's installments
+    console.log('[Dashboard] Case', c.id, 'installments count:', installments.length)
     
     // Get service names from case_services
     const serviceNames = caseServices
@@ -1419,6 +1425,10 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
       })
     }
   }
+  
+  // DEBUG: Log final myPayments
+  console.log('[Dashboard] myPayments count:', myPayments.length)
+  console.log('[Dashboard] myPayments:', JSON.stringify(myPayments, null, 2))
 
   // Process overdue items
   const calcDaysOverdue = (dateStr: string) => {
