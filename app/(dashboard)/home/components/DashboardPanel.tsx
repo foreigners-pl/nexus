@@ -668,8 +668,8 @@ function MyCasesTab({ cases }: { cases: any[] }) {
         bVal = b.due_date ? new Date(b.due_date).getTime() : Infinity
         break
       case 'last_interacted':
-        aVal = a.updated_at ? new Date(a.updated_at).getTime() : 0
-        bVal = b.updated_at ? new Date(b.updated_at).getTime() : 0
+        aVal = a.last_activity ? new Date(a.last_activity).getTime() : 0
+        bVal = b.last_activity ? new Date(b.last_activity).getTime() : 0
         break
     }
     
@@ -719,7 +719,7 @@ function MyCasesTab({ cases }: { cases: any[] }) {
           sortedCases.map(c => {
             const clientName = [c.clients?.first_name, c.clients?.last_name].filter(Boolean).join(' ')
             const phone = c.clients?.contact_numbers?.[0]
-            const phoneDisplay = phone ? (phone.country_code ? `${phone.country_code} ${phone.number}` : phone.number) : '—'
+            const phoneDisplay = phone ? (phone.country_code ? `${phone.country_code} ${phone.number}` : phone.number) : null
             const services = c.case_services || []
             const serviceNames = services.map((s: any) => s.services?.name).filter(Boolean).join(', ')
             const isOverdue = c.due_date && new Date(c.due_date) < today
@@ -735,22 +735,22 @@ function MyCasesTab({ cases }: { cases: any[] }) {
                 )}
               >
                 <div className="col-span-2 text-sm text-[hsl(var(--color-text-primary))] truncate font-medium">
-                  {clientName || '—'}
+                  {clientName || <span className="text-[hsl(var(--color-text-secondary))] italic">No client</span>}
                 </div>
                 <div className="col-span-2 text-sm text-[hsl(var(--color-text-secondary))] truncate font-mono">
-                  {phoneDisplay}
+                  {phoneDisplay || <span className="italic">No phone</span>}
                 </div>
                 <div className="col-span-2 text-sm text-blue-400 truncate font-medium">
-                  {c.case_code || '—'}
+                  {c.case_code || <span className="text-[hsl(var(--color-text-secondary))] italic">No code</span>}
                 </div>
                 <div className="col-span-2 text-sm text-[hsl(var(--color-text-secondary))] truncate" title={serviceNames}>
-                  {services.length > 0 ? (services.length === 1 ? serviceNames : `${services.length} services`) : '—'}
+                  {services.length > 0 ? (services.length === 1 ? serviceNames : `${services.length} services`) : <span className="italic">No services</span>}
                 </div>
                 <div className={cn("col-span-2 text-sm truncate", isOverdue ? "text-red-500 font-medium" : "text-[hsl(var(--color-text-secondary))]")}>
-                  {c.due_date ? formatDueDate(c.due_date) : '—'}
+                  {c.due_date ? formatDueDate(c.due_date) : <span className="italic">No due date</span>}
                 </div>
                 <div className="col-span-2 text-sm text-[hsl(var(--color-text-secondary))] truncate">
-                  {c.updated_at ? new Date(c.updated_at).toLocaleDateString() : '—'}
+                  {c.last_activity ? new Date(c.last_activity).toLocaleDateString() : <span className="italic">No activity</span>}
                 </div>
               </div>
             )

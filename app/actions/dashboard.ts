@@ -1262,9 +1262,9 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
   ] = await Promise.all([
     // Unassigned cases (all cases with their assignees)
     supabase.from('cases').select('*, clients(first_name, last_name, contact_email), case_assignees(user_id)').order('created_at', { ascending: false }),
-    // My cases
+    // My cases - include contact_numbers and case_services
     caseIds.length > 0 
-      ? supabase.from('cases').select('id, case_code, created_at, due_date, status:status_id(id, name), clients(id, first_name, last_name, contact_email)').in('id', caseIds).order('created_at', { ascending: false })
+      ? supabase.from('cases').select('id, case_code, created_at, due_date, status:status_id(id, name), clients(id, first_name, last_name, contact_email, contact_numbers(id, number, country_code, is_primary)), case_services!fk_case_services_case(id, services(id, name))').in('id', caseIds).order('created_at', { ascending: false })
       : Promise.resolve({ data: [] }),
     // My cards/tasks
     cardIds.length > 0
@@ -1310,6 +1310,24 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
     console.error('[Dashboard] myCasesResult error:', myCasesResult.error)
   }
 
+  // Get last activity for each case
+  const caseLastActivityMap: Record<string, string | null> = {}
+  if (caseIds.length > 0) {
+    const { data: lastActivities } = await supabase
+      .from('activity_log')
+      .select('entity_id, created_at')
+      .eq('entity_type', 'case')
+      .in('entity_id', caseIds)
+      .order('created_at', { ascending: false })
+    
+    // Get the most recent activity for each case
+    for (const activity of lastActivities || []) {
+      if (!caseLastActivityMap[activity.entity_id]) {
+        caseLastActivityMap[activity.entity_id] = activity.created_at
+      }
+    }
+  }
+
   // Process my cases
   const myCases = (myCasesResult.data || []).map(c => {
     const client = Array.isArray(c.clients) ? c.clients[0] || null : c.clients
@@ -1318,9 +1336,13 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
       case_code: c.case_code,
       created_at: c.created_at,
       due_date: c.due_date,
+      last_activity: caseLastActivityMap[c.id] || null,
       status: Array.isArray(c.status) ? c.status[0] || null : c.status,
-      clients: client || null,
-      case_services: []
+      clients: client ? {
+        ...client,
+        contact_numbers: Array.isArray(client.contact_numbers) ? client.contact_numbers : []
+      } : null,
+      case_services: Array.isArray(c.case_services) ? c.case_services : []
     }
   })
 
