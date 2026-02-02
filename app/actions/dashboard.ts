@@ -1257,11 +1257,7 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
     supabase.from('cases').select('*, clients(first_name, last_name, contact_email), case_assignees(user_id)').order('created_at', { ascending: false }),
     // My cases
     caseIds.length > 0 
-      ? supabase.from('cases').select(`
-          id, case_code, created_at, updated_at, due_date, 
-          status:status_id(id, name, color), 
-          clients(id, first_name, last_name, contact_email)
-        `).in('id', caseIds).order('created_at', { ascending: false })
+      ? supabase.from('cases').select('id, case_code, created_at, updated_at, due_date, status:status_id(id, name, color), clients(id, first_name, last_name, contact_email)').in('id', caseIds).order('created_at', { ascending: false })
       : Promise.resolve({ data: [] }),
     // My cards/tasks
     cardIds.length > 0
