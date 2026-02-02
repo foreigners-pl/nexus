@@ -223,6 +223,27 @@ export async function markAllActivitiesRead(): Promise<{ error?: string }> {
   return {}
 }
 
+// Silent version - no revalidation, used with optimistic UI
+export async function markAllActivitiesReadSilent(): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) return { error: 'Not authenticated' }
+
+  const { error } = await supabase
+    .from('activity_log')
+    .update({ is_read: true })
+    .eq('user_id', user.id)
+    .eq('is_read', false)
+
+  if (error) {
+    console.error('Error marking all activities read:', error)
+    return { error: error.message }
+  }
+
+  return {}
+}
+
 // ============================================
 // WEEKLY TIMELINE ACTIONS
 // ============================================

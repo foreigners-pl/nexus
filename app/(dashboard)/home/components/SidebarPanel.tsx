@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { markActivityRead, markActivityReadSilent, markAllActivitiesRead, claimCase } from '@/app/actions/dashboard'
+import { markActivityReadSilent, markAllActivitiesReadSilent, claimCase } from '@/app/actions/dashboard'
 import { cn } from '@/lib/utils'
 import type { ActivityLog, Case } from '@/types/database'
 
@@ -166,17 +166,26 @@ export function SidebarPanel({ activities, cases, onRefreshActivities, onRefresh
   const [loading, setLoading] = useState(false)
   const [claimingId, setClaimingId] = useState<string | null>(null)
   const [hiddenCases, setHiddenCases] = useState<Set<string>>(new Set())
+  const [markedAllRead, setMarkedAllRead] = useState(false)
 
-  const unreadCount = activities.filter(a => !a.is_read).length
+  // Apply optimistic "mark all read" state
+  const displayActivities = markedAllRead 
+    ? activities.map(a => ({ ...a, is_read: true }))
+    : activities
+  const unreadCount = displayActivities.filter(a => !a.is_read).length
   
   // Filter out cases that are being claimed (optimistic update)
   const visibleCases = cases.filter(c => !hiddenCases.has(c.id))
 
   const handleMarkAllRead = async () => {
+    // Optimistic update - mark all as read immediately in UI
+    setMarkedAllRead(true)
     setLoading(true)
-    await markAllActivitiesRead()
-    onRefreshActivities()
+    
+    // Call server action in background (silent - no revalidation)
+    await markAllActivitiesReadSilent()
     setLoading(false)
+    // Don't refresh - we already updated the UI optimistically
   }
 
   const handleActivityClick = (activity: ActivityLog) => {
@@ -395,12 +404,12 @@ export function SidebarPanel({ activities, cases, onRefreshActivities, onRefresh
                 </Button>
               </div>
             )}
-            {activities.length === 0 ? (
+            {displayActivities.length === 0 ? (
               <p className="text-sm text-[hsl(var(--color-text-secondary))] text-center py-8">
                 No recent activity
               </p>
             ) : (
-              activities.map((activity) => {
+              displayActivities.map((activity) => {
                 const colors = getEntityColors(activity.entity_type)
                 const entityLabel = activity.entity_type === 'case' ? 'Case' : activity.entity_type === 'card' ? 'Task' : activity.entity_type === 'installment' ? 'Payment' : activity.entity_type === 'conversation' ? 'Chat' : null
                 const clientName = activity.metadata?.client_name
