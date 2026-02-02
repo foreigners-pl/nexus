@@ -96,6 +96,7 @@ export default function HomePage() {
       getAllDashboardData().then(result => {
         console.log('[HomePage] getAllDashboardData result:', result)
         console.log('[HomePage] myCases from result:', result.data?.myCases)
+        console.log('[HomePage] DEBUG INFO:', (result.data as any)?._debug)
         if (result.data) {
           setDashboardData(result.data)
           setCachedDashboard(result)
@@ -108,6 +109,7 @@ export default function HomePage() {
     const result = await getAllDashboardData()
     console.log('[HomePage] getAllDashboardData result:', result)
     console.log('[HomePage] myCases from result:', result.data?.myCases)
+    console.log('[HomePage] DEBUG INFO:', (result.data as any)?._debug)
     if (result.data) {
       setDashboardData(result.data)
       setCachedDashboard(result)

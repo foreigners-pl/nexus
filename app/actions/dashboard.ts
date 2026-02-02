@@ -1237,8 +1237,14 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
     supabase.from('card_assignees').select('card_id').eq('user_id', authUser.id)
   ])
 
+  // DEBUG: Log to see what's happening
+  console.log('[DEBUG] authUser.id:', authUser.id)
+  console.log('[DEBUG] caseAssignmentsResult:', JSON.stringify(caseAssignmentsResult))
+
   const caseIds = (caseAssignmentsResult.data || []).map(a => a.case_id)
   const cardIds = (cardAssignmentsResult.data || []).map(a => a.card_id)
+  
+  console.log('[DEBUG] caseIds:', caseIds)
 
   // Now fetch all case-related and card-related data in parallel
   const [
@@ -1456,7 +1462,15 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
       myPayments,
       myOverdue: { cases: overdueCases, tasks: overdueTasks, payments: overduePayments },
       todayCount,
-      todayCounts: { cases: todayCasesCount, tasks: todayTasksCount, payments: todayPaymentsCount }
+      todayCounts: { cases: todayCasesCount, tasks: todayTasksCount, payments: todayPaymentsCount },
+      // DEBUG - remove after fixing
+      _debug: {
+        authUserId: authUser.id,
+        caseAssignmentsResult: caseAssignmentsResult,
+        caseIds: caseIds,
+        myCasesResultData: myCasesResult.data,
+        myCasesResultError: 'error' in myCasesResult ? myCasesResult.error : null
+      }
     }
   }
 }
