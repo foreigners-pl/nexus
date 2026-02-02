@@ -1519,7 +1519,10 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
         caseAssignmentsResult: caseAssignmentsResult,
         caseIds: caseIds,
         myCasesResultData: myCasesResult.data,
-        myCasesResultError: 'error' in myCasesResult ? myCasesResult.error : null
+        myCasesResultError: 'error' in myCasesResult ? myCasesResult.error : null,
+        installmentsDataCount: installmentsData.length,
+        installmentsFirstCase: installmentsData.length > 0 ? installmentsData[0] : null,
+        myPaymentsCount: myPayments.length
       }
     }
   }
