@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useState, useRef, useEffect, KeyboardEvent, DragEvent } from 'react'
+import { useState, useRef, useEffect, KeyboardEvent, DragEvent, ClipboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { createBrowserClient } from '@supabase/ssr'
 import { sendBuzz } from '@/app/actions/chat'
@@ -177,6 +177,27 @@ export default function MessageInput({ onSend, disabled, conversationId }: Messa
     setIsDragging(false)
   }
 
+  // Handle clipboard paste for screenshots
+  const handlePaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.type.startsWith('image/')) {
+        e.preventDefault()
+        const file = item.getAsFile()
+        if (file) {
+          // Create a more descriptive filename for pasted images
+          const ext = item.type.split('/')[1] || 'png'
+          const pastedFile = new File([file], `screenshot-${Date.now()}.${ext}`, { type: item.type })
+          processFile(pastedFile)
+        }
+        break
+      }
+    }
+  }
+
   const handleBuzz = async () => {
     setBuzzing(true)
     const { success, error } = await sendBuzz(conversationId)
@@ -308,7 +329,8 @@ export default function MessageInput({ onSend, disabled, conversationId }: Messa
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type a message..."
+            onPaste={handlePaste}
+            placeholder="Type a message... (paste screenshots here)"
             rows={1}
             className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 resize-none placeholder:text-white/30 text-white transition-all duration-200 overflow-hidden scrollbar-thin"
             style={{ minHeight: '48px' }}
