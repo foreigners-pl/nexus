@@ -1264,7 +1264,7 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
     supabase.from('cases').select('*, clients(first_name, last_name, contact_email), case_assignees(user_id)').order('created_at', { ascending: false }),
     // My cases - include contact_numbers and case_services
     caseIds.length > 0 
-      ? supabase.from('cases').select('id, case_code, created_at, due_date, status:status_id(id, name), clients(id, first_name, last_name, contact_email, contact_numbers(id, number, country_code, is_primary)), case_services!fk_case_services_case(id, services(id, name))').in('id', caseIds).order('created_at', { ascending: false })
+      ? supabase.from('cases').select('id, case_code, created_at, due_date, status:status_id(id, name), clients(id, first_name, last_name, contact_email, contact_numbers(id, number, country_code)), case_services!fk_case_services_case(id, services(id, name))').in('id', caseIds).order('created_at', { ascending: false })
       : Promise.resolve({ data: [] }),
     // My cards/tasks
     cardIds.length > 0
