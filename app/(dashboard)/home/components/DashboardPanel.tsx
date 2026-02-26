@@ -112,38 +112,51 @@ function ListSkeleton({ rows = 5 }: { rows?: number }) {
   )
 }
 
-// Skeleton for payments tab with table header
+// Skeleton for payments tab - real UI, skeleton data only
 function PaymentsSkeleton() {
   return (
     <div className="h-full flex flex-col">
-      {/* Filter buttons skeleton */}
+      {/* Real filter buttons - functional UI */}
       <div className="flex gap-1 mb-3 bg-[hsl(var(--color-surface))] p-1 rounded-xl border border-[hsl(var(--color-border))] w-fit">
-        {[1, 2, 3].map(i => (
-          <div key={i} className="px-3 py-1.5 w-24 h-8 bg-[hsl(var(--color-surface-hover))] rounded-lg animate-pulse" />
-        ))}
+        <button className="px-3 py-1.5 text-sm font-medium rounded-lg bg-green-500 text-white shadow-[0_2px_8px_rgb(34_197_94/0.3)]">
+          This Month
+        </button>
+        <button className="px-3 py-1.5 text-sm font-medium rounded-lg text-[hsl(var(--color-text-secondary))]">
+          Last Month
+        </button>
+        <button className="px-3 py-1.5 text-sm font-medium rounded-lg text-[hsl(var(--color-text-secondary))]">
+          Custom
+        </button>
       </div>
-      {/* Summary box skeleton */}
+      {/* Summary box - skeleton values only */}
       <div className="mb-4 p-3 rounded-xl bg-green-500/10 border border-green-500/30">
-        <div className="h-3 w-20 bg-green-500/20 rounded animate-pulse mb-2" />
-        <div className="h-8 w-32 bg-green-500/20 rounded animate-pulse mb-1" />
-        <div className="h-3 w-40 bg-green-500/20 rounded animate-pulse" />
+        <div className="text-xs text-green-400 mb-1">Loading...</div>
+        <div className="flex items-baseline gap-2">
+          <div className="h-8 w-24 bg-green-500/20 rounded animate-pulse" />
+          <span className="text-sm text-[hsl(var(--color-text-secondary))]">/ </span>
+          <div className="h-5 w-16 bg-green-500/20 rounded animate-pulse" />
+        </div>
+        <div className="text-xs text-[hsl(var(--color-text-secondary))]">received / total scheduled</div>
       </div>
-      {/* Table header skeleton */}
-      <div className="grid grid-cols-12 gap-2 pb-2 border-b border-[hsl(var(--color-border))] mb-2">
-        {[2, 2, 2, 2, 2, 2].map((span, i) => (
-          <div key={i} className={`col-span-${span} h-3 bg-[hsl(var(--color-surface-hover))] rounded animate-pulse`} />
-        ))}
+      {/* Real table header */}
+      <div className="grid grid-cols-12 gap-2 pb-2 border-b border-[hsl(var(--color-border))] mb-2 text-xs font-medium uppercase tracking-wider text-[hsl(var(--color-text-secondary))]">
+        <div className="col-span-2">Amount</div>
+        <div className="col-span-2">Service</div>
+        <div className="col-span-2">Client</div>
+        <div className="col-span-2">Due Date</div>
+        <div className="col-span-2">Created</div>
+        <div className="col-span-2">Status</div>
       </div>
-      {/* Table rows skeleton */}
-      <div className="space-y-1">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="grid grid-cols-12 gap-2 p-2 rounded-lg bg-[hsl(var(--color-surface))]">
+      {/* Skeleton rows only */}
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin space-y-1">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="grid grid-cols-12 gap-2 p-2 rounded-lg bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))]">
             <div className="col-span-2 h-4 bg-[hsl(var(--color-surface-hover))] rounded animate-pulse" />
             <div className="col-span-2 h-4 bg-[hsl(var(--color-surface-hover))] rounded animate-pulse" />
             <div className="col-span-2 h-4 bg-[hsl(var(--color-surface-hover))] rounded animate-pulse" />
             <div className="col-span-2 h-4 bg-[hsl(var(--color-surface-hover))] rounded animate-pulse" />
             <div className="col-span-2 h-4 bg-[hsl(var(--color-surface-hover))] rounded animate-pulse" />
-            <div className="col-span-2 h-4 bg-[hsl(var(--color-surface-hover))] rounded animate-pulse" />
+            <div className="col-span-2 h-6 w-12 bg-green-500/20 rounded-full animate-pulse" />
           </div>
         ))}
       </div>
