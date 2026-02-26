@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, Modal } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
@@ -21,6 +21,9 @@ interface CasePageProps {
 }
 
 export default function CasePage({ params }: CasePageProps) {
+  // Use React 19's use() to synchronously unwrap the params Promise
+  const { id: urlId } = use(params)
+  
   const [caseData, setCaseData] = useState<Case | null>(null)
   const [client, setClient] = useState<Client | null>(null)
   const [status, setStatus] = useState<Status | null>(null)
@@ -33,44 +36,42 @@ export default function CasePage({ params }: CasePageProps) {
   const [loading, setLoading] = useState(true)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [caseId, setCaseId] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
+  const isMounted = useRef(true)
 
   useEffect(() => {
-    async function initCaseId() {
-      const { id } = await params
-      setCaseId(id)
+    isMounted.current = true
+    fetchCaseData(urlId)
+    
+    return () => {
+      isMounted.current = false
     }
-    initCaseId()
-  }, [params])
+  }, [urlId])
 
-  useEffect(() => {
-    if (caseId) {
-      fetchCaseData()
-    }
-  }, [caseId])
-
-  async function fetchCaseData() {
-    if (!caseId) return
+  async function fetchCaseData(caseIdParam: string) {
+    if (!caseIdParam) return
     setLoading(true)
 
     // Get current user
     const { data: { user } } = await supabase.auth.getUser()
+    if (!isMounted.current) return
     if (user) setCurrentUserId(user.id)
 
     let caseResult, caseError
     
-    if (caseId.startsWith('C')) {
-      const result = await supabase.from('cases').select('*').eq('case_code', caseId).single()
+    if (caseIdParam.startsWith('C')) {
+      const result = await supabase.from('cases').select('*').eq('case_code', caseIdParam).single()
       caseResult = result.data
       caseError = result.error
     } else {
-      const result = await supabase.from('cases').select('*').eq('id', caseId).single()
+      const result = await supabase.from('cases').select('*').eq('id', caseIdParam).single()
       caseResult = result.data
       caseError = result.error
     }
 
+    if (!isMounted.current) return
+    
     if (caseError || !caseResult) {
       console.error('Error fetching case:', caseError)
       setLoading(false)
@@ -81,27 +82,34 @@ export default function CasePage({ params }: CasePageProps) {
 
     if (caseResult.client_id) {
       const { data: clientData } = await supabase.from('clients').select('*').eq('id', caseResult.client_id).single()
+      if (!isMounted.current) return
       if (clientData) setClient(clientData)
     }
 
     if (caseResult.status_id) {
       const { data: statusData } = await supabase.from('status').select('*').eq('id', caseResult.status_id).single()
+      if (!isMounted.current) return
       if (statusData) setStatus(statusData)
     }
 
     const { data: assigneesData } = await supabase.from('case_assignees').select('*, users(*)').eq('case_id', caseResult.id)
+    if (!isMounted.current) return
     if (assigneesData) setAssignees(assigneesData)
 
     const { data: servicesData } = await supabase.from('case_services').select('*, services(*)').eq('case_id', caseResult.id)
+    if (!isMounted.current) return
     if (servicesData) setCaseServices(servicesData)
 
     const { data: installmentsData } = await supabase.from('installments').select('*').eq('case_id', caseResult.id).order('position', { ascending: true })
+    if (!isMounted.current) return
     if (installmentsData) setInstallments(installmentsData)
 
     const attachmentsData = await getAttachments(caseResult.id)
+    if (!isMounted.current) return
     setAttachments(attachmentsData)
 
     const commentsData = await getComments(caseResult.id)
+    if (!isMounted.current) return
     setComments(commentsData)
 
     setLoading(false)
