@@ -781,6 +781,7 @@ export async function getMyPendingPayments(): Promise<{ cases: PendingPaymentCas
   const caseIds = assignments.map(a => a.case_id)
 
   // Get those cases with their case_services and installments
+  // Note: case_services has custom_price, services has gross_price
   const { data: myCases, error: casesError } = await supabase
     .from('cases')
     .select(`
@@ -788,7 +789,8 @@ export async function getMyPendingPayments(): Promise<{ cases: PendingPaymentCas
       case_code,
       clients(first_name, last_name),
       case_services!fk_case_services_case(
-        total_price
+        custom_price,
+        services(gross_price)
       ),
       installments!fk_installments_case(
         id,
@@ -811,8 +813,11 @@ export async function getMyPendingPayments(): Promise<{ cases: PendingPaymentCas
     const client = Array.isArray(c.clients) ? c.clients[0] : c.clients
     const clientName = client ? [client.first_name, client.last_name].filter(Boolean).join(' ') : 'Unknown'
     
-    // Calculate totals
-    const totalPrice = (c.case_services || []).reduce((sum, s) => sum + (s.total_price || 0), 0)
+    // Calculate totals - use custom_price if set, otherwise use services.gross_price
+    const totalPrice = (c.case_services || []).reduce((sum, s: any) => {
+      const price = s.custom_price ?? s.services?.gross_price ?? 0
+      return sum + (Number(price) || 0)
+    }, 0)
     const installments = c.installments || []
     const totalPaid = installments.filter(i => i.paid).reduce((sum, i) => sum + (i.amount || 0), 0)
     const totalScheduled = installments.reduce((sum, i) => sum + (i.amount || 0), 0)
@@ -1404,7 +1409,11 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
       .map((s: any) => s.services?.name)
       .filter(Boolean)
       .join(', ') || 'Services'
-    const totalPrice = caseServices.reduce((sum: number, s: any) => sum + (s.total_price || 0), 0)
+    // Use custom_price if set, otherwise use services.gross_price
+    const totalPrice = caseServices.reduce((sum: number, s: any) => {
+      const price = s.custom_price ?? s.services?.gross_price ?? 0
+      return sum + (Number(price) || 0)
+    }, 0)
     
     caseInfoMap.set(c.id, {
       case_code: c.case_code,
@@ -1748,9 +1757,10 @@ export async function getMyPaymentsData(): Promise<{ myPayments: any[]; error?: 
   if (caseIds.length === 0) return { myPayments: [] }
 
   // Get cases with their services for pricing info
+  // Note: case_services has custom_price, services has gross_price
   const { data: cases } = await supabase
     .from('cases')
-    .select('id, case_code, clients(first_name, last_name), case_services!fk_case_services_case(total_price, services(name))')
+    .select('id, case_code, clients(first_name, last_name), case_services!fk_case_services_case(custom_price, services(name, gross_price))')
     .in('id', caseIds)
 
   // Get all installments
@@ -1766,7 +1776,11 @@ export async function getMyPaymentsData(): Promise<{ myPayments: any[]; error?: 
     const clientName = client ? [client.first_name, client.last_name].filter(Boolean).join(' ') : 'Unknown'
     const caseServices = c.case_services || []
     const serviceNames = caseServices.map((s: any) => s.services?.name).filter(Boolean).join(', ') || 'Services'
-    const totalPrice = caseServices.reduce((sum: number, s: any) => sum + (s.total_price || 0), 0)
+    // Use custom_price if set, otherwise use services.gross_price
+    const totalPrice = caseServices.reduce((sum: number, s: any) => {
+      const price = s.custom_price ?? s.services?.gross_price ?? 0
+      return sum + (Number(price) || 0)
+    }, 0)
     caseInfoMap.set(c.id, { case_code: c.case_code, client_name: clientName, service_names: serviceNames, total_price: totalPrice })
   }
 
