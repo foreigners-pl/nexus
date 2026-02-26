@@ -99,7 +99,8 @@ export function DashboardPanel({ myCases, myTasks, myPayments, myOverdue, todayC
 
   // Calculate counts from actual data
   const overdueTotal = myOverdue.cases.length + myOverdue.tasks.length + myOverdue.payments.length
-  const pendingTotal = myPayments.reduce((sum, c) => sum + (c.total_price - c.total_paid), 0)
+  // Total income received (sum of all paid installments)
+  const totalIncome = myPayments.reduce((sum, c) => sum + (c.total_paid || 0), 0)
 
   // Tab configuration with colors
   const tabConfig = [
@@ -142,7 +143,7 @@ export function DashboardPanel({ myCases, myTasks, myPayments, myOverdue, todayC
     { 
       id: 'payments' as TabType, 
       label: 'Payments', 
-      count: pendingTotal > 0 ? `${pendingTotal.toLocaleString()} PLN` : '0 PLN', 
+      count: `${totalIncome.toLocaleString()} PLN`, 
       colorClass: 'text-green-400', 
       bgClass: 'bg-green-400/20',
       icon: (
