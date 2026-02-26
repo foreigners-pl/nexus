@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { getBoardWithData, getCasesBoardData, deleteBoard } from '@/app/actions/board/core'
 import { getUserBoardAccessLevel } from '@/app/actions/board/helpers'
@@ -32,6 +32,7 @@ export default function IndividualBoardPage() {
   const refreshBoardList = useBoardRefresh()
   const { getCached: getCachedCasesBoard, setCached: setCachedCasesBoard } = useCasesBoardCache()
   const { getCached: getCachedBoardCards, setCached: setCachedBoardCards } = useBoardCardsCache(boardId)
+  const isMounted = useRef(true)
 
   const [board, setBoard] = useState<BoardWithAccess | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -52,8 +53,12 @@ export default function IndividualBoardPage() {
 
   // Fetch board data when boardId changes
   useEffect(() => {
+    isMounted.current = true
     if (boardId) {
       fetchBoardData()
+    }
+    return () => {
+      isMounted.current = false
     }
   }, [boardId])
 
@@ -73,6 +78,7 @@ export default function IndividualBoardPage() {
 
     // Fetch user's access level for this board
     const accessLevel = await getUserBoardAccessLevel(boardId)
+    if (!isMounted.current) return
     setUserAccessLevel(accessLevel)
 
     // Check if this is the Cases board
@@ -87,6 +93,7 @@ export default function IndividualBoardPage() {
         setLoading(false)
         // Still refresh in background
         getCasesBoardData().then(result => {
+          if (!isMounted.current) return
           if (result?.data) {
             setStatuses(result.data.statuses)
             setCases(result.data.cases as CaseWithRelations[])
@@ -99,6 +106,7 @@ export default function IndividualBoardPage() {
       setLoading(true)
       const result = await getCasesBoardData()
       
+      if (!isMounted.current) return
       if (result?.error) {
         setError(result.error)
       } else if (result?.data) {
@@ -119,6 +127,7 @@ export default function IndividualBoardPage() {
         setLoading(false)
         // Still refresh in background
         getBoardWithData(boardId).then(result => {
+          if (!isMounted.current) return
           if (result?.data) {
             setBoard(result.data)
             setCustomStatuses(result.data.board_statuses || [])
@@ -132,6 +141,7 @@ export default function IndividualBoardPage() {
       setLoading(true)
       const result = await getBoardWithData(boardId)
       
+      if (!isMounted.current) return
       if (result?.error) {
         setError(result.error)
       } else if (result?.data) {
