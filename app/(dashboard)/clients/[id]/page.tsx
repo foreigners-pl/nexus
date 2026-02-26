@@ -1,11 +1,12 @@
 ﻿'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, use } from 'react'
 import { Modal } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { deleteClient, getClient } from '@/app/actions/clients'
-import { useClientCache } from '@/lib/query'
+import { useQueryClient } from '@tanstack/react-query'
+import { queryKeys } from '@/lib/query'
 import { ClientHeader } from './components/ClientHeader'
 import { ContactInfo } from './components/ContactInfo'
 import { LocationInfo } from './components/LocationInfo'
@@ -22,6 +23,9 @@ interface ClientPageProps {
 }
 
 export default function ClientPage({ params }: ClientPageProps) {
+  // Use React 19's use() to synchronously unwrap the params Promise
+  const { id: urlId } = use(params)
+  
   const [client, setClient] = useState<Client | null>(null)
   const [phoneNumbers, setPhoneNumbers] = useState<ContactNumber[]>([])
   const [notes, setNotes] = useState<ClientNote[]>([])
@@ -31,53 +35,50 @@ export default function ClientPage({ params }: ClientPageProps) {
   const [cityName, setCityName] = useState<string | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [clientId, setClientId] = useState<string | null>(null)
-  const [actualClientId, setActualClientId] = useState<string | null>(null)
+  const [resolvedClientId, setResolvedClientId] = useState<string | null>(null)
   const supabase = createClient()
+  const isMounted = useRef(true)
+  
+  // Access query client directly for cache lookup
+  const queryClient = useQueryClient()
 
-  // Use cache for instant loading (will be populated by deep prefetch)
-  const { getCached, setCached } = useClientCache(actualClientId || '')
-
+  // Single effect to initialize and load data
   useEffect(() => {
-    async function initClientId() {
-      const { id } = await params
-      setClientId(id)
-    }
-    initClientId()
-  }, [params])
-
-  useEffect(() => {
-    if (clientId) {
-      // Try cache first for instant display
-      tryLoadFromCache()
-    }
-  }, [clientId])
-
-  async function tryLoadFromCache() {
-    if (!clientId) return
-
-    // If it's a UUID (not a client_code), try cache first
-    if (!clientId.startsWith('CL')) {
-      setActualClientId(clientId)
-      const cached = getCached()
-      if (cached?.client) {
-        console.log('[ClientPage] Using cached client data')
-        setClient(cached.client)
-        setPhoneNumbers(cached.phoneNumbers || [])
-        setNotes(cached.notes || [])
-        setCases(cached.cases || [])
-        setCountryName(cached.countryName)
-        setCityName(cached.cityName)
-        setLoading(false)
-        // Still refresh in background
-        fetchAllData()
-        return
+    isMounted.current = true
+    
+    async function loadClientData() {
+      // Check if urlId is a client_code (starts with CL) or a UUID
+      const isClientCode = urlId.startsWith('CL')
+      
+      // Try cache first for UUIDs only (client_codes aren't cached by ID)
+      if (!isClientCode) {
+        const cached = queryClient.getQueryData<any>(queryKeys.client(urlId))
+        if (cached?.client && isMounted.current) {
+          console.log('[ClientPage] Using cached client data for', urlId)
+          setClient(cached.client)
+          setPhoneNumbers(cached.phoneNumbers || [])
+          setNotes(cached.notes || [])
+          setCases(cached.cases || [])
+          setCountryName(cached.countryName)
+          setCityName(cached.cityName)
+          setResolvedClientId(urlId)
+          setLoading(false)
+          // Background refresh
+          fetchAllData(urlId, false)
+          return
+        }
       }
+      
+      // No cache hit - fetch fresh data
+      await fetchAllData(urlId, true)
     }
-
-    // No cache or client_code - fetch fresh
-    fetchAllData()
-  }
+    
+    loadClientData()
+    
+    return () => {
+      isMounted.current = false
+    }
+  }, [urlId])
 
   // Handler for optimistic case addition
   const handleCaseAdded = (newCase: CaseWithStatus) => {
@@ -139,17 +140,17 @@ export default function ClientPage({ params }: ClientPageProps) {
     }
   }
 
-  async function fetchAllData() {
-    if (!clientId) return
-    setLoading(true)
+  async function fetchAllData(clientIdParam: string, showLoading = true) {
+    if (!clientIdParam) return
+    if (showLoading) setLoading(true)
 
     let clientData, clientError
     
-    if (clientId.startsWith('CL')) {
+    if (clientIdParam.startsWith('CL')) {
       const result = await supabase
         .from('clients')
         .select('*')
-        .eq('client_code', clientId)
+        .eq('client_code', clientIdParam)
         .single()
       
       clientData = result.data
@@ -158,13 +159,15 @@ export default function ClientPage({ params }: ClientPageProps) {
       const result = await supabase
         .from('clients')
         .select('*')
-        .eq('id', clientId)
+        .eq('id', clientIdParam)
         .single()
       
       clientData = result.data
       clientError = result.error
     }
 
+    if (!isMounted.current) return
+    
     if (clientError || !clientData) {
       console.error('Error fetching client:', clientError)
       setLoading(false)
@@ -172,6 +175,7 @@ export default function ClientPage({ params }: ClientPageProps) {
     }
 
     setClient(clientData)
+    setResolvedClientId(clientData.id)
     const dbClientId = clientData.id
 
     const { data: phonesData } = await supabase
@@ -180,6 +184,7 @@ export default function ClientPage({ params }: ClientPageProps) {
       .eq('client_id', dbClientId)
       .order('number')
 
+    if (!isMounted.current) return
     if (phonesData) setPhoneNumbers(phonesData)
 
     const { data: notesData } = await supabase
@@ -189,6 +194,7 @@ export default function ClientPage({ params }: ClientPageProps) {
       .order('is_pinned', { ascending: false })
       .order('created_at', { ascending: false })
 
+    if (!isMounted.current) return
     if (notesData) setNotes(notesData)
 
     // Fetch cases with services
@@ -204,8 +210,12 @@ export default function ClientPage({ params }: ClientPageProps) {
       .eq('client_id', dbClientId)
       .order('created_at', { ascending: false })
 
+    if (!isMounted.current) return
     if (casesError) console.error('Error fetching cases:', casesError)
     if (casesData) setCases(casesData)
+
+    let resolvedCountryName: string | null = null
+    let resolvedCityName: string | null = null
 
     if (clientData.country_of_origin) {
       const { data: countryData } = await supabase
@@ -214,7 +224,11 @@ export default function ClientPage({ params }: ClientPageProps) {
         .eq('id', clientData.country_of_origin)
         .single()
       
-      if (countryData) setCountryName(countryData.country)
+      if (!isMounted.current) return
+      if (countryData) {
+        resolvedCountryName = countryData.country
+        setCountryName(countryData.country)
+      }
     }
 
     if (clientData.city_in_poland) {
@@ -224,10 +238,29 @@ export default function ClientPage({ params }: ClientPageProps) {
         .eq('id', clientData.city_in_poland)
         .single()
       
-      if (cityData) setCityName(cityData.city)
+      if (!isMounted.current) return
+      if (cityData) {
+        resolvedCityName = cityData.city
+        setCityName(cityData.city)
+      }
     }
 
+    // Update cache for future visits
+    queryClient.setQueryData(queryKeys.client(dbClientId), {
+      client: clientData,
+      phoneNumbers: phonesData || [],
+      notes: notesData || [],
+      cases: casesData || [],
+      countryName: resolvedCountryName,
+      cityName: resolvedCityName
+    })
+
     setLoading(false)
+  }
+
+  // Wrapper for onMergeComplete that uses current urlId
+  const handleRefresh = () => {
+    fetchAllData(urlId, true)
   }
 
   const handleDeleteClient = async () => {
@@ -267,7 +300,7 @@ export default function ClientPage({ params }: ClientPageProps) {
         client={client}
         phoneNumbers={phoneNumbers}
         onDelete={() => setIsDeleteModalOpen(true)}
-        onMergeComplete={fetchAllData}
+        onMergeComplete={handleRefresh}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
