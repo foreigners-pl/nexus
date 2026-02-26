@@ -44,6 +44,7 @@ export default function HomePage() {
   const { getCached: getCachedDashboard, setCached: setCachedDashboard } = useDashboardCache()
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(() => null)
   const [loading, setLoading] = useState(true)
+  const [tabsLoaded, setTabsLoaded] = useState(false)
 
   // Load essential data first (visible content), then background load the rest
   useEffect(() => {
@@ -56,6 +57,7 @@ export default function HomePage() {
     if (cached?.data) {
       setDashboardData(cached.data)
       setLoading(false)
+      setTabsLoaded(true)
       // Background refresh
       refreshAllData()
       return
@@ -113,6 +115,7 @@ export default function HomePage() {
     prefetchedTabs.add('tasks')
     prefetchedTabs.add('payments')
     prefetchedTabs.add('overdue')
+    setTabsLoaded(true)
   }
 
   async function refreshAllData() {
@@ -308,6 +311,7 @@ export default function HomePage() {
             todayCount={dashboardData.todayCount}
             todayCounts={dashboardData.todayCounts}
             onPrefetchTab={prefetchTab}
+            tabsLoaded={tabsLoaded}
           />
         </div>
 

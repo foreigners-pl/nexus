@@ -91,9 +91,67 @@ interface DashboardPanelProps {
   todayCount: number
   todayCounts: { cases: number; tasks: number; payments: number }
   onPrefetchTab?: (tabId: string) => void
+  tabsLoaded?: boolean
 }
 
-export function DashboardPanel({ myCases, myTasks, myPayments, myOverdue, todayCount, todayCounts, onPrefetchTab }: DashboardPanelProps) {
+// Skeleton loader for list items
+function ListSkeleton({ rows = 5 }: { rows?: number }) {
+  return (
+    <div className="space-y-3 p-2">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))]">
+          <div className="w-10 h-10 rounded-lg bg-[hsl(var(--color-surface-hover))] animate-pulse" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 w-32 bg-[hsl(var(--color-surface-hover))] rounded animate-pulse" />
+            <div className="h-3 w-48 bg-[hsl(var(--color-surface-hover))] rounded animate-pulse opacity-60" />
+          </div>
+          <div className="h-6 w-16 bg-[hsl(var(--color-surface-hover))] rounded animate-pulse" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// Skeleton for payments tab with table header
+function PaymentsSkeleton() {
+  return (
+    <div className="h-full flex flex-col">
+      {/* Filter buttons skeleton */}
+      <div className="flex gap-1 mb-3 bg-[hsl(var(--color-surface))] p-1 rounded-xl border border-[hsl(var(--color-border))] w-fit">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="px-3 py-1.5 w-24 h-8 bg-[hsl(var(--color-surface-hover))] rounded-lg animate-pulse" />
+        ))}
+      </div>
+      {/* Summary box skeleton */}
+      <div className="mb-4 p-3 rounded-xl bg-green-500/10 border border-green-500/30">
+        <div className="h-3 w-20 bg-green-500/20 rounded animate-pulse mb-2" />
+        <div className="h-8 w-32 bg-green-500/20 rounded animate-pulse mb-1" />
+        <div className="h-3 w-40 bg-green-500/20 rounded animate-pulse" />
+      </div>
+      {/* Table header skeleton */}
+      <div className="grid grid-cols-12 gap-2 pb-2 border-b border-[hsl(var(--color-border))] mb-2">
+        {[2, 2, 2, 2, 2, 2].map((span, i) => (
+          <div key={i} className={`col-span-${span} h-3 bg-[hsl(var(--color-surface-hover))] rounded animate-pulse`} />
+        ))}
+      </div>
+      {/* Table rows skeleton */}
+      <div className="space-y-1">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="grid grid-cols-12 gap-2 p-2 rounded-lg bg-[hsl(var(--color-surface))]">
+            <div className="col-span-2 h-4 bg-[hsl(var(--color-surface-hover))] rounded animate-pulse" />
+            <div className="col-span-2 h-4 bg-[hsl(var(--color-surface-hover))] rounded animate-pulse" />
+            <div className="col-span-2 h-4 bg-[hsl(var(--color-surface-hover))] rounded animate-pulse" />
+            <div className="col-span-2 h-4 bg-[hsl(var(--color-surface-hover))] rounded animate-pulse" />
+            <div className="col-span-2 h-4 bg-[hsl(var(--color-surface-hover))] rounded animate-pulse" />
+            <div className="col-span-2 h-4 bg-[hsl(var(--color-surface-hover))] rounded animate-pulse" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export function DashboardPanel({ myCases, myTasks, myPayments, myOverdue, todayCount, todayCounts, onPrefetchTab, tabsLoaded = true }: DashboardPanelProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabType>('timeline')
 
@@ -221,10 +279,10 @@ export function DashboardPanel({ myCases, myTasks, myPayments, myOverdue, todayC
 
       <CardContent className="flex-1 min-h-0 overflow-hidden pt-0 px-3 pb-3">
         {activeTab === 'timeline' && <TimelineTab todayCounts={todayCounts} />}
-        {activeTab === 'cases' && <MyCasesTab cases={myCases} />}
-        {activeTab === 'tasks' && <OpenTasksTab tasks={myTasks} />}
-        {activeTab === 'payments' && <PendingPaymentsTab cases={myPayments} />}
-        {activeTab === 'overdue' && <OverdueTab items={myOverdue} />}
+        {activeTab === 'cases' && (tabsLoaded ? <MyCasesTab cases={myCases} /> : <ListSkeleton rows={6} />)}
+        {activeTab === 'tasks' && (tabsLoaded ? <OpenTasksTab tasks={myTasks} /> : <ListSkeleton rows={6} />)}
+        {activeTab === 'payments' && (tabsLoaded ? <PendingPaymentsTab cases={myPayments} /> : <PaymentsSkeleton />)}
+        {activeTab === 'overdue' && (tabsLoaded ? <OverdueTab items={myOverdue} /> : <ListSkeleton rows={6} />)}
       </CardContent>
     </Card>
   )
