@@ -1,12 +1,13 @@
 ﻿'use client'
 
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import type { Client } from '@/types/database'
+import type { ClientFilters } from '../page'
 
 interface ClientWithPhones extends Client {
   contact_numbers?: Array<{ id: string; number: string; country_code?: string; is_on_whatsapp: boolean }>
@@ -16,14 +17,33 @@ interface ClientsTableProps {
   clients: ClientWithPhones[]
   loading: boolean
   loadingMore: boolean
+  isSearching?: boolean
   onLoadMore: () => void
+  onSearch: (filters: ClientFilters) => void
 }
 
 type SortField = 'first_name' | 'last_name' | 'contact_email' | 'created_at' | null
 type SortDirection = 'asc' | 'desc'
 
-export function ClientsTable({ clients, loading, loadingMore, onLoadMore }: ClientsTableProps) {
-  const [filters, setFilters] = useState({
+// Debounce hook
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value)
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value)
+    }, delay)
+
+    return () => {
+      clearTimeout(handler)
+    }
+  }, [value, delay])
+
+  return debouncedValue
+}
+
+export function ClientsTable({ clients, loading, loadingMore, isSearching, onLoadMore, onSearch }: ClientsTableProps) {
+  const [filters, setFilters] = useState<ClientFilters>({
     firstName: '',
     lastName: '',
     email: '',
@@ -39,6 +59,14 @@ export function ClientsTable({ clients, loading, loadingMore, onLoadMore }: Clie
   const tableRef = useRef<HTMLDivElement>(null)
   const datePickerRef = useRef<HTMLDivElement>(null)
   const dateButtonRef = useRef<HTMLButtonElement>(null)
+
+  // Debounce the filters for database search
+  const debouncedFilters = useDebounce(filters, 400)
+
+  // Trigger search when debounced filters change
+  useEffect(() => {
+    onSearch(debouncedFilters)
+  }, [debouncedFilters, onSearch])
 
   useEffect(() => {
     setMounted(true)
@@ -109,47 +137,17 @@ export function ClientsTable({ clients, loading, loadingMore, onLoadMore }: Clie
     index === self.findIndex(c => c.id === client.id)
   )
 
-  const filteredAndSortedClients = uniqueClients
-    .filter((client) => {
-      const matchesFirstName = !filters.firstName || client.first_name?.toLowerCase().includes(filters.firstName.toLowerCase())
-      const matchesLastName = !filters.lastName || client.last_name?.toLowerCase().includes(filters.lastName.toLowerCase())
-      const matchesEmail = !filters.email || client.contact_email?.toLowerCase().includes(filters.email.toLowerCase())
-      const matchesPhone = !filters.phone || client.contact_numbers?.some(phone => {
-        const fullPhone = phone.country_code ? `${phone.country_code} ${phone.number}` : phone.number
-        return fullPhone.toLowerCase().includes(filters.phone.toLowerCase())
-      })
-      
-      // Date filtering
-      const clientDate = new Date(client.created_at)
-      clientDate.setHours(0, 0, 0, 0)
-      
-      let matchesDateFrom = true
-      let matchesDateTo = true
-      
-      if (filters.dateFrom) {
-        const fromDate = new Date(filters.dateFrom)
-        fromDate.setHours(0, 0, 0, 0)
-        matchesDateFrom = clientDate >= fromDate
-      }
-      
-      if (filters.dateTo) {
-        const toDate = new Date(filters.dateTo)
-        toDate.setHours(23, 59, 59, 999)
-        matchesDateTo = clientDate <= toDate
-      }
-
-      return matchesFirstName && matchesLastName && matchesEmail && matchesPhone && matchesDateFrom && matchesDateTo
-    })
-    .sort((a, b) => {
-      if (!sortField) return 0
-      
-      let aVal: string | number = ''
-      let bVal: string | number = ''
-      
-      if (sortField === 'created_at') {
-        aVal = new Date(a.created_at).getTime()
-        bVal = new Date(b.created_at).getTime()
-      } else {
+  // Sort clients (filtering is done server-side now)
+  const sortedClients = [...uniqueClients].sort((a, b) => {
+    if (!sortField) return 0
+    
+    let aVal: string | number = ''
+    let bVal: string | number = ''
+    
+    if (sortField === 'created_at') {
+      aVal = new Date(a.created_at).getTime()
+      bVal = new Date(b.created_at).getTime()
+    } else {
         aVal = (a[sortField] || '').toLowerCase()
         bVal = (b[sortField] || '').toLowerCase()
       }
@@ -351,7 +349,22 @@ export function ClientsTable({ clients, loading, loadingMore, onLoadMore }: Clie
               </tr>
             </thead>
             <tbody className="divide-y divide-[hsl(var(--color-border)/0.5)]">
-              {filteredAndSortedClients.map((client, index) => (
+              {isSearching ? (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center">
+                    <div className="flex items-center justify-center gap-3">
+                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent"></div>
+                      <span className="text-[hsl(var(--color-text-secondary))]">Searching...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : sortedClients.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-[hsl(var(--color-text-secondary))]">
+                    No clients found matching your search
+                  </td>
+                </tr>
+              ) : sortedClients.map((client, index) => (
                 <tr
                   key={client.id}
                   className="hover:bg-[hsl(var(--color-surface-hover))] transition-all duration-200 group"
