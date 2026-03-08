@@ -44,7 +44,8 @@ export default function DashboardLayout({
             )}>
               {children}
             </main>
-            <MiniChat />
+            {/* MiniChat hidden for now */}
+            {/* <MiniChat /> */}
           </div>
         </ChatProvider>
       </NotificationProvider>
