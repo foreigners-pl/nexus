@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Navbar } from '@/components/layout/Navbar'
+import { MobileBottomNav } from '@/components/layout/MobileBottomNav'
 import { NotificationProvider } from '@/lib/notifications/NotificationContext'
 import { ChatProvider } from '@/lib/chat/ChatContext'
 import { QueryProvider, PrefetchManager } from '@/lib/query'
@@ -39,11 +40,15 @@ export default function DashboardLayout({
           <div className="h-screen bg-[hsl(var(--color-background))] flex flex-col">
             <Navbar />
             <main className={cn(
-              "px-6 py-6 flex-1 overflow-y-auto transition-all duration-300",
-              isNavCollapsed ? "ml-16" : "ml-56"
+              "px-4 py-4 flex-1 overflow-y-auto transition-all duration-300",
+              "pb-20 md:pb-6", // Extra bottom padding on mobile for bottom nav
+              "md:px-6 md:py-6", // Larger padding on desktop
+              "ml-0", // No left margin on mobile
+              isNavCollapsed ? "md:ml-16" : "md:ml-56" // Left margin on desktop
             )}>
               {children}
             </main>
+            <MobileBottomNav />
             {/* MiniChat hidden for now */}
             {/* <MiniChat /> */}
           </div>

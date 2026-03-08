@@ -108,8 +108,8 @@ export function BoardHeader({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3 flex-wrap">
+    <div className="space-y-2 sm:space-y-4">
+      <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
         {/* Board Name */}
         {isEditingName && !isSystem ? (
           <div className="flex items-center gap-2">
@@ -127,12 +127,12 @@ export function BoardHeader({
               }}
               disabled={saving}
               autoFocus
-              className="text-3xl font-bold text-[hsl(var(--color-text-primary))] bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-primary))]"
+              className="text-xl sm:text-3xl font-bold text-[hsl(var(--color-text-primary))] bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-primary))]"
             />
           </div>
         ) : (
           <h1 
-            className={`text-3xl font-bold text-[hsl(var(--color-text-primary))] ${!isSystem ? 'cursor-pointer hover:text-[hsl(var(--color-primary))] transition-colors' : ''}`}
+            className={`text-xl sm:text-3xl font-bold text-[hsl(var(--color-text-primary))] ${!isSystem ? 'cursor-pointer hover:text-[hsl(var(--color-primary))] transition-colors' : ''}`}
             onClick={() => !isSystem && setIsEditingName(true)}
             title={!isSystem ? 'Click to edit' : undefined}
           >
@@ -141,20 +141,20 @@ export function BoardHeader({
         )}
         
         {isSystem && (
-          <span className="px-2 py-1 text-xs bg-[hsl(var(--color-surface))] text-[hsl(var(--color-text-secondary))] rounded border border-[hsl(var(--color-border))]">
-            System Board
+          <span className="px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs bg-[hsl(var(--color-surface))] text-[hsl(var(--color-text-secondary))] rounded border border-[hsl(var(--color-border))]">
+            System
           </span>
         )}
 
         {/* Action Buttons - Next to title so they don't scroll off */}
         {!isSystem && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             {onShareClick && (
               <Button onClick={onShareClick} variant="ghost" size="sm">
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                 </svg>
-                Share
+                <span className="hidden sm:inline">Share</span>
               </Button>
             )}
             

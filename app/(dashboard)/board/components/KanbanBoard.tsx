@@ -195,7 +195,7 @@ export function KanbanBoard({ statuses, cases, onUpdate, onCaseStatusUpdate, onC
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4 h-full">
+      <div className="flex gap-3 sm:gap-4 h-full overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 snap-x snap-mandatory sm:snap-none scrollbar-thin">
         {statuses.map(status => (
           <SortableContext
             key={status.id}
@@ -203,12 +203,14 @@ export function KanbanBoard({ statuses, cases, onUpdate, onCaseStatusUpdate, onC
             items={getCasesForStatus(status.id).map(c => c.id)}
             strategy={verticalListSortingStrategy}
           >
-            <KanbanColumn
-              key={status.id}
-              status={status}
-              cases={getCasesForStatus(status.id)}
-              onUpdate={onUpdate}
-            />
+            <div className="snap-start flex-shrink-0 w-[280px] sm:w-auto sm:flex-shrink">
+              <KanbanColumn
+                key={status.id}
+                status={status}
+                cases={getCasesForStatus(status.id)}
+                onUpdate={onUpdate}
+              />
+            </div>
           </SortableContext>
         ))}
       </div>

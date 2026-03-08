@@ -42,6 +42,51 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue
 }
 
+// Mobile Client Card Component
+function ClientCard({ client }: { client: ClientWithPhones }) {
+  const primaryPhone = client.contact_numbers?.[0]
+  const phoneDisplay = primaryPhone 
+    ? (primaryPhone.country_code ? `${primaryPhone.country_code} ${primaryPhone.number}` : primaryPhone.number)
+    : null
+
+  return (
+    <Link href={`/clients/${client.client_code || client.id}`}>
+      <div className="p-4 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl hover:bg-[hsl(var(--color-surface-hover))] transition-colors active:scale-[0.98]">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-[hsl(var(--color-text-primary))] truncate">
+                {client.first_name || client.last_name 
+                  ? `${client.first_name || ''} ${client.last_name || ''}`.trim()
+                  : 'Unnamed Client'}
+              </span>
+              {primaryPhone?.is_on_whatsapp && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-400 flex-shrink-0">
+                  WA
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3 mt-1 text-sm text-[hsl(var(--color-text-secondary))]">
+              {phoneDisplay && (
+                <span className="font-mono text-xs">{phoneDisplay}</span>
+              )}
+              {client.contact_email && phoneDisplay && (
+                <span className="text-[hsl(var(--color-text-muted))]">•</span>
+              )}
+              {client.contact_email && (
+                <span className="truncate text-xs">{client.contact_email}</span>
+              )}
+            </div>
+          </div>
+          <svg className="w-5 h-5 text-[hsl(var(--color-text-muted))] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </Link>
+  )
+}
+
 export function ClientsTable({ clients, loading, loadingMore, isSearching, onLoadMore, onSearch }: ClientsTableProps) {
   const [filters, setFilters] = useState<ClientFilters>({
     firstName: '',
@@ -173,7 +218,7 @@ export function ClientsTable({ clients, loading, loadingMore, isSearching, onLoa
   if (clients.length === 0) {
     return (
       <Card className="backdrop-blur-xl border border-[hsl(var(--color-border))] shadow-[0_8px_32px_rgb(0_0_0/0.25)]">
-        <CardContent className="py-20">
+        <CardContent className="py-20 px-4">
           <div className="flex flex-col items-center justify-center gap-4">
             <div className="p-6 rounded-2xl bg-[hsl(var(--color-surface-hover))] border border-[hsl(var(--color-border))]">
               <svg className="w-16 h-16 text-[hsl(var(--color-text-muted))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -189,11 +234,68 @@ export function ClientsTable({ clients, loading, loadingMore, isSearching, onLoa
     )
   }
 
+  // Combined search value for mobile
+  const mobileSearchValue = filters.firstName || filters.lastName || filters.phone || filters.email
+
   return (
-    <Card className="backdrop-blur-xl border border-[hsl(var(--color-border))] shadow-[0_8px_32px_rgb(0_0_0/0.25)] overflow-hidden">
-      <CardContent className="p-0">
-        <div ref={tableRef} className="overflow-x-auto max-h-[calc(100vh-220px)] overflow-y-auto scrollbar-thin">
-          <table className="w-full table-fixed">
+    <>
+      {/* Mobile View */}
+      <div className="md:hidden space-y-3">
+        {/* Mobile Search */}
+        <div className="relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[hsl(var(--color-text-muted))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <Input
+            placeholder="Search clients..."
+            value={mobileSearchValue}
+            onChange={(e) => setFilters({ 
+              firstName: e.target.value, 
+              lastName: '', 
+              email: '', 
+              phone: '',
+              dateFrom: '',
+              dateTo: ''
+            })}
+            className="pl-10 bg-[hsl(var(--color-surface))]"
+          />
+        </div>
+
+        {/* Mobile Client List */}
+        <div 
+          ref={tableRef}
+          className="space-y-2 max-h-[calc(100vh-220px)] overflow-y-auto scrollbar-thin"
+        >
+          {isSearching ? (
+            <div className="flex items-center justify-center gap-3 py-8">
+              <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent"></div>
+              <span className="text-[hsl(var(--color-text-secondary))]">Searching...</span>
+            </div>
+          ) : sortedClients.length === 0 ? (
+            <div className="py-8 text-center text-[hsl(var(--color-text-secondary))]">
+              No clients found matching your search
+            </div>
+          ) : (
+            <>
+              {sortedClients.map((client) => (
+                <ClientCard key={client.id} client={client} />
+              ))}
+              {loadingMore && (
+                <div className="flex items-center justify-center gap-3 py-6">
+                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-[hsl(var(--color-primary))] border-t-transparent"></div>
+                  <p className="text-sm text-[hsl(var(--color-text-secondary))]">Loading more...</p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Desktop View */}
+      <Card className="hidden md:block backdrop-blur-xl border border-[hsl(var(--color-border))] shadow-[0_8px_32px_rgb(0_0_0/0.25)] overflow-hidden">
+        <CardContent className="p-0">
+          <div ref={tableRef} className="overflow-x-auto max-h-[calc(100vh-220px)] overflow-y-auto scrollbar-thin">
+            <table className="w-full table-fixed">
             <thead className="sticky top-0 bg-[hsl(var(--color-surface))] z-10 backdrop-blur-xl">
               <tr className="border-b border-[hsl(var(--color-border))]">
                 <th className="text-left p-4 text-[hsl(var(--color-text-secondary))] font-medium w-[16%]">
@@ -435,5 +537,6 @@ export function ClientsTable({ clients, loading, loadingMore, isSearching, onLoa
         </div>
       </CardContent>
     </Card>
+    </>
   )
 }

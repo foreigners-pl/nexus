@@ -148,7 +148,8 @@ export function Navbar() {
 
   return (
     <nav className={cn(
-      "fixed top-0 left-0 h-screen bg-[hsl(var(--color-surface))] border-r border-[hsl(var(--color-border))] flex flex-col transition-all duration-300 overflow-hidden",
+      "fixed top-0 left-0 h-screen bg-[hsl(var(--color-surface))] border-r border-[hsl(var(--color-border))] flex-col transition-all duration-300 overflow-hidden",
+      "hidden md:flex", // Hide on mobile, show on desktop
       isCollapsed ? "w-16" : "w-56"
     )}>
       {/* Logo/Brand */}

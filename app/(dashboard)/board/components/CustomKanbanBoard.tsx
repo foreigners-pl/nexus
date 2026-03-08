@@ -364,38 +364,39 @@ export function CustomKanbanBoard({
         items={sortedStatuses.map(s => `status-${s.id}`)} 
         strategy={horizontalListSortingStrategy}
       >
-        <div className="flex gap-4 h-full">
+        <div className="flex gap-3 sm:gap-4 h-full overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 snap-x snap-mandatory sm:snap-none scrollbar-thin">
           {sortedStatuses.map((status, index) => (
-            <SortableStatusColumn
-              key={status.id}
-              status={status}
-              cards={cards.filter(c => c.status_id === status.id)}
-              boardId={boardId}
-              isSharedBoard={isSharedBoard}
-              userAccessLevel={userAccessLevel}
-              onUpdate={onStatusUpdate}
-              onDelete={onStatusDelete}
-              onReorder={onStatusReorder}
-              allStatuses={sortedStatuses}
-              statusIndex={index}
-              totalStatuses={sortedStatuses.length}
-              onCardUpdate={onCardUpdate}
-              onCardAdd={onCardAdd}
-              onCardDelete={onCardDelete}
-              onCardRefresh={onCardRefresh}
-              isDragging={isDraggingStatus && activeStatus?.id === status.id}
-              // Modal triggers
-              onAddCard={() => {
-                setModalStatusId(status.id)
-                setModalCard(null)
-                setIsCardModalOpen(true)
-              }}
-              onEditCard={(card: any) => {
-                setModalStatusId(status.id)
-                setModalCard(card)
-                setIsCardModalOpen(true)
-              }}
-            />
+            <div key={status.id} className="snap-start flex-shrink-0 w-[280px] sm:w-64">
+              <SortableStatusColumn
+                status={status}
+                cards={cards.filter(c => c.status_id === status.id)}
+                boardId={boardId}
+                isSharedBoard={isSharedBoard}
+                userAccessLevel={userAccessLevel}
+                onUpdate={onStatusUpdate}
+                onDelete={onStatusDelete}
+                onReorder={onStatusReorder}
+                allStatuses={sortedStatuses}
+                statusIndex={index}
+                totalStatuses={sortedStatuses.length}
+                onCardUpdate={onCardUpdate}
+                onCardAdd={onCardAdd}
+                onCardDelete={onCardDelete}
+                onCardRefresh={onCardRefresh}
+                isDragging={isDraggingStatus && activeStatus?.id === status.id}
+                // Modal triggers
+                onAddCard={() => {
+                  setModalStatusId(status.id)
+                  setModalCard(null)
+                  setIsCardModalOpen(true)
+                }}
+                onEditCard={(card: any) => {
+                  setModalStatusId(status.id)
+                  setModalCard(card)
+                  setIsCardModalOpen(true)
+                }}
+              />
+            </div>
           ))}
       {/* Card Modal rendered at board level for proper popup positioning */}
       {isCardModalOpen && (

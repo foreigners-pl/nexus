@@ -14,19 +14,19 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, subtitle, icon, action }: PageHeaderProps) {
   return (
-    <div className="flex justify-between items-center mb-6">
-      <div className="flex items-center gap-4">
+    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
+      <div className="flex items-center gap-3 sm:gap-4">
         {icon && (
-          <div className="p-3 rounded-2xl bg-[hsl(var(--color-primary))]/20 backdrop-blur-sm border border-[hsl(var(--color-primary))]/30 shadow-[0_0_20px_hsl(var(--color-primary)/0.2)]">
+          <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-[hsl(var(--color-primary))]/20 backdrop-blur-sm border border-[hsl(var(--color-primary))]/30 shadow-[0_0_20px_hsl(var(--color-primary)/0.2)]">
             {icon}
           </div>
         )}
         <div>
-          <h1 className="text-2xl font-bold text-[hsl(var(--color-text-primary))]">
+          <h1 className="text-xl sm:text-2xl font-bold text-[hsl(var(--color-text-primary))]">
             {title}
           </h1>
           {subtitle && (
-            <p className="text-sm text-[hsl(var(--color-text-secondary))] mt-0.5">
+            <p className="text-xs sm:text-sm text-[hsl(var(--color-text-secondary))] mt-0.5 hidden sm:block">
               {subtitle}
             </p>
           )}
@@ -35,10 +35,11 @@ export function PageHeader({ title, subtitle, icon, action }: PageHeaderProps) {
       {action && (
         <Button 
           onClick={action.onClick}
-          className="shadow-[0_4px_20px_hsl(var(--color-primary)/0.3)] hover:shadow-[0_6px_30px_hsl(var(--color-primary)/0.4)] transition-all duration-300"
+          size="sm"
+          className="shadow-[0_4px_20px_hsl(var(--color-primary)/0.3)] hover:shadow-[0_6px_30px_hsl(var(--color-primary)/0.4)] transition-all duration-300 sm:size-default"
         >
           {action.icon}
-          {action.label}
+          <span className="sm:inline">{action.label}</span>
         </Button>
       )}
     </div>

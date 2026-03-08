@@ -317,7 +317,77 @@ export default function CasesPage() {
         </form>
       </Modal>
 
-      <Card>
+      {/* Mobile Search */}
+      <div className="md:hidden relative">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[hsl(var(--color-text-muted))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <Input
+          placeholder="Search cases..."
+          value={filters.caseCode || filters.clientName}
+          onChange={(e) => setFilters({ caseCode: e.target.value, clientName: e.target.value, status: '' })}
+          className="pl-10 bg-[hsl(var(--color-surface))]"
+        />
+      </div>
+
+      {/* Mobile Card View */}
+      <div className="md:hidden space-y-2">
+        {loading ? (
+          <div className="text-center py-12">
+            <p className="text-[hsl(var(--color-text-secondary))]">Loading cases...</p>
+          </div>
+        ) : cases.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-[hsl(var(--color-text-secondary))]">
+              No cases yet. Tap "Add Case" to get started.
+            </p>
+          </div>
+        ) : (
+          <div ref={tableRef} className="space-y-2 max-h-[calc(100vh-220px)] overflow-y-auto scrollbar-thin">
+            {filteredCases.map((caseItem) => (
+              <div
+                key={caseItem.id}
+                onClick={() => router.push(`/cases/${caseItem.case_code || caseItem.id}`)}
+                className="p-4 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl hover:bg-[hsl(var(--color-surface-hover))] transition-colors active:scale-[0.98] cursor-pointer"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-sm text-[hsl(var(--color-text-primary))]">
+                        {caseItem.case_code || '-'}
+                      </span>
+                      {caseItem.status && (
+                        <span className="px-2 py-0.5 rounded text-[10px] bg-[hsl(var(--color-primary))]/10 text-[hsl(var(--color-primary))]">
+                          {caseItem.status.name}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-[hsl(var(--color-text-secondary))] mt-1 truncate">
+                      {getClientDisplayName(caseItem.clients)}
+                    </p>
+                    {caseItem.users && (
+                      <p className="text-xs text-[hsl(var(--color-text-muted))] mt-0.5">
+                        {caseItem.users.display_name || caseItem.users.email}
+                      </p>
+                    )}
+                  </div>
+                  <svg className="w-5 h-5 text-[hsl(var(--color-text-muted))] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </div>
+            ))}
+            {loadingMore && (
+              <div className="text-center py-4">
+                <p className="text-sm text-[hsl(var(--color-text-secondary))]">Loading more...</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Desktop Table View */}
+      <Card className="hidden md:block">
         <CardHeader>
           <CardTitle>All Cases ({filteredCases.length})</CardTitle>
         </CardHeader>
