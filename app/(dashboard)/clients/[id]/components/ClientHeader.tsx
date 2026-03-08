@@ -40,6 +40,18 @@ export function ClientHeader({ client, phoneNumbers, onDelete, onMergeComplete }
 
   return (
     <>
+      {/* Back button - above the header */}
+      <div className="mb-4">
+        <Button 
+          variant="ghost" 
+          size="sm"
+          onClick={() => router.push('/clients')}
+          className="text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))] -ml-2"
+        >
+          ← Back to Clients
+        </Button>
+      </div>
+      
       <div className="flex justify-between items-start">
         <div className="flex items-center gap-4">
           {/* Glass Icon */}
@@ -54,16 +66,6 @@ export function ClientHeader({ client, phoneNumbers, onDelete, onMergeComplete }
           </div>
           
           <div>
-            <div className="flex items-center gap-3 mb-1">
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={() => router.push('/clients')}
-                className="text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))]"
-              >
-                ← Back to Clients
-              </Button>
-            </div>
             <h1 className="text-2xl font-semibold text-[hsl(var(--color-text-primary))]">
               {client.first_name || client.last_name || client.contact_email || 'Unnamed Client'}
               {client.first_name && client.last_name && ` ${client.last_name}`}

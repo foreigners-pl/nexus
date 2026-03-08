@@ -14,7 +14,7 @@ import { ServicesSection } from './components/ServicesSection'
 import { PaymentPanel } from './components/PaymentPanel'
 import { AttachmentsSection } from './components/AttachmentsSection'
 import { CommentsSection } from './components/CommentsSection'
-import type { Case, Client, Status, Installment, CaseAttachment, Comment } from '@/types/database'
+import type { Case, Client, Status, Installment, CaseAttachment, Comment, ContactNumber } from '@/types/database'
 
 interface CasePageProps {
   params: Promise<{ id: string }>
@@ -26,6 +26,7 @@ export default function CasePage({ params }: CasePageProps) {
   
   const [caseData, setCaseData] = useState<Case | null>(null)
   const [client, setClient] = useState<Client | null>(null)
+  const [clientPhoneNumbers, setClientPhoneNumbers] = useState<ContactNumber[]>([])
   const [status, setStatus] = useState<Status | null>(null)
   const [assignees, setAssignees] = useState<any[]>([])
   const [caseServices, setCaseServices] = useState<any[]>([])
@@ -84,6 +85,15 @@ export default function CasePage({ params }: CasePageProps) {
       const { data: clientData } = await supabase.from('clients').select('*').eq('id', caseResult.client_id).single()
       if (!isMounted.current) return
       if (clientData) setClient(clientData)
+      
+      // Fetch client phone numbers
+      const { data: phonesData } = await supabase
+        .from('contact_numbers')
+        .select('*')
+        .eq('client_id', caseResult.client_id)
+        .order('number')
+      if (!isMounted.current) return
+      if (phonesData) setClientPhoneNumbers(phonesData)
     }
 
     if (caseResult.status_id) {
@@ -192,7 +202,7 @@ export default function CasePage({ params }: CasePageProps) {
 
   return (
     <div className="space-y-6">
-      <CaseHeader caseData={caseData} client={client} onDelete={() => setIsDeleteModalOpen(true)} />
+      <CaseHeader caseData={caseData} client={client} clientPhoneNumbers={clientPhoneNumbers} onDelete={() => setIsDeleteModalOpen(true)} />
       <Modal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} title="Delete Case">
         <div className="space-y-4">
           <p>Are you sure you want to delete this case? This action cannot be undone.</p>
