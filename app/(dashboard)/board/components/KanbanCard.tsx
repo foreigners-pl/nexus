@@ -1,12 +1,16 @@
 'use client'
 
 import Link from 'next/link'
-import { Case, Client, Status } from '@/types/database'
+import { Case, Client, Status, ContactNumber } from '@/types/database'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
+interface ClientWithContacts extends Client {
+  contact_numbers?: ContactNumber[]
+}
+
 interface CaseWithRelations extends Case {
-  clients?: Client
+  clients?: ClientWithContacts
   status?: Status
 }
 
@@ -39,6 +43,15 @@ export function KanbanCard({ caseItem, isDragging = false }: KanbanCardProps) {
     if (last_name) return last_name
     if (contact_email) return contact_email
     return 'Unnamed Client'
+  }
+
+  const getClientPhoneNumber = () => {
+    if (!caseItem.clients?.contact_numbers?.length) return null
+    const phone = caseItem.clients.contact_numbers[0]
+    if (phone.country_code) {
+      return `${phone.country_code} ${phone.number}`
+    }
+    return phone.number
   }
 
   const formatDate = (dateString: string) => {
@@ -83,10 +96,17 @@ export function KanbanCard({ caseItem, isDragging = false }: KanbanCardProps) {
           }}
         >
           <div className="space-y-2">
-          {/* Title: Case Code */}
+          {/* Client Name */}
           <div className="font-medium text-sm text-[hsl(var(--color-text-primary))]">
-            {caseItem.case_code || 'No Code'}
+            {getClientDisplayName()}
           </div>
+
+          {/* Client Phone Number */}
+          {getClientPhoneNumber() && (
+            <div className="text-xs text-[hsl(var(--color-text-secondary))]">
+              {getClientPhoneNumber()}
+            </div>
+          )}
 
           {/* Assignees */}
           {caseItem.case_assignees && caseItem.case_assignees.length > 0 && (

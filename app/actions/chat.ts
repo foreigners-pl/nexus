@@ -157,6 +157,7 @@ export async function getMessages(conversationId: string, limit = 10, before?: s
     .from('messages')
     .select(`
       *,
+      sender:users!sender_id(id, display_name, email),
       reactions:message_reactions(id, user_id, emoji)
     `)
     .eq('conversation_id', conversationId)

@@ -324,7 +324,12 @@ export async function getCasesBoardData() {
         client_code,
         first_name,
         last_name,
-        contact_email
+        contact_email,
+        contact_numbers (
+          id,
+          number,
+          country_code
+        )
       ),
       status (
         id,

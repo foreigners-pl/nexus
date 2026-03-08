@@ -205,7 +205,18 @@ export default function ChatWindow({ conversation, onBack, onMeetingUpdate, isOn
         async (payload) => {
           const newMessage = payload.new as Message
           
-          // Just use the message from payload - sender info will be looked up by MessageBubble
+          // Fetch sender info for the new message
+          if (newMessage.sender_id) {
+            const { data: sender } = await supabase
+              .from('users')
+              .select('id, display_name, email')
+              .eq('id', newMessage.sender_id)
+              .single()
+            if (sender) {
+              newMessage.sender = sender
+            }
+          }
+          
           setMessages(prev => {
             // Avoid duplicates if we already added it optimistically
             if (prev.some(m => m.id === newMessage.id)) return prev
