@@ -37,9 +37,9 @@ export default function ChatPage() {
   if (loading) {
     // Show skeleton UI instead of spinner
     return (
-      <div className="h-[calc(100vh-4rem+3rem)] -mx-6 -my-6 flex">
+      <div className="h-[calc(100vh-4rem+3rem-5rem)] md:h-[calc(100vh-4rem+3rem)] -mx-6 -my-6 flex">
         {/* Conversations list skeleton */}
-        <div className="w-80 border-r border-[hsl(var(--color-border))] bg-[hsl(var(--color-card))] p-4">
+        <div className="w-80 border-r border-[hsl(var(--color-border))] bg-[hsl(var(--color-card))] p-4 hidden md:block">
           <div className="h-10 bg-[hsl(var(--color-surface-hover))] rounded-lg animate-pulse mb-4" />
           <div className="space-y-3">
             {[1,2,3,4,5,6,7,8].map(i => (
@@ -62,7 +62,7 @@ export default function ChatPage() {
   }
   
   return (
-    <div className="h-[calc(100vh-4rem+3rem)] -mx-6 -my-6">
+    <div className="h-[calc(100vh-4rem+3rem-5rem)] md:h-[calc(100vh-4rem+3rem)] -mx-6 -my-6">
       <ChatContainer initialConversations={conversations} />
     </div>
   )

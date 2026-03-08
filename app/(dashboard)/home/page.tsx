@@ -227,7 +227,7 @@ export default function HomePage() {
   if (loading || !dashboardData) {
     // Show UI shell with skeleton placeholders - NOT a blank loading screen
     return (
-      <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden">
+      <div className="flex flex-col h-[calc(100vh-144px)] md:h-[calc(100vh-64px)] overflow-hidden">
         {/* Header Skeleton */}
         <div className="flex-shrink-0 pb-4 flex items-center gap-4">
           <div className="p-3 rounded-2xl bg-[hsl(var(--color-primary))]/20 backdrop-blur-sm border border-[hsl(var(--color-primary))]/30">
@@ -281,7 +281,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-144px)] md:h-[calc(100vh-64px)] overflow-hidden">
       {/* Header */}
       <div className="flex-shrink-0 pb-4 flex items-center gap-4">
         <div className="p-3 rounded-2xl bg-[hsl(var(--color-primary))]/20 backdrop-blur-sm border border-[hsl(var(--color-primary))]/30 shadow-[0_0_20px_hsl(var(--color-primary)/0.2)]">

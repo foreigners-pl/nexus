@@ -106,14 +106,14 @@ export function CaseHeader({ caseData, client, clientPhoneNumbers, onDelete }: C
           </div>
         </div>
         
+        {/* Delete button - hidden on mobile, shown at bottom of page instead */}
         <Button 
           variant="ghost" 
           size="sm"
           onClick={onDelete}
-          className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+          className="hidden sm:flex text-red-400 hover:text-red-300 hover:bg-red-500/10"
         >
-          <span className="hidden sm:inline">Delete Case</span>
-          <span className="sm:hidden">Delete</span>
+          Delete Case
         </Button>
       </div>
     </>

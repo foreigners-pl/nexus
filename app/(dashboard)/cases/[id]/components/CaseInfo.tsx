@@ -132,18 +132,18 @@ export function CaseInfo({ caseData, client, status, assignees, onUpdate, onAssi
 
   return (
     <>
-      <div className="grid grid-cols-4 divide-x divide-[hsl(var(--color-border))]">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-0 sm:divide-x sm:divide-[hsl(var(--color-border))]">
         {/* Left: Client Info */}
-        <div className="pr-6">
+        <div className="sm:pr-6">
           <label className="block text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-2">Client</label>
-          <p className="text-sm text-[hsl(var(--color-text-primary))] font-medium">{getClientDisplayName()}</p>
+          <p className="text-sm text-[hsl(var(--color-text-primary))] font-medium truncate">{getClientDisplayName()}</p>
           {client?.client_code && (
             <p className="text-xs text-[hsl(var(--color-text-secondary))] font-mono mt-1">{client.client_code}</p>
           )}
         </div>
 
         {/* Center-Left: Status */}
-        <div className="px-6">
+        <div className="sm:px-6">
           <label className="block text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-2">Status</label>
           <Select
             options={statuses.map(s => ({ id: s.id, label: s.name }))}
@@ -155,18 +155,18 @@ export function CaseInfo({ caseData, client, status, assignees, onUpdate, onAssi
         </div>
 
         {/* Center-Right: Due Date */}
-        <div className="px-6">
+        <div className="sm:px-6">
           <label className="block text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-2">Due Date</label>
           <input
             type="date"
             value={caseData.due_date || ''}
             onChange={(e) => handleUpdateDueDate(e.target.value)}
-            className="w-full px-4 py-2.5 text-sm bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] rounded-xl text-[hsl(var(--color-text-primary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-border-hover))] hover:border-[hsl(var(--color-border-hover))] hover:bg-[hsl(var(--color-surface-hover))] transition-all duration-200"
+            className="w-full px-3 sm:px-4 py-2.5 text-sm bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] rounded-xl text-[hsl(var(--color-text-primary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-border-hover))] hover:border-[hsl(var(--color-border-hover))] hover:bg-[hsl(var(--color-surface-hover))] transition-all duration-200"
           />
         </div>
 
         {/* Right: Assignees */}
-        <div className="pl-6">
+        <div className="sm:pl-6">
           <label className="block text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-2">Assignees</label>
           <div ref={assigneesRef} className="relative">
             <button

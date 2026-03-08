@@ -240,15 +240,15 @@ export function DashboardPanel({ myCases, myTasks, myPayments, myOverdue, todayC
   return (
     <Card className="h-full flex flex-col overflow-hidden">
       <CardHeader className="flex-shrink-0 pb-2 pt-3 px-3">
-        {/* Main Tabs - Glass Card Style */}
-        <div className="flex gap-2">
+        {/* Main Tabs - Glass Card Style - Responsive: icons only on mobile, full on md+ */}
+        <div className="flex gap-1 sm:gap-2 overflow-x-auto">
           {tabConfig.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               onMouseEnter={() => onPrefetchTab?.(tab.id)}
               className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-300 cursor-pointer",
+                "flex items-center gap-1 sm:gap-3 px-2 sm:px-3 py-2 rounded-xl transition-all duration-300 cursor-pointer flex-shrink-0",
                 "border backdrop-blur-sm",
                 activeTab === tab.id
                   ? [
@@ -266,16 +266,16 @@ export function DashboardPanel({ myCases, myTasks, myPayments, myOverdue, todayC
             >
               {/* Icon with colored background */}
               <div className={cn(
-                "p-2 rounded-lg transition-all duration-300",
+                "p-1.5 sm:p-2 rounded-lg transition-all duration-300",
                 tab.bgClass,
                 activeTab === tab.id && "shadow-[0_0_12px_currentColor/0.3]"
               )}>
-                <div className={tab.colorClass}>
+                <div className={cn(tab.colorClass, "[&>svg]:w-5 [&>svg]:h-5 sm:[&>svg]:w-6 sm:[&>svg]:h-6")}>
                   {tab.icon}
                 </div>
               </div>
-              {/* Label and count */}
-              <div className="text-left">
+              {/* Label and count - hidden on mobile, visible on sm+ */}
+              <div className="text-left hidden sm:block">
                 <div className="text-xs text-[hsl(var(--color-text-secondary))]">{tab.label}</div>
                 {tab.count !== null && (
                   <div className={cn(
@@ -285,6 +285,13 @@ export function DashboardPanel({ myCases, myTasks, myPayments, myOverdue, todayC
                   )}>{tab.count}</div>
                 )}
               </div>
+              {/* Count badge on mobile only */}
+              {tab.count !== null && (
+                <div className={cn(
+                  "sm:hidden text-xs font-bold",
+                  tab.colorClass
+                )}>{typeof tab.count === 'number' ? tab.count : ''}</div>
+              )}
             </button>
           ))}
         </div>

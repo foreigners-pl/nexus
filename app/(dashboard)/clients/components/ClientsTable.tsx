@@ -264,7 +264,7 @@ export function ClientsTable({ clients, loading, loadingMore, isSearching, onLoa
         {/* Mobile Client List */}
         <div 
           ref={tableRef}
-          className="space-y-2 max-h-[calc(100vh-220px)] overflow-y-auto scrollbar-thin"
+          className="space-y-3 max-h-[calc(100vh-300px)] overflow-y-auto scrollbar-thin"
         >
           {isSearching ? (
             <div className="flex items-center justify-center gap-3 py-8">
@@ -298,7 +298,10 @@ export function ClientsTable({ clients, loading, loadingMore, isSearching, onLoa
             <table className="w-full table-fixed">
             <thead className="sticky top-0 bg-[hsl(var(--color-surface))] z-10 backdrop-blur-xl">
               <tr className="border-b border-[hsl(var(--color-border))]">
-                <th className="text-left p-4 text-[hsl(var(--color-text-secondary))] font-medium w-[16%]">
+                <th className="p-4 text-[hsl(var(--color-text-secondary))] font-medium w-[10%]">
+                  <div className="text-xs uppercase tracking-wider text-center">Action</div>
+                </th>
+                <th className="text-left p-4 text-[hsl(var(--color-text-secondary))] font-medium w-[15%]">
                   <div className="space-y-2">
                     <div className="flex items-center text-xs uppercase tracking-wider">
                       First Name
@@ -312,7 +315,7 @@ export function ClientsTable({ clients, loading, loadingMore, isSearching, onLoa
                     />
                   </div>
                 </th>
-                <th className="text-left p-4 text-[hsl(var(--color-text-secondary))] font-medium w-[16%]">
+                <th className="text-left p-4 text-[hsl(var(--color-text-secondary))] font-medium w-[15%]">
                   <div className="space-y-2">
                     <div className="flex items-center text-xs uppercase tracking-wider">
                       Last Name
@@ -447,7 +450,6 @@ export function ClientsTable({ clients, loading, loadingMore, isSearching, onLoa
                     </div>
                   </div>
                 </th>
-                <th className="p-4 text-[hsl(var(--color-text-secondary))] font-medium w-[13%]"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[hsl(var(--color-border)/0.5)]">
@@ -472,6 +474,20 @@ export function ClientsTable({ clients, loading, loadingMore, isSearching, onLoa
                   className="hover:bg-[hsl(var(--color-surface-hover))] transition-all duration-200 group"
                   style={{ animationDelay: `${index * 20}ms` }}
                 >
+                  <td className="p-4 text-center">
+                    <Link href={`/clients/${client.client_code || client.id}`}>
+                      <Button 
+                        variant="primary" 
+                        size="sm"
+                      >
+                        <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        View
+                      </Button>
+                    </Link>
+                  </td>
                   <td className="p-4">
                     <span className="text-[hsl(var(--color-text-primary))] font-medium">
                       {client.first_name || <span className="text-[hsl(var(--color-text-muted))]">—</span>}
@@ -509,20 +525,6 @@ export function ClientsTable({ clients, loading, loadingMore, isSearching, onLoa
                     <span className="text-sm text-[hsl(var(--color-text-secondary))] font-mono">
                       {new Date(client.created_at).toLocaleDateString()}
                     </span>
-                  </td>
-                  <td className="p-4 text-center">
-                    <Link href={`/clients/${client.client_code || client.id}`}>
-                      <Button 
-                        variant="primary" 
-                        size="sm"
-                      >
-                        <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                        View
-                      </Button>
-                    </Link>
                   </td>
                 </tr>
               ))}

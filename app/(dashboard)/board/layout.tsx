@@ -132,10 +132,14 @@ export default function BoardLayout({ children }: { children: ReactNode }) {
     <BoardRefreshContext.Provider value={refreshContext}>
       <div className={cn(
         "fixed top-0 right-0 bottom-0 flex transition-all duration-300",
-        isNavCollapsed ? "left-16" : "left-56"
+        "left-0 md:left-16", // No margin on mobile
+        !isNavCollapsed && "md:left-56" // Expanded navbar only on md+
       )}>
-        {/* Sidebar with Board List - PERSISTS across route changes */}
-        <div className={`${isSidebarCollapsed ? 'w-16' : 'w-72'} backdrop-blur-md bg-[hsl(var(--color-surface))]/50 border-r border-[hsl(var(--color-border))]/60 flex flex-col transition-all duration-300 flex-shrink-0 h-full`}>
+        {/* Sidebar with Board List - PERSISTS across route changes - hidden on mobile */}
+        <div className={cn(
+          "hidden md:flex backdrop-blur-md bg-[hsl(var(--color-surface))]/50 border-r border-[hsl(var(--color-border))]/60 flex-col transition-all duration-300 flex-shrink-0 h-full",
+          isSidebarCollapsed ? 'w-16' : 'w-72'
+        )}>
           <BoardList
             boards={boards}
             currentUserId={currentUserId}
@@ -148,7 +152,7 @@ export default function BoardLayout({ children }: { children: ReactNode }) {
         </div>
 
         {/* Main Content - Changes based on route */}
-        <div className="flex-1 overflow-hidden h-full bg-[hsl(var(--color-background))]">
+        <div className="flex-1 overflow-hidden h-full bg-[hsl(var(--color-background))] pb-20 md:pb-0">
           {children}
         </div>
 

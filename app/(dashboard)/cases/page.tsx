@@ -343,7 +343,7 @@ export default function CasesPage() {
             </p>
           </div>
         ) : (
-          <div ref={tableRef} className="space-y-2 max-h-[calc(100vh-220px)] overflow-y-auto scrollbar-thin">
+          <div ref={tableRef} className="space-y-3 max-h-[calc(100vh-300px)] overflow-y-auto scrollbar-thin">
             {filteredCases.map((caseItem) => (
               <div
                 key={caseItem.id}
