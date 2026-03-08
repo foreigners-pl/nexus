@@ -237,18 +237,36 @@ export function DashboardPanel({ myCases, myTasks, myPayments, myOverdue, todayC
     }
   ]
 
+  const activeTabConfig = tabConfig.find(t => t.id === activeTab) || tabConfig[0]
+
   return (
     <Card className="h-full flex flex-col overflow-hidden">
       <CardHeader className="flex-shrink-0 pb-2 pt-3 px-3">
-        {/* Main Tabs - Glass Card Style - Responsive: icons only on mobile, full on md+ */}
-        <div className="flex gap-1 sm:gap-2 overflow-x-auto">
+        {/* Mobile Dropdown */}
+        <div className="sm:hidden">
+          <select
+            value={activeTab}
+            onChange={(e) => setActiveTab(e.target.value as TabType)}
+            className="w-full px-4 py-3 text-sm font-medium bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl text-[hsl(var(--color-text-primary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-border-hover))] appearance-none cursor-pointer"
+            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '20px' }}
+          >
+            {tabConfig.map(tab => (
+              <option key={tab.id} value={tab.id}>
+                {tab.label} {typeof tab.count === 'number' ? `(${tab.count})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Desktop Tabs - Glass Card Style */}
+        <div className="hidden sm:flex gap-2">
           {tabConfig.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               onMouseEnter={() => onPrefetchTab?.(tab.id)}
               className={cn(
-                "flex items-center gap-1 sm:gap-3 px-2 sm:px-3 py-2 rounded-xl transition-all duration-300 cursor-pointer flex-shrink-0",
+                "flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-300 cursor-pointer flex-shrink-0",
                 "border backdrop-blur-sm",
                 activeTab === tab.id
                   ? [
@@ -266,16 +284,16 @@ export function DashboardPanel({ myCases, myTasks, myPayments, myOverdue, todayC
             >
               {/* Icon with colored background */}
               <div className={cn(
-                "p-1.5 sm:p-2 rounded-lg transition-all duration-300",
+                "p-2 rounded-lg transition-all duration-300",
                 tab.bgClass,
                 activeTab === tab.id && "shadow-[0_0_12px_currentColor/0.3]"
               )}>
-                <div className={cn(tab.colorClass, "[&>svg]:w-5 [&>svg]:h-5 sm:[&>svg]:w-6 sm:[&>svg]:h-6")}>
+                <div className={tab.colorClass}>
                   {tab.icon}
                 </div>
               </div>
-              {/* Label and count - hidden on mobile, visible on sm+ */}
-              <div className="text-left hidden sm:block">
+              {/* Label and count */}
+              <div className="text-left">
                 <div className="text-xs text-[hsl(var(--color-text-secondary))]">{tab.label}</div>
                 {tab.count !== null && (
                   <div className={cn(
@@ -285,13 +303,6 @@ export function DashboardPanel({ myCases, myTasks, myPayments, myOverdue, todayC
                   )}>{tab.count}</div>
                 )}
               </div>
-              {/* Count badge on mobile only */}
-              {tab.count !== null && (
-                <div className={cn(
-                  "sm:hidden text-xs font-bold",
-                  tab.colorClass
-                )}>{typeof tab.count === 'number' ? tab.count : ''}</div>
-              )}
             </button>
           ))}
         </div>

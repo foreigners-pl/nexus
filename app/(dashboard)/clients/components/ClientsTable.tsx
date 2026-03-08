@@ -264,7 +264,8 @@ export function ClientsTable({ clients, loading, loadingMore, isSearching, onLoa
         {/* Mobile Client List */}
         <div 
           ref={tableRef}
-          className="space-y-3 max-h-[calc(100vh-300px)] overflow-y-auto scrollbar-thin"
+          className="space-y-3 flex-1 overflow-y-auto scrollbar-thin pb-4"
+          style={{ maxHeight: 'calc(100vh - 240px)' }}
         >
           {isSearching ? (
             <div className="flex items-center justify-center gap-3 py-8">

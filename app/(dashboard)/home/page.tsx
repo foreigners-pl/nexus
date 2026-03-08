@@ -242,27 +242,28 @@ export default function HomePage() {
         </div>
 
         {/* Main Content Skeleton */}
-        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="flex-1 min-h-0 flex flex-col lg:grid lg:grid-cols-3 gap-4">
           {/* Dashboard Panel Skeleton */}
-          <div className="lg:col-span-2 min-h-0">
+          <div className="lg:col-span-2 min-h-0 flex-1">
             <div className="h-full bg-[hsl(var(--color-card))] rounded-xl border border-[hsl(var(--color-border))] p-4">
-              {/* Tab buttons skeleton */}
-              <div className="flex gap-2 mb-4">
+              {/* Tab dropdown skeleton on mobile, buttons on desktop */}
+              <div className="sm:hidden h-12 w-full bg-[hsl(var(--color-surface-hover))] rounded-xl animate-pulse mb-4" />
+              <div className="hidden sm:flex gap-2 mb-4">
                 {[1,2,3,4,5].map(i => (
                   <div key={i} className="h-10 w-24 bg-[hsl(var(--color-surface-hover))] rounded-lg animate-pulse" />
                 ))}
               </div>
               {/* Content area skeleton */}
               <div className="space-y-3">
-                {[1,2,3,4,5].map(i => (
+                {[1,2,3,4,5,6,7].map(i => (
                   <div key={i} className="h-16 bg-[hsl(var(--color-surface-hover))] rounded-lg animate-pulse" />
                 ))}
               </div>
             </div>
           </div>
 
-          {/* Sidebar Skeleton */}
-          <div className="min-h-0">
+          {/* Sidebar Skeleton - hidden on mobile */}
+          <div className="min-h-0 hidden lg:block">
             <div className="h-full bg-[hsl(var(--color-card))] rounded-xl border border-[hsl(var(--color-border))] p-4">
               <div className="flex gap-2 mb-4">
                 <div className="h-8 w-20 bg-[hsl(var(--color-surface-hover))] rounded animate-pulse" />
@@ -300,9 +301,9 @@ export default function HomePage() {
       </div>
 
       {/* Main Content - Fills remaining space */}
-      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Dashboard Panel - Main area (2 cols) */}
-        <div className="lg:col-span-2 min-h-0">
+      <div className="flex-1 min-h-0 flex flex-col lg:grid lg:grid-cols-3 gap-4">
+        {/* Dashboard Panel - Main area (2 cols) - takes more space on mobile */}
+        <div className="lg:col-span-2 min-h-0 flex-1">
           <DashboardPanel 
             myCases={dashboardData.myCases}
             myTasks={dashboardData.myTasks}
@@ -315,8 +316,8 @@ export default function HomePage() {
           />
         </div>
 
-        {/* Right Sidebar - Combined Panel */}
-        <div className="min-h-0">
+        {/* Right Sidebar - Combined Panel - hidden on mobile */}
+        <div className="min-h-0 hidden lg:block">
           <SidebarPanel 
             activities={dashboardData.activities} 
             cases={dashboardData.unassignedCases} 
