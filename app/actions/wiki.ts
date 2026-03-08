@@ -3,6 +3,230 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
+// Helper to convert markdown text to TipTap JSON
+function markdownToTipTap(markdown: string): any {
+  const lines = markdown.split('\n')
+  const content: any[] = []
+  let currentList: any | null = null
+  let currentListType: 'bulletList' | 'orderedList' | null = null
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    
+    // Handle headers
+    if (line.startsWith('## ')) {
+      if (currentList) {
+        content.push(currentList)
+        currentList = null
+        currentListType = null
+      }
+      content.push({
+        type: 'heading',
+        attrs: { level: 2 },
+        content: [{ type: 'text', text: line.slice(3).trim() }]
+      })
+      continue
+    }
+    
+    if (line.startsWith('### ')) {
+      if (currentList) {
+        content.push(currentList)
+        currentList = null
+        currentListType = null
+      }
+      content.push({
+        type: 'heading',
+        attrs: { level: 3 },
+        content: [{ type: 'text', text: line.slice(4).trim() }]
+      })
+      continue
+    }
+    
+    // Handle bullet lists (both * and • patterns)
+    const bulletMatch = line.match(/^[\*\•\-]\s+(.+)/)
+    if (bulletMatch) {
+      if (currentListType !== 'bulletList') {
+        if (currentList) content.push(currentList)
+        currentList = { type: 'bulletList', content: [] }
+        currentListType = 'bulletList'
+      }
+      currentList.content.push({
+        type: 'listItem',
+        content: [{
+          type: 'paragraph',
+          content: [{ type: 'text', text: bulletMatch[1].trim() }]
+        }]
+      })
+      continue
+    }
+    
+    // Handle numbered lists
+    const numberedMatch = line.match(/^(\d+)\.\s+(.+)/)
+    if (numberedMatch) {
+      if (currentListType !== 'orderedList') {
+        if (currentList) content.push(currentList)
+        currentList = { type: 'orderedList', content: [] }
+        currentListType = 'orderedList'
+      }
+      currentList.content.push({
+        type: 'listItem',
+        content: [{
+          type: 'paragraph',
+          content: [{ type: 'text', text: numberedMatch[2].trim() }]
+        }]
+      })
+      continue
+    }
+    
+    // Close any open list before paragraph
+    if (currentList && line.trim()) {
+      content.push(currentList)
+      currentList = null
+      currentListType = null
+    }
+    
+    // Handle horizontal rules
+    if (line.match(/^[\*\-_]{3,}$/)) {
+      content.push({ type: 'horizontalRule' })
+      continue
+    }
+    
+    // Handle empty lines
+    if (!line.trim()) {
+      if (currentList) {
+        content.push(currentList)
+        currentList = null
+        currentListType = null
+      }
+      continue
+    }
+    
+    // Regular paragraph with possible inline formatting
+    const text = line
+      .replace(/\*\*([^*]+)\*\*/g, '$1') // Bold
+      .replace(/\*([^*]+)\*/g, '$1') // Italic
+      .replace(/`([^`]+)`/g, '$1') // Code
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Links - keep text only
+    
+    if (text.trim()) {
+      content.push({
+        type: 'paragraph',
+        content: [{ type: 'text', text: text.trim() }]
+      })
+    }
+  }
+  
+  // Push any remaining list
+  if (currentList) {
+    content.push(currentList)
+  }
+  
+  // Return empty doc if no content
+  if (content.length === 0) {
+    content.push({
+      type: 'paragraph',
+      content: [{ type: 'text', text: '' }]
+    })
+  }
+  
+  return { type: 'doc', content }
+}
+
+// Wiki import structure types
+interface WikiImportDocument {
+  title: string
+  content: string
+}
+
+interface WikiImportFolder {
+  name: string
+  documents: WikiImportDocument[]
+}
+
+// Import wiki from structured data
+export async function importWiki(
+  folders: WikiImportFolder[],
+  isShared: boolean = false
+): Promise<{ success?: boolean; error?: string; imported?: { folders: number; documents: number } }> {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+  
+  let foldersCreated = 0
+  let documentsCreated = 0
+  
+  try {
+    for (const folder of folders) {
+      // Get current max position for folders
+      const { data: existingFolders } = await supabase
+        .from('wiki_folders')
+        .select('position')
+        .eq('owner_id', user.id)
+        .eq('is_shared', isShared)
+        .order('position', { ascending: false })
+        .limit(1)
+      
+      const folderPosition = existingFolders && existingFolders.length > 0 
+        ? existingFolders[0].position + 1 
+        : 0
+      
+      // Create the folder
+      const { data: newFolder, error: folderError } = await supabase
+        .from('wiki_folders')
+        .insert({
+          name: folder.name,
+          owner_id: user.id,
+          is_shared: isShared,
+          position: folderPosition,
+        })
+        .select()
+        .single()
+      
+      if (folderError) {
+        console.error('Error creating folder:', folder.name, folderError)
+        continue
+      }
+      
+      foldersCreated++
+      
+      // Create documents within the folder
+      for (let i = 0; i < folder.documents.length; i++) {
+        const doc = folder.documents[i]
+        const tipTapContent = markdownToTipTap(doc.content)
+        
+        const { error: docError } = await supabase
+          .from('wiki_documents')
+          .insert({
+            title: doc.title,
+            content: tipTapContent,
+            document_type: 'rich-text',
+            owner_id: user.id,
+            folder_id: newFolder.id,
+            is_shared: isShared,
+            position: i,
+          })
+        
+        if (docError) {
+          console.error('Error creating document:', doc.title, docError)
+          continue
+        }
+        
+        documentsCreated++
+      }
+    }
+    
+    revalidatePath('/wiki')
+    return { 
+      success: true, 
+      imported: { folders: foldersCreated, documents: documentsCreated } 
+    }
+  } catch (error) {
+    console.error('Import error:', error)
+    return { error: 'Failed to import wiki data' }
+  }
+}
+
 // Folder actions
 export async function getWikiFolders(isShared: boolean = false) {
   const supabase = await createClient()

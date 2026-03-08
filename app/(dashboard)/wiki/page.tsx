@@ -32,7 +32,7 @@ import type { WikiFolder, WikiDocument } from '@/types/database'
 export default function WikiPage() {
   const { getCached: getCachedPrivateFolders, setCached: setCachedPrivateFolders } = useWikiFoldersCache(false)
   const { getCached: getCachedSharedFolders, setCached: setCachedSharedFolders } = useWikiFoldersCache(true)
-  const [activeTab, setActiveTab] = useState<'private' | 'shared'>('private')
+  const [activeTab, setActiveTab] = useState<'private' | 'shared'>('shared')
   const [folders, setFolders] = useState<WikiFolder[]>([])
   const [selectedFolder, setSelectedFolder] = useState<WikiFolder | null>(null)
   const [documents, setDocuments] = useState<WikiDocument[]>([])
@@ -438,16 +438,6 @@ export default function WikiPage() {
             {/* Tabs */}
             <div className="flex items-center border-b border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface-hover))]/30">
               <button
-                onClick={() => setActiveTab('private')}
-                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                  activeTab === 'private'
-                    ? 'text-[hsl(var(--color-text-primary))] border-b-2 border-[hsl(var(--color-text-primary))]'
-                    : 'text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))]'
-                }`}
-              >
-                Private
-              </button>
-              <button
                 onClick={() => setActiveTab('shared')}
                 className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
                   activeTab === 'shared'
@@ -456,6 +446,16 @@ export default function WikiPage() {
                 }`}
               >
                 Shared
+              </button>
+              <button
+                onClick={() => setActiveTab('private')}
+                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                  activeTab === 'private'
+                    ? 'text-[hsl(var(--color-text-primary))] border-b-2 border-[hsl(var(--color-text-primary))]'
+                    : 'text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))]'
+                }`}
+              >
+                Private
               </button>
               <button
                 onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
