@@ -242,20 +242,33 @@ export function DashboardPanel({ myCases, myTasks, myPayments, myOverdue, todayC
   return (
     <Card className="h-full flex flex-col overflow-hidden">
       <CardHeader className="flex-shrink-0 pb-2 pt-3 px-3">
-        {/* Mobile Dropdown */}
-        <div className="sm:hidden">
-          <select
-            value={activeTab}
-            onChange={(e) => setActiveTab(e.target.value as TabType)}
-            className="w-full px-4 py-3 text-sm font-medium bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl text-[hsl(var(--color-text-primary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-border-hover))] appearance-none cursor-pointer"
-            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '20px' }}
-          >
-            {tabConfig.map(tab => (
-              <option key={tab.id} value={tab.id}>
-                {tab.label} {typeof tab.count === 'number' ? `(${tab.count})` : ''}
-              </option>
-            ))}
-          </select>
+        {/* Mobile Tabs - Horizontal scroll */}
+        <div className="sm:hidden flex gap-2 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1">
+          {tabConfig.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "flex items-center gap-2 px-3 py-2 rounded-xl transition-all flex-shrink-0",
+                "border backdrop-blur-sm text-sm",
+                activeTab === tab.id
+                  ? "border-[hsl(var(--color-border-hover))] bg-[hsl(var(--color-surface-hover))] shadow-md"
+                  : "border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))]"
+              )}
+            >
+              <div className={cn("p-1.5 rounded-lg", tab.bgClass)}>
+                <div className={cn(tab.colorClass, "w-4 h-4 [&>svg]:w-4 [&>svg]:h-4")}>
+                  {tab.icon}
+                </div>
+              </div>
+              <span className={cn(
+                "font-medium",
+                activeTab === tab.id ? "text-[hsl(var(--color-text-primary))]" : "text-[hsl(var(--color-text-secondary))]"
+              )}>
+                {tab.count ?? ''}
+              </span>
+            </button>
+          ))}
         </div>
 
         {/* Desktop Tabs - Glass Card Style */}

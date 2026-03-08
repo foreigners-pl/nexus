@@ -301,9 +301,9 @@ export default function HomePage() {
       </div>
 
       {/* Main Content - Fills remaining space */}
-      <div className="flex-1 min-h-0 flex flex-col lg:grid lg:grid-cols-3 gap-4">
-        {/* Dashboard Panel - Main area (2 cols) - takes more space on mobile */}
-        <div className="lg:col-span-2 min-h-0 flex-1">
+      <div className="flex-1 min-h-0 flex flex-col lg:grid lg:grid-cols-3 gap-4 overflow-y-auto lg:overflow-hidden">
+        {/* Dashboard Panel - Main area (2 cols) */}
+        <div className="lg:col-span-2 min-h-0 flex-shrink-0 lg:flex-shrink lg:flex-1 h-[50vh] lg:h-auto">
           <DashboardPanel 
             myCases={dashboardData.myCases}
             myTasks={dashboardData.myTasks}
@@ -316,8 +316,8 @@ export default function HomePage() {
           />
         </div>
 
-        {/* Right Sidebar - Combined Panel - hidden on mobile */}
-        <div className="min-h-0 hidden lg:block">
+        {/* Right Sidebar - Combined Panel - visible on all screens */}
+        <div className="min-h-0 flex-shrink-0 lg:flex-shrink lg:flex-1 h-[40vh] lg:h-auto pb-4 lg:pb-0">
           <SidebarPanel 
             activities={dashboardData.activities} 
             cases={dashboardData.unassignedCases} 

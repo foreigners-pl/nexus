@@ -45,6 +45,9 @@ export default function WikiPage() {
   const [loading, setLoading] = useState(true)
   const initialCacheChecked = useRef(false)
   
+  // Mobile navigation state: 'folders' | 'documents' | 'viewer'
+  const [mobileView, setMobileView] = useState<'folders' | 'documents' | 'viewer'>('folders')
+
   // Check cache BEFORE paint using useLayoutEffect
   useLayoutEffect(() => {
     if (initialCacheChecked.current) return
@@ -408,13 +411,143 @@ export default function WikiPage() {
   return (
     <div className={cn(
       "fixed top-0 right-0 bottom-0 flex transition-all duration-300",
-      isNavCollapsed ? "left-16" : "left-56"
+      "left-0 md:left-16", // No left margin on mobile
+      !isNavCollapsed && "md:left-56" // Expanded navbar only on md+
     )}>
-      {/* Sidebar */}
+      {/* Mobile View */}
+      <div className="md:hidden flex flex-col h-full w-full bg-[hsl(var(--color-bg))]">
+        {/* Mobile Header */}
+        <div className="flex items-center gap-3 p-4 border-b border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))]">
+          {mobileView !== 'folders' && (
+            <button
+              onClick={() => {
+                if (mobileView === 'viewer') {
+                  setMobileView('documents')
+                  setSelectedDocument(null)
+                } else {
+                  setMobileView('folders')
+                  setSelectedFolder(null)
+                }
+              }}
+              className="p-2 -ml-2 hover:bg-[hsl(var(--color-surface-hover))] rounded-lg"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+          )}
+          <h1 className="font-semibold text-lg flex-1">
+            {mobileView === 'folders' && 'Wiki'}
+            {mobileView === 'documents' && selectedFolder?.name}
+            {mobileView === 'viewer' && selectedDocument?.title}
+          </h1>
+          {mobileView === 'folders' && (
+            <div className="flex gap-1 bg-[hsl(var(--color-surface-hover))] rounded-lg p-1">
+              <button
+                onClick={() => setActiveTab('shared')}
+                className={cn(
+                  "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+                  activeTab === 'shared' ? "bg-[hsl(var(--color-surface))] shadow-sm" : ""
+                )}
+              >
+                Shared
+              </button>
+              <button
+                onClick={() => setActiveTab('private')}
+                className={cn(
+                  "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+                  activeTab === 'private' ? "bg-[hsl(var(--color-surface))] shadow-sm" : ""
+                )}
+              >
+                Private
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Mobile Content */}
+        <div className="flex-1 overflow-y-auto">
+          {mobileView === 'folders' && (
+            <div className="p-4 space-y-2">
+              {loading ? (
+                <div className="text-center py-8 text-[hsl(var(--color-text-secondary))]">Loading...</div>
+              ) : folders.length === 0 ? (
+                <div className="text-center py-8 text-[hsl(var(--color-text-secondary))]">No {activeTab} wikis yet</div>
+              ) : (
+                folders.map(folder => (
+                  <button
+                    key={folder.id}
+                    onClick={() => {
+                      setSelectedFolder(folder)
+                      setMobileView('documents')
+                    }}
+                    className="w-full flex items-center gap-3 p-4 rounded-xl bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] hover:bg-[hsl(var(--color-surface-hover))] transition-colors"
+                  >
+                    <svg className="w-5 h-5 text-[hsl(var(--color-text-secondary))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    </svg>
+                    <span className="font-medium flex-1 text-left">{folder.name}</span>
+                    <span className="text-sm text-[hsl(var(--color-text-secondary))]">
+                      {(allDocuments[folder.id] || []).length}
+                    </span>
+                    <svg className="w-4 h-4 text-[hsl(var(--color-text-secondary))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+
+          {mobileView === 'documents' && selectedFolder && (
+            <div className="p-4 space-y-2">
+              {(allDocuments[selectedFolder.id] || []).length === 0 ? (
+                <div className="text-center py-8 text-[hsl(var(--color-text-secondary))]">No documents in this folder</div>
+              ) : (
+                (allDocuments[selectedFolder.id] || []).map(doc => (
+                  <button
+                    key={doc.id}
+                    onClick={() => {
+                      setSelectedDocument(doc)
+                      setMobileView('viewer')
+                    }}
+                    className="w-full flex items-center gap-3 p-4 rounded-xl bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] hover:bg-[hsl(var(--color-surface-hover))] transition-colors"
+                  >
+                    <svg className="w-5 h-5 text-[hsl(var(--color-text-secondary))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span className="font-medium flex-1 text-left">{doc.title}</span>
+                    <svg className="w-4 h-4 text-[hsl(var(--color-text-secondary))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+
+          {mobileView === 'viewer' && selectedDocument && (
+            <div className="h-full overflow-hidden p-4">
+              <DocumentViewer
+                document={selectedDocument}
+                canEdit={canEdit}
+                onUpdate={() => {
+                  if (selectedFolder) {
+                    loadDocuments(selectedFolder.id)
+                  }
+                }}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Desktop Sidebar */}
       <div 
-        className={`${
+        className={cn(
+          "hidden md:flex backdrop-blur-md bg-[hsl(var(--color-surface))]/50 border-r border-[hsl(var(--color-border))]/60 flex-col transition-all duration-300 flex-shrink-0 h-full",
           isSidebarCollapsed ? 'w-16' : 'w-80'
-        } backdrop-blur-md bg-[hsl(var(--color-surface))]/50 border-r border-[hsl(var(--color-border))]/60 flex flex-col transition-all duration-300 flex-shrink-0 h-full`}
+        )}
       >
         {isSidebarCollapsed ? (
           <div className="flex items-center justify-center p-4 border-b border-[hsl(var(--color-border))]">
