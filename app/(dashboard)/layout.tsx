@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Navbar } from '@/components/layout/Navbar'
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav'
+import { NotificationBell } from '@/components/notifications/NotificationBell'
 import { NotificationProvider } from '@/lib/notifications/NotificationContext'
 import { ChatProvider } from '@/lib/chat/ChatContext'
 import { QueryProvider } from '@/lib/query'
@@ -39,6 +40,20 @@ export default function DashboardLayout({
         <ChatProvider>
           <div className="h-screen bg-[hsl(var(--color-background))] flex flex-col">
             <Navbar />
+            {/* Mobile-only top bar: branding + notification bell */}
+            <header className="md:hidden sticky top-0 z-40 bg-[hsl(var(--color-surface))]/90 backdrop-blur border-b border-[hsl(var(--color-border))]">
+              <div className="px-4 h-14 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-[hsl(var(--color-accent))] flex items-center justify-center text-white font-bold">
+                  N
+                </div>
+                <h1 className="text-lg font-bold text-[hsl(var(--color-text-primary))]">
+                  Nexus CRM
+                </h1>
+                <div className="ml-auto">
+                  <NotificationBell />
+                </div>
+              </div>
+            </header>
             <main className={cn(
               "px-4 py-4 flex-1 overflow-y-auto transition-all duration-300",
               "pb-20", // Extra bottom padding on mobile for bottom nav

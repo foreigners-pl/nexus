@@ -2,15 +2,15 @@
 
 import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { MobileBackHeader } from '@/app/mobile/components/MobileBackHeader'
-import { SearchContent } from '@/app/mobile/components/SearchContent'
+import { MobileBackHeader } from '@/components/mobile/MobileBackHeader'
+import { SearchContent } from '@/components/mobile/SearchContent'
 
 function SearchWithParams() {
   const searchParams = useSearchParams()
   return <SearchContent initialQuery={searchParams.get('q') || ''} />
 }
 
-export default function MobileSearchPage() {
+export default function SearchPage() {
   return (
     <div>
       <MobileBackHeader title="Search clients" />

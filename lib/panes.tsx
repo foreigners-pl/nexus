@@ -10,10 +10,10 @@ import InstallmentPage from '@/app/(dashboard)/cases/[id]/billing/[installmentId
 import CaseFilesPage from '@/app/(dashboard)/cases/[id]/files/page'
 import ClientPage from '@/app/(dashboard)/clients/[id]/page'
 import ClientInfoPage from '@/app/(dashboard)/clients/[id]/info/page'
-import { TasksContent } from '@/app/mobile/components/TasksContent'
-import { DeadlinesContent } from '@/app/mobile/components/DeadlinesContent'
-import { SearchContent } from '@/app/mobile/components/SearchContent'
-import { MobileBackHeader } from '@/app/mobile/components/MobileBackHeader'
+import { TasksContent } from '@/components/mobile/TasksContent'
+import { DeadlinesContent } from '@/components/mobile/DeadlinesContent'
+import { SearchContent } from '@/components/mobile/SearchContent'
+import { MobileBackHeader } from '@/components/mobile/MobileBackHeader'
 
 /** Routes that render at pane (mobile-like) width on desktop. */
 function isPaneRoute(href: string): boolean {
@@ -21,7 +21,7 @@ function isPaneRoute(href: string): boolean {
   return /^\/cases\/[^/]+(\/progress|\/billing(\/[^/]+)?|\/files)?$/.test(path)
     || /^\/clients\/[^/]+(\/info)?$/.test(path)
     || /^\/home$/.test(path)
-    || /^\/mobile(\/|$)/.test(path)
+    || /^\/(tasks|deadlines|search)$/.test(path)
 }
 
 /** Routes that can render as a side pane instead of a full navigation. */
@@ -44,9 +44,9 @@ function renderPaneRoute(href: string): React.ReactNode | null {
     return <ClientInfoPage params={Promise.resolve({ id: m[1] })} />
   if ((m = path.match(/^\/clients\/([^/]+)$/)))
     return <ClientPage params={Promise.resolve({ id: m[1] })} />
-  if (path === '/mobile/tasks') return <TasksContent />
-  if (path === '/mobile/deadlines') return <DeadlinesContent />
-  if (path === '/mobile/search') {
+  if (path === '/tasks') return <TasksContent />
+  if (path === '/deadlines') return <DeadlinesContent />
+  if (path === '/search') {
     const q = new URLSearchParams(qs || '').get('q') || ''
     return (
       <div>

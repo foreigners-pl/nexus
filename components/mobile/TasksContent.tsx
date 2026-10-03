@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { getMyOpenTasks } from '@/app/actions/dashboard'
 import { getMyQueries, type MyQuery } from '@/app/actions/workflow'
-import { MobileBackHeader } from '@/app/mobile/components/MobileBackHeader'
+import { MobileBackHeader } from '@/components/mobile/MobileBackHeader'
 import { usePaneLink } from '@/lib/panes'
 import { ChevronRight, MessageSquare, Loader2 } from 'lucide-react'
 

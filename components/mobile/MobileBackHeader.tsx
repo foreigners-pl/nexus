@@ -17,7 +17,7 @@ export function MobileBackHeader({ title }: { title: string }) {
     </button>
   ) : (
     <Link
-      href="/mobile"
+      href="/home"
       className="w-9 h-9 -ml-1 rounded-full flex items-center justify-center text-[hsl(var(--color-text-secondary))] active:bg-[hsl(var(--color-surface-hover))]"
       aria-label="Back to home"
     >
