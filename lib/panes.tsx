@@ -14,6 +14,7 @@ import ClientInfoPage from '@/app/(dashboard)/clients/[id]/info/page'
 import { TasksContent } from '@/components/mobile/TasksContent'
 import { DeadlinesContent } from '@/components/mobile/DeadlinesContent'
 import { SearchContent } from '@/components/mobile/SearchContent'
+import { NotificationsContent } from '@/components/notifications/NotificationsContent'
 import { MobileBackHeader } from '@/components/mobile/MobileBackHeader'
 
 /** Routes that render at pane (mobile-like) width on desktop. */
@@ -22,7 +23,7 @@ function isPaneRoute(href: string): boolean {
   return /^\/cases\/[^/]+(\/progress(\/[^/]+)?|\/billing(\/[^/]+)?|\/files)?$/.test(path)
     || /^\/clients\/[^/]+(\/info)?$/.test(path)
     || /^\/home$/.test(path)
-    || /^\/(tasks|deadlines|search)$/.test(path)
+    || /^\/(tasks|deadlines|search|notifications)$/.test(path)
 }
 
 /** Routes that can render as a side pane instead of a full navigation. */
@@ -49,6 +50,7 @@ function renderPaneRoute(href: string): React.ReactNode | null {
     return <ClientPage params={Promise.resolve({ id: m[1] })} />
   if (path === '/tasks') return <TasksContent />
   if (path === '/deadlines') return <DeadlinesContent />
+  if (path === '/notifications') return <NotificationsContent />
   if (path === '/search') {
     const q = new URLSearchParams(qs || '').get('q') || ''
     return (
