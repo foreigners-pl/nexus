@@ -221,7 +221,7 @@ export async function getCaseEntry(entryId: string): Promise<{
         .maybeSingle()
       if (p) phone = `${p.country_code || ''} ${p.number}`.trim()
     }
-    caseSubtitle = [clientName, phone, caseRow.case_code].filter(Boolean).join(' · ') || null
+    caseSubtitle = [clientName, phone].filter(Boolean).join(' · ') || null
   }
 
   const query = (queryRes.data || null) as CaseQuery | null

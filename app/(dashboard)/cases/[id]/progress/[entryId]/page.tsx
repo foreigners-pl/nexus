@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useCallback, useEffect, useState } from 'react'
+import { use, useCallback, useEffect, useRef, useState } from 'react'
 import {
   getCaseEntry,
   getQueryThread,
@@ -44,8 +44,6 @@ export default function EntryPage({ params }: { params: Promise<{ id: string; en
   const [caseTitle, setCaseTitle] = useState<string | null>(null)
   const [caseSubtitle, setCaseSubtitle] = useState<string | null>(null)
   const [query, setQuery] = useState<CaseQuery | null>(null)
-  const [openerName, setOpenerName] = useState<string | null>(null)
-  const [assigneeName, setAssigneeName] = useState<string | null>(null)
   const [completedByName, setCompletedByName] = useState<string | null>(null)
   const [meId, setMeId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -57,8 +55,6 @@ export default function EntryPage({ params }: { params: Promise<{ id: string; en
     setCaseTitle(d.caseTitle)
     setCaseSubtitle(d.caseSubtitle)
     setQuery(d.query)
-    setOpenerName(d.openerName)
-    setAssigneeName(d.assigneeName)
     setCompletedByName(d.completedByName)
     setMeId(d.meId)
     setLoading(false)
@@ -95,78 +91,66 @@ export default function EntryPage({ params }: { params: Promise<{ id: string; en
         icon={<Icon className="w-4 h-4 text-white" />}
       />
 
-      {/* Entry body */}
-      <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4">
-        <div className="flex items-center gap-2.5 mb-3">
-          <Icon className={`w-4 h-4 shrink-0 ${meta.cls}`} />
-          <p className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">
-            {meta.label}
-            {stepName ? ` · ${stepName}` : ''}
-          </p>
-          {query && (
-            <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-medium ${STATUS_BADGE[query.status].cls}`}>
-              {STATUS_BADGE[query.status].label}
-            </span>
-          )}
-        </div>
-
-        {entry.body && (
-          <p className="text-sm text-[hsl(var(--color-text-primary))] whitespace-pre-wrap">
-            {entry.body}
-          </p>
-        )}
-
-        <p className="text-xs text-[hsl(var(--color-text-muted))] mt-3">
-          {author} · {fmtDateTime(entry.created_at)}
-        </p>
-
-        {entry.kind === 'action' && (
-          <div className="mt-3 pt-3 border-t border-[hsl(var(--color-border))] space-y-1.5">
-            {entry.due_date && (
-              <p className="text-sm text-[hsl(var(--color-text-secondary))]">
-                <span className="text-[hsl(var(--color-text-muted))]">Due:</span>{' '}
-                {new Date(entry.due_date).toLocaleDateString()}
-              </p>
-            )}
-            {entry.waiting_on && (
-              <p className="text-sm text-[hsl(var(--color-text-secondary))]">
-                <span className="text-[hsl(var(--color-text-muted))]">Waiting on:</span>{' '}
-                {entry.waiting_on}
-              </p>
-            )}
-            <p className="text-sm text-[hsl(var(--color-text-secondary))]">
-              <span className="text-[hsl(var(--color-text-muted))]">Status:</span>{' '}
-              {entry.completed_at
-                ? `Completed ${new Date(entry.completed_at).toLocaleDateString()}${completedByName ? ` by ${completedByName}` : ''}`
-                : 'Open'}
-            </p>
-          </div>
-        )}
-
-        {query && (
-          <p className="text-xs text-[hsl(var(--color-text-muted))] mt-3 pt-3 border-t border-[hsl(var(--color-border))]">
-            {query.direction === 'legal_to_csr' ? 'Legal → CSR' : 'CSR → Legal'}
-            {openerName && ` · ${openerName} → ${assigneeName || 'unassigned'}`}
-            {query.closed_at && ` · closed ${new Date(query.closed_at).toLocaleDateString()}`}
-          </p>
-        )}
-      </div>
-
-      {/* Query thread */}
-      {query && (
-        <QueryThread
+      {query ? (
+        <QueryChat
           query={query}
+          stepName={stepName}
           caseId={entry.case_id}
           meId={meId}
           onChanged={load}
         />
+      ) : (
+        /* Entry body */
+        <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4">
+          <div className="flex items-center gap-2.5 mb-3">
+            <Icon className={`w-4 h-4 shrink-0 ${meta.cls}`} />
+            <p className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">
+              {meta.label}
+              {stepName ? ` · ${stepName}` : ''}
+            </p>
+          </div>
+
+          {entry.body && (
+            <p className="text-sm text-[hsl(var(--color-text-primary))] whitespace-pre-wrap">
+              {entry.body}
+            </p>
+          )}
+
+          <p className="text-xs text-[hsl(var(--color-text-muted))] mt-3">
+            {author} · {fmtDateTime(entry.created_at)}
+          </p>
+
+          {entry.kind === 'action' && (
+            <div className="mt-3 pt-3 border-t border-[hsl(var(--color-border))] space-y-1.5">
+              {entry.due_date && (
+                <p className="text-sm text-[hsl(var(--color-text-secondary))]">
+                  <span className="text-[hsl(var(--color-text-muted))]">Due:</span>{' '}
+                  {new Date(entry.due_date).toLocaleDateString()}
+                </p>
+              )}
+              {entry.waiting_on && (
+                <p className="text-sm text-[hsl(var(--color-text-secondary))]">
+                  <span className="text-[hsl(var(--color-text-muted))]">Waiting on:</span>{' '}
+                  {entry.waiting_on}
+                </p>
+              )}
+              <p className="text-sm text-[hsl(var(--color-text-secondary))]">
+                <span className="text-[hsl(var(--color-text-muted))]">Status:</span>{' '}
+                {entry.completed_at
+                  ? `Completed ${new Date(entry.completed_at).toLocaleDateString()}${completedByName ? ` by ${completedByName}` : ''}`
+                  : 'Open'}
+              </p>
+            </div>
+          )}
+        </div>
       )}
     </div>
   )
 }
 
-function QueryThread({ query, caseId, meId, onChanged }: {
+function QueryChat({ query, stepName, caseId, meId, onChanged }: {
   query: CaseQuery
+  stepName: string | null
   caseId: string
   meId: string | null
   onChanged: () => void
@@ -175,6 +159,7 @@ function QueryThread({ query, caseId, meId, onChanged }: {
   const [status, setStatus] = useState<CaseQuery['status']>(query.status)
   const [reply, setReply] = useState('')
   const [saving, setSaving] = useState(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
 
   const loadThread = useCallback(async () => {
     const data = await getQueryThread(query.id)
@@ -183,6 +168,11 @@ function QueryThread({ query, caseId, meId, onChanged }: {
   }, [query.id])
 
   useEffect(() => { loadThread() }, [loadThread])
+
+  // Scroll to the newest message when the thread loads or grows
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: 'end' })
+  }, [thread?.length])
 
   const sendReply = async () => {
     if (!reply.trim()) return
@@ -206,65 +196,85 @@ function QueryThread({ query, caseId, meId, onChanged }: {
 
   const canReply = status !== 'closed' && (meId === query.opened_by || meId === query.assigned_to)
   const canClose = status !== 'closed' && meId === query.opened_by
+  const badge = STATUS_BADGE[status]
 
   return (
-    <div className="mt-4 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-3">
-      <p className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Thread</p>
+    <div className="flex flex-col">
+      {/* Status row */}
+      <div className="flex items-center gap-2 px-1 mb-4">
+        <MessageSquare className="w-4 h-4 text-blue-400 shrink-0" />
+        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${badge.cls}`}>
+          {badge.label}
+        </span>
+        <span className="text-xs text-[hsl(var(--color-text-muted))] truncate">
+          {query.direction === 'legal_to_csr' ? 'Legal → CSR' : 'CSR → Legal'}
+          {stepName ? ` · ${stepName}` : ''}
+        </span>
+        {canClose && (
+          <button
+            onClick={close}
+            disabled={saving}
+            className="ml-auto text-xs font-medium text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))] shrink-0"
+          >
+            Close query
+          </button>
+        )}
+      </div>
 
+      {/* Messages */}
       {!thread ? (
-        <div className="flex justify-center py-6">
+        <div className="flex justify-center py-10">
           <Loader2 className="w-5 h-5 animate-spin text-[hsl(var(--color-text-muted))]" />
         </div>
       ) : (
-        <>
+        <div className="space-y-3 pb-4">
           {thread.map(m => {
             const mAuthor = m.author?.display_name || m.author?.email?.split('@')[0] || 'Someone'
             const mine = m.author_id === meId
             return (
-              <div key={m.id} className={`text-sm ${mine ? 'text-right' : ''}`}>
-                <div className={`inline-block max-w-[85%] rounded-lg px-3 py-2 text-left ${
+              <div key={m.id} className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
+                <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 ${
                   mine
-                    ? 'bg-[hsl(var(--color-primary))]/15 text-[hsl(var(--color-text-primary))]'
-                    : 'bg-[hsl(var(--color-surface-active))] text-[hsl(var(--color-text-primary))]'
+                    ? 'bg-[hsl(var(--color-primary))] text-white rounded-br-md'
+                    : 'bg-[hsl(var(--color-surface-active))] text-[hsl(var(--color-text-primary))] rounded-bl-md'
                 }`}>
-                  <p className="whitespace-pre-wrap">{m.body}</p>
+                  <p className="text-sm whitespace-pre-wrap">{m.body}</p>
                 </div>
-                <p className="text-[10px] text-[hsl(var(--color-text-muted))] mt-0.5">
-                  {mAuthor} · {new Date(m.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                <p className="text-[10px] text-[hsl(var(--color-text-muted))] mt-1 px-1">
+                  {mAuthor} · {new Date(m.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                 </p>
               </div>
             )
           })}
-
-          {canReply && (
-            <div className="flex gap-2 pt-1">
-              <input
-                value={reply}
-                onChange={e => setReply(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && sendReply()}
-                placeholder="Reply…"
-                className="flex-1 h-9 px-3 rounded-lg bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] text-sm text-[hsl(var(--color-text-primary))] outline-none"
-              />
-              <button
-                onClick={sendReply}
-                disabled={saving || !reply.trim()}
-                className="w-9 h-9 rounded-lg bg-[hsl(var(--color-primary))] text-white flex items-center justify-center disabled:opacity-40"
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </div>
+          {status === 'closed' && (
+            <p className="text-center text-xs text-[hsl(var(--color-text-muted))] py-2">
+              Query closed
+            </p>
           )}
+          <div ref={bottomRef} />
+        </div>
+      )}
 
-          {canClose && (
+      {/* Composer — pinned above the mobile bottom nav, flush on desktop */}
+      {canReply && (
+        <div className="sticky bottom-20 md:bottom-0 -mx-4 md:-mx-6 px-4 md:px-6 py-3 bg-[hsl(var(--color-background))]/95 backdrop-blur">
+          <div className="flex gap-2 items-center">
+            <input
+              value={reply}
+              onChange={e => setReply(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && sendReply()}
+              placeholder="Reply…"
+              className="flex-1 h-11 px-4 rounded-full bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] text-sm text-[hsl(var(--color-text-primary))] placeholder:text-[hsl(var(--color-text-muted))] outline-none"
+            />
             <button
-              onClick={close}
-              disabled={saving}
-              className="text-xs font-medium text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))]"
+              onClick={sendReply}
+              disabled={saving || !reply.trim()}
+              className="w-11 h-11 rounded-full bg-[hsl(var(--color-primary))] text-white flex items-center justify-center disabled:opacity-40 shrink-0"
             >
-              Close query
+              <Send className="w-4 h-4" />
             </button>
-          )}
-        </>
+          </div>
+        </div>
       )}
     </div>
   )
