@@ -281,13 +281,15 @@ function ActionPanel({ caseId, openAction, onChanged }: {
   // --- No action set: warning CTA that expands into the form ---
   if (!openAction && !completing && !expanded) {
     return (
-      <button
-        onClick={() => setExpanded(true)}
-        className="w-full h-11 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-400 flex items-center justify-center gap-2 text-sm font-semibold active:bg-amber-500/25"
-      >
-        <AlertTriangle className="w-4 h-4 shrink-0" />
-        No action set — tap to add
-      </button>
+      <div className="flex justify-center py-1">
+        <button
+          onClick={() => setExpanded(true)}
+          className="h-9 px-4 rounded-full bg-amber-500/15 text-amber-400 flex items-center gap-1.5 text-xs font-semibold hover:bg-amber-500/25 active:bg-amber-500/25 transition-colors"
+        >
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+          No action set — tap to add
+        </button>
+      </div>
     )
   }
 
