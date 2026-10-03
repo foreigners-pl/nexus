@@ -252,10 +252,9 @@ export function AttachmentsSection({ caseId, attachments, onUpdate, onAddClick }
                 <button
                   key={attachment.id}
                   onClick={() => setSelected(attachment)}
-                  className="border border-[hsl(var(--color-border))] rounded-xl bg-[hsl(var(--color-surface-secondary))] p-3 flex items-start gap-2 overflow-hidden text-left active:bg-[hsl(var(--color-surface-hover))]"
+                  className="border border-[hsl(var(--color-border))] rounded-xl bg-[hsl(var(--color-surface-secondary))] p-3 overflow-hidden text-left active:bg-[hsl(var(--color-surface-hover))]"
                 >
-                  <span className="text-base leading-snug shrink-0">{getFileIcon(attachment.file_type, attachment.file_name)}</span>
-                  <div className="flex-1 min-w-0">
+                  <div className="min-w-0">
                     <p className="text-xs font-medium text-[hsl(var(--color-text-primary))] leading-snug line-clamp-3 break-all" title={attachment.file_name}>
                       {attachment.file_name}
                     </p>
