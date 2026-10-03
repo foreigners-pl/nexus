@@ -17,6 +17,7 @@ interface AttachmentsSectionProps {
 export function AttachmentsSection({ caseId, attachments, onUpdate, onAddClick }: AttachmentsSectionProps) {
   const [uploading, setUploading] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+  const [selected, setSelected] = useState<CaseAttachment | null>(null)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [attachmentToDelete, setAttachmentToDelete] = useState<CaseAttachment | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -156,6 +157,53 @@ export function AttachmentsSection({ caseId, attachments, onUpdate, onAddClick }
         className="hidden"
       />
 
+      {/* Attachment detail popup */}
+      <Modal isOpen={!!selected} onClose={() => setSelected(null)} title="Attachment">
+        {selected && (
+          <div className="space-y-5">
+            <div className="flex items-center gap-3">
+              <span className="text-4xl leading-none shrink-0">{getFileIcon(selected.file_type, selected.file_name)}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-[hsl(var(--color-text-primary))] break-all">
+                  {selected.file_name}
+                </p>
+                <p className="text-xs text-[hsl(var(--color-text-muted))] mt-1">
+                  {[
+                    selected.uploader?.display_name || selected.uploader?.email?.split('@')[0] || 'Unknown',
+                    new Date(selected.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }),
+                    formatFileSize(selected.file_size),
+                  ].filter(Boolean).join(' · ')}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <button
+                onClick={() => { handleView(selected) }}
+                className="w-full h-11 rounded-xl bg-[hsl(var(--color-primary))] text-white text-sm font-semibold flex items-center justify-center gap-2 active:bg-[hsl(var(--color-primary-hover))]"
+              >
+                <Eye className="w-4 h-4" />
+                Open
+              </button>
+              <button
+                onClick={() => { handleDownload(selected) }}
+                className="w-full h-11 rounded-xl bg-[hsl(var(--color-surface-active))] text-[hsl(var(--color-text-primary))] text-sm font-semibold flex items-center justify-center gap-2 active:bg-[hsl(var(--color-border))]"
+              >
+                <Download className="w-4 h-4" />
+                Download
+              </button>
+              <button
+                onClick={() => { setSelected(null); handleDelete(selected) }}
+                className="w-full h-11 rounded-xl bg-red-500/15 text-red-400 text-sm font-semibold flex items-center justify-center gap-2 active:bg-red-500/25"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
       <Modal isOpen={deleteModalOpen} onClose={() => setDeleteModalOpen(false)} title="Delete Attachment">
         <div className="space-y-4">
           <p>Are you sure you want to delete <strong>{attachmentToDelete?.file_name}</strong>? This action cannot be undone.</p>
@@ -201,47 +249,21 @@ export function AttachmentsSection({ caseId, attachments, onUpdate, onAddClick }
             {attachments.map((attachment) => {
               const uploader = attachment.uploader?.display_name || attachment.uploader?.email?.split('@')[0]
               return (
-                <div
+                <button
                   key={attachment.id}
-                  className="border border-[hsl(var(--color-border))] rounded-xl bg-[hsl(var(--color-surface-secondary))] p-3 flex flex-col gap-2.5 overflow-hidden"
+                  onClick={() => setSelected(attachment)}
+                  className="border border-[hsl(var(--color-border))] rounded-xl bg-[hsl(var(--color-surface-secondary))] p-3 flex items-start gap-2.5 overflow-hidden text-left active:bg-[hsl(var(--color-surface-hover))]"
                 >
-                  <div className="flex items-start gap-2.5 min-w-0">
-                    <span className="text-3xl leading-none mt-0.5 shrink-0">{getFileIcon(attachment.file_type, attachment.file_name)}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-[hsl(var(--color-text-primary))] truncate" title={attachment.file_name}>
-                        {attachment.file_name}
-                      </p>
-                      <p className="text-[11px] text-[hsl(var(--color-text-muted))] mt-1 truncate">
-                        {[uploader, new Date(attachment.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), formatFileSize(attachment.file_size)].filter(Boolean).join(' · ')}
-                      </p>
-                    </div>
+                  <span className="text-3xl leading-none mt-0.5 shrink-0">{getFileIcon(attachment.file_type, attachment.file_name)}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-[hsl(var(--color-text-primary))] truncate" title={attachment.file_name}>
+                      {attachment.file_name}
+                    </p>
+                    <p className="text-[11px] text-[hsl(var(--color-text-muted))] mt-1 truncate">
+                      {[uploader, new Date(attachment.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), formatFileSize(attachment.file_size)].filter(Boolean).join(' · ')}
+                    </p>
                   </div>
-
-                  {/* Actions — always visible (no hover on touch) */}
-                  <div className="flex gap-1.5 mt-auto">
-                    <button
-                      onClick={() => handleView(attachment)}
-                      className="flex-1 h-8 rounded-lg bg-[hsl(var(--color-surface-active))] flex items-center justify-center text-[hsl(var(--color-text-secondary))] active:bg-[hsl(var(--color-border))]"
-                      title="Open"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDownload(attachment)}
-                      className="flex-1 h-8 rounded-lg bg-[hsl(var(--color-surface-active))] flex items-center justify-center text-[hsl(var(--color-text-secondary))] active:bg-[hsl(var(--color-border))]"
-                      title="Download"
-                    >
-                      <Download className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(attachment)}
-                      className="flex-1 h-8 rounded-lg bg-red-500/15 flex items-center justify-center text-red-400 active:bg-red-500/25"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
+                </button>
               )
             })}
           </div>
