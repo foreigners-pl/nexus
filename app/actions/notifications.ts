@@ -23,18 +23,23 @@ export async function notifyUsers(userIds: (string | null | undefined)[], input:
     .filter(id => id !== user.id)
   if (recipients.length === 0) return
 
-  await supabase.from('notifications').insert(
-    recipients.map(uid => ({
-      user_id: uid,
-      kind: input.kind,
-      title: input.title,
-      body: input.body ?? null,
-      link: input.link ?? null,
-      actor_id: user.id,
-      case_id: input.caseId ?? null,
-      card_id: input.cardId ?? null,
-    }))
-  )
+  try {
+    const res = await supabase.from('user_notifications').insert(
+      recipients.map(uid => ({
+        user_id: uid,
+        kind: input.kind,
+        title: input.title,
+        body: input.body ?? null,
+        link: input.link ?? null,
+        actor_id: user.id,
+        case_id: input.caseId ?? null,
+        card_id: input.cardId ?? null,
+      }))
+    )
+    if (res.error) console.error('[notifyUsers] insert error:', res.error)
+  } catch (e) {
+    console.error('[notifyUsers] failed:', e)
+  }
 }
 
 /** Recipients + label for case-level events (the case CSR + legal). */
@@ -89,7 +94,7 @@ export async function getMyNotifications(limit = 30): Promise<{
   if (!user) return { notifications: [], unreadCount: 0 }
 
   const { data } = await supabase
-    .from('notifications')
+    .from('user_notifications')
     .select('id, kind, title, body, link, read_at, created_at, actor:users!actor_id(display_name, email)')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
@@ -118,7 +123,7 @@ export async function markNotificationRead(id: string) {
   if (!user) return
 
   await supabase
-    .from('notifications')
+    .from('user_notifications')
     .update({ read_at: new Date().toISOString() })
     .eq('id', id)
     .eq('user_id', user.id)
@@ -131,7 +136,7 @@ export async function markAllNotificationsRead() {
   if (!user) return
 
   await supabase
-    .from('notifications')
+    .from('user_notifications')
     .update({ read_at: new Date().toISOString() })
     .eq('user_id', user.id)
     .is('read_at', null)

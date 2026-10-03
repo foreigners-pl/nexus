@@ -63,7 +63,7 @@ export function NotificationBell() {
       .channel('notifications-bell')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
+        { event: 'INSERT', schema: 'public', table: 'user_notifications', filter: `user_id=eq.${userId}` },
         () => load()
       )
       .subscribe()
