@@ -43,7 +43,7 @@ export default function MobileHomePage() {
   const [deadlineRange, setDeadlineRange] = useState<DeadlineRange>(7)
   const [deadlineCounts, setDeadlineCounts] = useState<Record<DeadlineRange, number> | null>(null)
   const [overdueCount, setOverdueCount] = useState(0)
-  const [stalledCount, setStalledCount] = useState<number | null>(null)
+  const [neglectedCount, setNeglectedCount] = useState<number | null>(null)
   const [recentClients, setRecentClients] = useState<RecentClient[]>([])
 
   // Load counts + user name once
@@ -61,7 +61,7 @@ export default function MobileHomePage() {
       setLateTasks(all.filter(d => new Date(d).getTime() < cutoff).length)
     })
 
-    getCasesMissingActions().then(({ cases }) => setStalledCount(cases.length))
+    getCasesMissingActions().then(({ cases }) => setNeglectedCount(cases.length))
 
     getMyOpenActions().then(({ actions }) => {
       const today = new Date()
@@ -236,16 +236,21 @@ export default function MobileHomePage() {
               <CalendarClock className="w-5 h-5 text-orange-400" />
             </div>
             <p className="text-base font-semibold text-[hsl(var(--color-text-primary))] flex-1">Actions</p>
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                const next = DEADLINE_RANGES[(DEADLINE_RANGES.indexOf(deadlineRange) + 1) % DEADLINE_RANGES.length]
-                setDeadlineRange(next)
-              }}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[hsl(var(--color-surface-active))] text-[hsl(var(--color-text-secondary))] active:bg-[hsl(var(--color-border))] shrink-0"
-            >
-              Next {deadlineRange} days
-            </button>
+            <div className="flex rounded-lg border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface-secondary))] p-0.5 shrink-0">
+              {DEADLINE_RANGES.map(r => (
+                <button
+                  key={r}
+                  onClick={(e) => { e.stopPropagation(); setDeadlineRange(r) }}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                    deadlineRange === r
+                      ? 'bg-white text-black'
+                      : 'text-[hsl(var(--color-text-muted))]'
+                  }`}
+                >
+                  {r}d
+                </button>
+              ))}
+            </div>
           </div>
           <div className="grid grid-cols-3 text-center mt-4">
             <div className="border-r border-[hsl(var(--color-border))]">
@@ -261,10 +266,10 @@ export default function MobileHomePage() {
               <p className="text-xs text-[hsl(var(--color-text-muted))] mt-1.5">Late</p>
             </div>
             <div>
-              <p className={`text-4xl font-bold ${stalledCount ? 'text-amber-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
-                {stalledCount ?? '–'}
+              <p className={`text-4xl font-bold ${neglectedCount ? 'text-amber-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
+                {neglectedCount ?? '–'}
               </p>
-              <p className="text-xs text-[hsl(var(--color-text-muted))] mt-1.5">Stalled</p>
+              <p className="text-xs text-[hsl(var(--color-text-muted))] mt-1.5">Neglected</p>
             </div>
           </div>
         </div>

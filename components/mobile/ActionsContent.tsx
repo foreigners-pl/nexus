@@ -41,7 +41,7 @@ function MissingActionRow({ item }: { item: MissingActionCase }) {
           </p>
         </div>
         <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 bg-amber-400/10 text-amber-400">
-          Stalled
+          Neglected
         </span>
         <ChevronRight className="w-4 h-4 text-[hsl(var(--color-text-muted))] shrink-0" />
       </Link>
@@ -108,7 +108,7 @@ export function ActionsContent() {
           {missing.length > 0 && (
             <section>
               <p className="text-xs font-semibold uppercase tracking-wide mb-2 px-1 text-amber-400">
-                Stalled · {missing.length}
+                Neglected · {missing.length}
               </p>
               <ul className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl divide-y divide-[hsl(var(--color-border))] overflow-hidden">
                 {missing.map(c => <MissingActionRow key={c.case_id} item={c} />)}
