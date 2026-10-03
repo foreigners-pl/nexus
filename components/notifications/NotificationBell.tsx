@@ -52,6 +52,7 @@ export function NotificationBell() {
   const [userId, setUserId] = useState<string | null>(null)
   const [pushState, setPushState] = useState<'unknown' | 'unsupported' | 'denied' | 'off' | 'on'>('unknown')
   const [pushBusy, setPushBusy] = useState(false)
+  const [pushError, setPushError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const { notifications, unreadCount } = await getMyNotifications()
@@ -97,6 +98,7 @@ export function NotificationBell() {
 
   const enablePush = async () => {
     setPushBusy(true)
+    setPushError(null)
     try {
       const perm = await Notification.requestPermission()
       if (perm !== 'granted') { setPushState(perm === 'denied' ? 'denied' : 'off'); return }
@@ -106,15 +108,18 @@ export function NotificationBell() {
         applicationServerKey: urlB64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''),
       })
       const j = sub.toJSON() as { endpoint?: string; keys?: { p256dh?: string; auth?: string } }
-      if (j.endpoint && j.keys?.p256dh && j.keys?.auth) {
-        await savePushSubscription(
-          { endpoint: j.endpoint, keys: { p256dh: j.keys.p256dh, auth: j.keys.auth } },
-          navigator.userAgent,
-        )
+      if (!j.endpoint || !j.keys?.p256dh || !j.keys?.auth) {
+        throw new Error('Browser returned an incomplete subscription')
       }
+      const res = await savePushSubscription(
+        { endpoint: j.endpoint, keys: { p256dh: j.keys.p256dh, auth: j.keys.auth } },
+        navigator.userAgent,
+      )
+      if (res && 'error' in res && res.error) throw new Error(res.error)
       setPushState('on')
     } catch (e) {
       console.error('push subscribe failed:', e)
+      setPushError(e instanceof Error ? e.message : 'Could not enable push')
     } finally {
       setPushBusy(false)
     }
@@ -176,13 +181,18 @@ export function NotificationBell() {
                     Push is not supported in this browser
                   </p>
                 ) : (
-                  <button
-                    onClick={enablePush}
-                    disabled={pushBusy}
-                    className="w-full h-9 rounded-lg bg-[hsl(var(--color-primary))] text-white text-xs font-semibold active:bg-[hsl(var(--color-primary-hover))] disabled:opacity-50"
-                  >
-                    {pushBusy ? 'Enabling…' : 'Enable push notifications'}
-                  </button>
+                  <>
+                    <button
+                      onClick={enablePush}
+                      disabled={pushBusy}
+                      className="w-full h-9 rounded-lg bg-[hsl(var(--color-primary))] text-white text-xs font-semibold active:bg-[hsl(var(--color-primary-hover))] disabled:opacity-50"
+                    >
+                      {pushBusy ? 'Enabling…' : 'Enable push notifications'}
+                    </button>
+                    {pushError && (
+                      <p className="text-xs text-red-400 mt-1.5">{pushError}</p>
+                    )}
+                  </>
                 )}
               </div>
             )}
