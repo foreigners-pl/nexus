@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useClientsCache, useDeepPrefetchClients } from '@/lib/query'
+import { useClientsCache } from '@/lib/query'
 import { ClientsHeader } from './components/ClientsHeader'
 import { AddClientModal } from './components/AddClientModal'
 import { ClientsTable } from './components/ClientsTable'
@@ -25,7 +25,6 @@ const CLIENTS_PER_PAGE = 20
 
 export default function ClientsPage() {
   const { getCached: getCachedClients, setCached: setCachedClients } = useClientsCache()
-  const deepPrefetchClients = useDeepPrefetchClients()
   const [clients, setClients] = useState<ClientWithPhones[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -38,15 +37,18 @@ export default function ClientsPage() {
 
   useEffect(() => {
     isMountedRef.current = true
-    
+
+    // Open the add-client modal when arriving via ?add=1 (e.g. from mobile home)
+    if (new URLSearchParams(window.location.search).get('add') === '1') {
+      setIsModalOpen(true)
+    }
+
     // Try cache first for instant load
     const cached = getCachedClients()
     if (cached && cached.length > 0) {
       setClients(cached as ClientWithPhones[])
       setHasMore(cached.length >= CLIENTS_PER_PAGE)
       setLoading(false)
-      // Deep prefetch: Load full details for top 20 clients
-      deepPrefetchClients()
       // Still refresh in background (but only update cache, not state)
       fetchClientsBackground(true)
     } else {
@@ -90,8 +92,6 @@ export default function ClientsPage() {
       setClients(data || [])
       setCachedClients(data || [])
       setHasMore((data?.length || 0) === CLIENTS_PER_PAGE)
-      // Deep prefetch after initial load
-      setTimeout(() => deepPrefetchClients(), 100)
     }
     setLoading(false)
   }

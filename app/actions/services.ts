@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { generateStepsForService } from './workflow'
 
 export async function addServiceToCase(caseId: string, serviceId: string, customPrice?: number) {
   const supabase = await createClient()
@@ -34,6 +35,9 @@ export async function addServiceToCase(caseId: string, serviceId: string, custom
     console.error('Error adding service to case:', error)
     return { error: 'Failed to add service' }
   }
+
+  // Copy the service's step template onto the case (no-op if none defined)
+  await generateStepsForService(caseId, serviceId)
 
   // If we have a price (custom or from service), add it to the down payment installment
   if (priceToUse && priceToUse > 0) {

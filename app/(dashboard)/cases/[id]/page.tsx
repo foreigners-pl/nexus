@@ -6,15 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle, Modal } from '@/components/ui
 import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { deleteCase } from '@/app/actions/cases'
-import { getAttachments } from '@/app/actions/attachments'
+import { usePaneBack } from '@/lib/panes'
 import { getComments } from '@/app/actions/comments'
 import { CaseHeader } from './components/CaseHeader'
-import { CaseInfo } from './components/CaseInfo'
-import { ServicesSection } from './components/ServicesSection'
-import { PaymentPanel } from './components/PaymentPanel'
-import { AttachmentsSection } from './components/AttachmentsSection'
+import { AssignedPeople } from './components/AssignedPeople'
+import { CaseSubNav } from './components/CaseSubNav'
 import { CommentsSection } from './components/CommentsSection'
-import type { Case, Client, Status, Installment, CaseAttachment, Comment, ContactNumber } from '@/types/database'
+import type { Case, Client, Comment, ContactNumber } from '@/types/database'
 
 interface CasePageProps {
   params: Promise<{ id: string }>
@@ -27,17 +25,17 @@ export default function CasePage({ params }: CasePageProps) {
   const [caseData, setCaseData] = useState<Case | null>(null)
   const [client, setClient] = useState<Client | null>(null)
   const [clientPhoneNumbers, setClientPhoneNumbers] = useState<ContactNumber[]>([])
-  const [status, setStatus] = useState<Status | null>(null)
-  const [assignees, setAssignees] = useState<any[]>([])
-  const [caseServices, setCaseServices] = useState<any[]>([])
-  const [installments, setInstallments] = useState<Installment[]>([])
-  const [attachments, setAttachments] = useState<CaseAttachment[]>([])
   const [comments, setComments] = useState<Comment[]>([])
+  const [serviceName, setServiceName] = useState('')
+  const [currentStepName, setCurrentStepName] = useState('')
+  const [paidAmount, setPaidAmount] = useState(0)
+  const [fileCount, setFileCount] = useState(0)
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined)
   const [loading, setLoading] = useState(true)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const router = useRouter()
+  const paneBack = usePaneBack()
   const supabase = createClient()
   const isMounted = useRef(true)
 
@@ -54,10 +52,10 @@ export default function CasePage({ params }: CasePageProps) {
     if (!caseIdParam) return
     setLoading(true)
 
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser()
+    // Get current user (local session - no network call)
+    const { data: { session } } = await supabase.auth.getSession()
     if (!isMounted.current) return
-    if (user) setCurrentUserId(user.id)
+    if (session?.user) setCurrentUserId(session.user.id)
 
     let caseResult, caseError
     
@@ -96,27 +94,22 @@ export default function CasePage({ params }: CasePageProps) {
       if (phonesData) setClientPhoneNumbers(phonesData)
     }
 
-    if (caseResult.status_id) {
-      const { data: statusData } = await supabase.from('status').select('*').eq('id', caseResult.status_id).single()
-      if (!isMounted.current) return
-      if (statusData) setStatus(statusData)
-    }
-
-    const { data: assigneesData } = await supabase.from('case_assignees').select('*, users(*)').eq('case_id', caseResult.id)
+    // Summaries for the header + Process / Billing / Files buttons
+    const [serviceRes, stepRes, installmentsRes, attachmentsRes] = await Promise.all([
+      supabase.from('case_services').select('services(name)').eq('case_id', caseResult.id).limit(1).maybeSingle(),
+      caseResult.current_step_id
+        ? supabase.from('case_steps').select('name').eq('id', caseResult.current_step_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      supabase.from('installments').select('amount, paid, parent_installment_id').eq('case_id', caseResult.id),
+      supabase.from('case_attachments').select('id', { count: 'exact', head: true }).eq('case_id', caseResult.id),
+    ])
     if (!isMounted.current) return
-    if (assigneesData) setAssignees(assigneesData)
-
-    const { data: servicesData } = await supabase.from('case_services').select('*, services(*)').eq('case_id', caseResult.id)
-    if (!isMounted.current) return
-    if (servicesData) setCaseServices(servicesData)
-
-    const { data: installmentsData } = await supabase.from('installments').select('*').eq('case_id', caseResult.id).order('position', { ascending: true })
-    if (!isMounted.current) return
-    if (installmentsData) setInstallments(installmentsData)
-
-    const attachmentsData = await getAttachments(caseResult.id)
-    if (!isMounted.current) return
-    setAttachments(attachmentsData)
+    const svc = (serviceRes.data?.services as { name?: string } | null)?.name
+    if (svc) setServiceName(svc)
+    if (stepRes.data) setCurrentStepName((stepRes.data as { name: string }).name)
+    const inst = (installmentsRes.data || []) as { amount: number; paid: boolean; parent_installment_id?: string }[]
+    setPaidAmount(inst.filter(i => i.paid && !i.parent_installment_id).reduce((sum, i) => sum + (i.amount || 0), 0))
+    setFileCount(attachmentsRes.count || 0)
 
     const commentsData = await getComments(caseResult.id)
     if (!isMounted.current) return
@@ -126,47 +119,13 @@ export default function CasePage({ params }: CasePageProps) {
   }
 
   // Optimistic update handlers - only refetch what changed
-  const handleAssigneesUpdate = async () => {
-    if (!caseData) return
-    const { data: assigneesData } = await supabase
-      .from('case_assignees')
-      .select('*, users(*)')
-      .eq('case_id', caseData.id)
-    if (assigneesData) setAssignees(assigneesData)
-  }
-
-  const handleServicesUpdate = async () => {
-    if (!caseData) return
-    const { data: servicesData } = await supabase
-      .from('case_services')
-      .select('*, services(*)')
-      .eq('case_id', caseData.id)
-    if (servicesData) setCaseServices(servicesData)
-  }
-
-  const handleInstallmentsUpdate = async () => {
-    if (!caseData) return
-    const { data: installmentsData } = await supabase
-      .from('installments')
-      .select('*')
-      .eq('case_id', caseData.id)
-      .order('position', { ascending: true })
-    if (installmentsData) setInstallments(installmentsData)
-  }
-
-  const handleAttachmentsUpdate = async () => {
-    if (!caseData) return
-    const attachmentsData = await getAttachments(caseData.id)
-    setAttachments(attachmentsData)
-  }
-
   const handleCommentsUpdate = async () => {
     if (!caseData) return
     const commentsData = await getComments(caseData.id)
     setComments(commentsData)
   }
 
-  const handleCaseInfoUpdate = async () => {
+  const handleCaseUpdate = async () => {
     if (!caseData) return
     const { data: updatedCase } = await supabase
       .from('cases')
@@ -174,16 +133,6 @@ export default function CasePage({ params }: CasePageProps) {
       .eq('id', caseData.id)
       .single()
     if (updatedCase) setCaseData(updatedCase)
-
-    // Refetch status if it changed
-    if (updatedCase?.status_id) {
-      const { data: statusData } = await supabase
-        .from('status')
-        .select('*')
-        .eq('id', updatedCase.status_id)
-        .single()
-      if (statusData) setStatus(statusData)
-    }
   }
 
   const handleDelete = async () => {
@@ -191,7 +140,13 @@ export default function CasePage({ params }: CasePageProps) {
     setSubmitting(true)
     const result = await deleteCase(caseData.id)
     if (!result?.error) {
-      router.push('/cases')
+      // Let an open client pane/page underneath drop the case from its list
+      if (caseData.client_id) {
+        window.dispatchEvent(new CustomEvent('nexus:client-data-changed', { detail: { clientId: caseData.client_id } }))
+      }
+      const clientHref = client ? `/clients/${client.client_code || client.id}` : '/cases'
+      if (paneBack) paneBack()
+      else router.push(clientHref)
     } else {
       setSubmitting(false)
     }
@@ -202,7 +157,22 @@ export default function CasePage({ params }: CasePageProps) {
 
   return (
     <div className="space-y-6">
-      <CaseHeader caseData={caseData} client={client} clientPhoneNumbers={clientPhoneNumbers} onDelete={() => setIsDeleteModalOpen(true)} />
+      <CaseHeader caseData={caseData} client={client} clientPhoneNumbers={clientPhoneNumbers} serviceName={serviceName} onDelete={() => setIsDeleteModalOpen(true)} />
+
+      {/* Page title */}
+      <div>
+        <h2 className="text-xl font-bold text-[hsl(var(--color-text-primary))]">
+          {serviceName || caseData.case_code || 'Case'}
+        </h2>
+        <p className="text-sm text-[hsl(var(--color-text-secondary))] mt-0.5">
+          {[
+            client ? [client.first_name, client.last_name].filter(Boolean).join(' ') || client.contact_email : null,
+            clientPhoneNumbers.length > 0 ? `${clientPhoneNumbers[0].country_code || ''} ${clientPhoneNumbers[0].number}`.trim() : null,
+            caseData.case_code,
+          ].filter(Boolean).join(' · ') || '—'}
+        </p>
+      </div>
+
       <Modal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} title="Delete Case">
         <div className="space-y-4">
           <p>Are you sure you want to delete this case? This action cannot be undone.</p>
@@ -212,96 +182,31 @@ export default function CasePage({ params }: CasePageProps) {
           </div>
         </div>
       </Modal>
-      {/* Case Info - Full Width Top */}
-      <Card className="relative z-10 backdrop-blur-xl bg-[hsl(var(--color-surface))]/80 border-[hsl(var(--color-border))] shadow-[0_8px_32px_rgb(0_0_0/0.25)]">
-        <CardContent className="pt-6">
-          <CaseInfo 
-            caseData={caseData} 
-            client={client} 
-            status={status}
-            assignees={assignees}
-            onUpdate={handleCaseInfoUpdate}
-            onAssigneesUpdate={handleAssigneesUpdate}
+      {/* Assigned reps */}
+      <AssignedPeople caseData={caseData} onUpdate={handleCaseUpdate} />
+
+      {/* Process / Billing / Files */}
+      <CaseSubNav
+        caseId={caseData.id}
+        processInfo={currentStepName ? `Current: ${currentStepName}` : undefined}
+        billingInfo={`${paidAmount.toFixed(2)} PLN paid`}
+        filesInfo={fileCount === 0 ? 'No files' : `${fileCount} file${fileCount === 1 ? '' : 's'}`}
+      />
+
+      {/* Comments */}
+      <Card className="backdrop-blur-xl bg-[hsl(var(--color-surface))]/80 border-[hsl(var(--color-border))] shadow-[0_8px_32px_rgb(0_0_0/0.25)]">
+        <CardHeader>
+          <CardTitle>Comments</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CommentsSection 
+            caseId={caseData.id} 
+            comments={comments} 
+            onUpdate={handleCommentsUpdate}
+            currentUserId={currentUserId}
           />
         </CardContent>
       </Card>
-
-      {/* Services & Payment Row */}
-      <Card className="backdrop-blur-xl bg-[hsl(var(--color-surface))]/80 border-[hsl(var(--color-border))] shadow-[0_8px_32px_rgb(0_0_0/0.25)]">
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:divide-x lg:divide-[hsl(var(--color-border))]">
-            {/* Left: Services */}
-            <div className="lg:pr-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-base sm:text-lg font-semibold">Services</h3>
-                {caseServices.length > 0 && (
-                  <span className="text-xs sm:text-sm font-semibold text-[hsl(var(--color-text-primary))]">
-                    Total: {caseServices.reduce((sum, cs) => sum + ((cs as any).custom_price ?? cs.services?.gross_price ?? 0), 0).toFixed(2)} PLN
-                  </span>
-                )}
-              </div>
-              <ServicesSection 
-                caseId={caseData.id} 
-                caseServices={caseServices} 
-                onUpdate={handleServicesUpdate} 
-              />
-            </div>
-
-            {/* Right: Payment */}
-            <div className="lg:pl-6 border-t lg:border-t-0 border-[hsl(var(--color-border))] pt-6 lg:pt-0">
-              <h3 className="text-base sm:text-lg font-semibold mb-4">Payment</h3>
-              <PaymentPanel 
-                caseId={caseData.id} 
-                installments={installments} 
-                services={caseServices}
-                client={client}
-                onUpdate={handleInstallmentsUpdate} 
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      
-      {/* Comments and Attachments Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="backdrop-blur-xl bg-[hsl(var(--color-surface))]/80 border-[hsl(var(--color-border))] shadow-[0_8px_32px_rgb(0_0_0/0.25)]">
-          <CardHeader>
-            <CardTitle>Comments</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CommentsSection 
-              caseId={caseData.id} 
-              comments={comments} 
-              onUpdate={handleCommentsUpdate}
-              currentUserId={currentUserId}
-            />
-          </CardContent>
-        </Card>
-
-        <Card className="backdrop-blur-xl bg-[hsl(var(--color-surface))]/80 border-[hsl(var(--color-border))] shadow-[0_8px_32px_rgb(0_0_0/0.25)]">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Attachments</CardTitle>
-              <Button
-                size="sm"
-                onClick={() => {
-                  const fileInput = document.getElementById('attachment-file-input') as HTMLInputElement
-                  fileInput?.click()
-                }}
-              >
-                Add Attachment
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <AttachmentsSection 
-              caseId={caseData.id} 
-              attachments={attachments} 
-              onUpdate={handleAttachmentsUpdate} 
-            />
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Mobile Delete Button - shows at bottom on mobile only */}
       <div className="sm:hidden pb-20">

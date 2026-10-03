@@ -1,15 +1,17 @@
 ﻿'use client'
 
 import { useState, useEffect, useRef, use } from 'react'
+import Link from 'next/link'
 import { Modal } from '@/components/ui'
+import { User, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { deleteClient, getClient } from '@/app/actions/clients'
+import { addRecentClient } from '@/lib/recent-clients'
 import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query'
+import { usePaneNavigate } from '@/lib/panes'
 import { ClientHeader } from './components/ClientHeader'
-import { ContactInfo } from './components/ContactInfo'
-import { LocationInfo } from './components/LocationInfo'
 import { CasesSection } from './components/CasesSection'
 import { NotesSection } from './components/NotesSection'
 import type { Client, ContactNumber, ClientNote, Case, Status } from '@/types/database'
@@ -25,7 +27,8 @@ interface ClientPageProps {
 export default function ClientPage({ params }: ClientPageProps) {
   // Use React 19's use() to synchronously unwrap the params Promise
   const { id: urlId } = use(params)
-  
+  const paneNav = usePaneNavigate()
+
   const [client, setClient] = useState<Client | null>(null)
   const [phoneNumbers, setPhoneNumbers] = useState<ContactNumber[]>([])
   const [notes, setNotes] = useState<ClientNote[]>([])
@@ -80,6 +83,32 @@ export default function ClientPage({ params }: ClientPageProps) {
     }
   }, [urlId])
 
+  // Refetch the case list when a case pane/page mutates this client's cases
+  useEffect(() => {
+    if (!resolvedClientId) return
+    const handler = async (e: Event) => {
+      if ((e as CustomEvent).detail?.clientId !== resolvedClientId) return
+      const { data } = await supabase
+        .from('cases')
+        .select(`*, status(name), csr:users!cases_csr_id_fkey(id, display_name, email), legal:users!cases_assigned_to_fkey(id, display_name, email), case_services:case_services!case_id(services(name))`)
+        .eq('client_id', resolvedClientId)
+        .order('created_at', { ascending: false })
+      if (data) setCases(data)
+    }
+    window.addEventListener('nexus:client-data-changed', handler)
+    return () => window.removeEventListener('nexus:client-data-changed', handler)
+  }, [resolvedClientId])
+
+  // Track visit for the mobile "Recent clients" strip
+  useEffect(() => {
+    if (!client) return
+    addRecentClient({
+      id: client.id,
+      name: [client.first_name, client.last_name].filter(Boolean).join(' ') || client.client_code || 'Client',
+      phone: phoneNumbers[0]?.number ?? null,
+    })
+  }, [client, phoneNumbers])
+
   // Handler for optimistic case addition
   const handleCaseAdded = (newCase: CaseWithStatus) => {
     setCases(prevCases => [newCase, ...prevCases])
@@ -95,49 +124,6 @@ export default function ClientPage({ params }: ClientPageProps) {
       .order('is_pinned', { ascending: false })
       .order('created_at', { ascending: false })
     if (notesData) setNotes(notesData)
-  }
-
-  // Handler for optimistic contact updates
-  const handleContactUpdate = async () => {
-    if (!client) return
-    const { data: phonesData } = await supabase
-      .from('contact_numbers')
-      .select('*')
-      .eq('client_id', client.id)
-      .order('number')
-    if (phonesData) setPhoneNumbers(phonesData)
-  }
-
-  // Handler for location updates
-  const handleLocationUpdate = async () => {
-    if (!client) return
-    const result = await supabase
-      .from('clients')
-      .select('*')
-      .eq('id', client.id)
-      .single()
-    
-    if (result.data) {
-      setClient(result.data)
-      
-      if (result.data.country_of_origin) {
-        const { data: countryData } = await supabase
-          .from('countries')
-          .select('country')
-          .eq('id', result.data.country_of_origin)
-          .single()
-        if (countryData) setCountryName(countryData.country)
-      }
-
-      if (result.data.city_in_poland) {
-        const { data: cityData } = await supabase
-          .from('cities')
-          .select('city')
-          .eq('id', result.data.city_in_poland)
-          .single()
-        if (cityData) setCityName(cityData.city)
-      }
-    }
   }
 
   async function fetchAllData(clientIdParam: string, showLoading = true) {
@@ -203,6 +189,8 @@ export default function ClientPage({ params }: ClientPageProps) {
       .select(`
         *,
         status(name),
+        csr:users!cases_csr_id_fkey(id, display_name, email),
+        legal:users!cases_assigned_to_fkey(id, display_name, email),
         case_services:case_services!case_id(
           services(name)
         )
@@ -303,20 +291,34 @@ export default function ClientPage({ params }: ClientPageProps) {
         onMergeComplete={handleRefresh}
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <ContactInfo 
-          client={client} 
-          phoneNumbers={phoneNumbers} 
-          onUpdate={handleContactUpdate} 
-        />
-        
-        <LocationInfo 
-          client={client} 
-          countryName={countryName} 
-          cityName={cityName} 
-          onUpdate={handleLocationUpdate} 
-        />
+      {/* Page title */}
+      <div>
+        <h2 className="text-xl font-bold text-[hsl(var(--color-text-primary))]">
+          {[client.first_name, client.last_name].filter(Boolean).join(' ') || client.contact_email || 'Unnamed'}
+        </h2>
+        <p className="text-sm text-[hsl(var(--color-text-secondary))] mt-0.5">
+          {[
+            phoneNumbers.length > 0 ? phoneNumbers.map(p => `${p.country_code || ''} ${p.number}`.trim()).join(' · ') : null,
+            client.client_code,
+          ].filter(Boolean).join(' · ') || '—'}
+        </p>
       </div>
+
+      {/* Client information */}
+      <Link
+        href={`/clients/${client.id}/info`}
+        onClick={(e) => { if (paneNav(`/clients/${client.id}/info`)) e.preventDefault() }}
+        className="w-full flex items-center gap-3 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-4 py-3.5 hover:bg-[hsl(var(--color-surface-hover))] transition-colors"
+      >
+        <User className="w-5 h-5 text-[hsl(var(--color-text-secondary))] shrink-0" />
+        <div className="min-w-0 flex-1 text-left">
+          <p className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Client information</p>
+          <p className="text-xs text-[hsl(var(--color-text-secondary))] mt-0.5">
+            Added {new Date(client.created_at).toLocaleDateString()}
+          </p>
+        </div>
+        <ChevronRight className="w-5 h-5 text-[hsl(var(--color-text-muted))] shrink-0" />
+      </Link>
 
       <CasesSection 
         clientId={client.id} 

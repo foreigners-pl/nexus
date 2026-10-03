@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { updateUserProfile } from '@/app/actions/users'
 import { toggleActivityPreference } from '@/app/actions/settings'
 import { bulkSyncInvoiceStatuses } from '@/app/actions/stripe'
+import { updateCompanySettings } from '@/app/actions/company'
 import { 
   ACTIVITY_TYPES, 
   CATEGORY_INFO,
@@ -21,13 +22,26 @@ import {
 import { User } from '@/types/database'
 import { createClient } from '@/lib/supabase/client'
 import { useNotifications, SOUND_TYPES, type SoundType } from '@/lib/notifications/NotificationContext'
+import { ServiceStepsEditor } from './ServiceStepsEditor'
+
+interface CompanySettings {
+  company_name?: string
+  address?: string
+  tax_id?: string
+  email?: string
+  phone?: string
+  bank_name?: string
+  bank_account?: string
+  swift?: string
+}
 
 interface SettingsContentProps {
   initialProfile: User | null
   initialPreferences: ActivityPreferences | null
+  initialCompany?: CompanySettings | null
 }
 
-export function SettingsContent({ initialProfile, initialPreferences }: SettingsContentProps) {
+export function SettingsContent({ initialProfile, initialPreferences, initialCompany }: SettingsContentProps) {
   // Notification context
   const { soundEnabled, setSoundEnabled, soundType, setSoundType, testSound } = useNotifications()
   
@@ -47,6 +61,22 @@ export function SettingsContent({ initialProfile, initialPreferences }: Settings
   // Stripe sync state
   const [syncingStripe, setSyncingStripe] = useState(false)
   const [stripeMessage, setStripeMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null)
+
+  // Company / invoice details state
+  const [company, setCompany] = useState<CompanySettings>(initialCompany ?? {})
+  const [savingCompany, setSavingCompany] = useState(false)
+  const [companyMessage, setCompanyMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+
+  const handleSaveCompany = async () => {
+    setSavingCompany(true)
+    setCompanyMessage(null)
+    const result = await updateCompanySettings(company)
+    setCompanyMessage(result.error
+      ? { type: 'error', text: result.error }
+      : { type: 'success', text: 'Invoice details saved!' })
+    setTimeout(() => setCompanyMessage(null), 3000)
+    setSavingCompany(false)
+  }
 
   // Activity preferences state - use defaults if empty or null
   // Always use defaults for new users or when preferences are empty
@@ -106,7 +136,8 @@ export function SettingsContent({ initialProfile, initialPreferences }: Settings
     const supabase = createClient()
     
     // First verify old password by re-authenticating
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
     if (!user?.email) {
       setPasswordMessage({ type: 'error', text: 'Unable to verify user' })
       setSavingPassword(false)
@@ -516,6 +547,51 @@ export function SettingsContent({ initialProfile, initialPreferences }: Settings
           )}
         </div>
       </Card>
+
+      {/* Invoice Details Section */}
+      <Card>
+        <div className="p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 border border-emerald-500/30 flex items-center justify-center">
+              <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-[hsl(var(--color-text-primary))]">Invoice Details</h3>
+              <p className="text-sm text-[hsl(var(--color-text-secondary))]">Company info shown on invoices and receipts</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input label="Company name" value={company.company_name ?? ''} onChange={(e) => setCompany({ ...company, company_name: e.target.value })} />
+            <Input label="Tax ID (NIP)" value={company.tax_id ?? ''} onChange={(e) => setCompany({ ...company, tax_id: e.target.value })} />
+            <Input label="Address" value={company.address ?? ''} onChange={(e) => setCompany({ ...company, address: e.target.value })} />
+            <Input label="Phone" value={company.phone ?? ''} onChange={(e) => setCompany({ ...company, phone: e.target.value })} />
+            <Input label="Email" type="email" value={company.email ?? ''} onChange={(e) => setCompany({ ...company, email: e.target.value })} />
+            <Input label="Bank name" value={company.bank_name ?? ''} onChange={(e) => setCompany({ ...company, bank_name: e.target.value })} />
+            <Input label="Bank account (IBAN)" value={company.bank_account ?? ''} onChange={(e) => setCompany({ ...company, bank_account: e.target.value })} />
+            <Input label="SWIFT" value={company.swift ?? ''} onChange={(e) => setCompany({ ...company, swift: e.target.value })} />
+          </div>
+
+          {companyMessage && (
+            <div className={`text-sm px-3 py-2 rounded-lg mt-4 ${
+              companyMessage.type === 'success'
+                ? 'bg-green-500/10 text-green-400 border border-green-500/20'
+                : 'bg-red-500/10 text-red-400 border border-red-500/20'
+            }`}>
+              {companyMessage.text}
+            </div>
+          )}
+
+          <Button onClick={handleSaveCompany} disabled={savingCompany} className="w-full mt-4">
+            {savingCompany ? 'Saving...' : 'Save Invoice Details'}
+          </Button>
+        </div>
+      </Card>
+
+      {/* Service Steps Section */}
+      <ServiceStepsEditor />
 
       {/* Activity Notifications Section */}
       <Card>

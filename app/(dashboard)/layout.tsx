@@ -5,7 +5,8 @@ import { Navbar } from '@/components/layout/Navbar'
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav'
 import { NotificationProvider } from '@/lib/notifications/NotificationContext'
 import { ChatProvider } from '@/lib/chat/ChatContext'
-import { QueryProvider, PrefetchManager } from '@/lib/query'
+import { QueryProvider } from '@/lib/query'
+import { PaneProvider } from '@/lib/panes'
 import MiniChat from '@/app/(dashboard)/chat/components/MiniChat'
 import { cn } from '@/lib/utils'
 
@@ -36,17 +37,16 @@ export default function DashboardLayout({
     <QueryProvider>
       <NotificationProvider>
         <ChatProvider>
-          <PrefetchManager />
           <div className="h-screen bg-[hsl(var(--color-background))] flex flex-col">
             <Navbar />
             <main className={cn(
               "px-4 py-4 flex-1 overflow-y-auto transition-all duration-300",
-              "pb-20 md:pb-6", // Extra bottom padding on mobile for bottom nav
-              "md:px-6 md:py-6", // Larger padding on desktop
+              "pb-20", // Extra bottom padding on mobile for bottom nav
+              "md:flex md:flex-col md:overflow-hidden md:p-0", // Desktop: pane columns scroll internally, padding lives on the columns
               "ml-0", // No left margin on mobile
               isNavCollapsed ? "md:ml-16" : "md:ml-56" // Left margin on desktop
             )}>
-              {children}
+              <PaneProvider>{children}</PaneProvider>
             </main>
             <MobileBottomNav />
             {/* MiniChat hidden for now */}

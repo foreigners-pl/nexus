@@ -39,8 +39,8 @@ export function ShareDocumentModal({
     async function getCurrentUser() {
       const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) setCurrentUserId(user.id)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) setCurrentUserId(session.user.id)
     }
     getCurrentUser()
   }, [])

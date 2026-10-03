@@ -1,12 +1,14 @@
 ﻿import { getCurrentUserProfile } from '@/app/actions/users'
 import { getActivityPreferences } from '@/app/actions/settings'
+import { getCompanySettings } from '@/app/actions/company'
 import { SettingsContent } from './components/SettingsContent'
 import { PageHeader } from '@/components/shared/PageHeader'
 
 export default async function SettingsPage() {
-  const [profileResult, preferencesResult] = await Promise.all([
+  const [profileResult, preferencesResult, companyResult] = await Promise.all([
     getCurrentUserProfile(),
-    getActivityPreferences()
+    getActivityPreferences(),
+    getCompanySettings()
   ])
 
   return (
@@ -25,6 +27,7 @@ export default async function SettingsPage() {
       <SettingsContent 
         initialProfile={profileResult.data ?? null}
         initialPreferences={preferencesResult.data ?? null}
+        initialCompany={companyResult.settings ?? null}
       />
     </div>
   )

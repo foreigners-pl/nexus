@@ -2,19 +2,23 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle, Modal } from '@/components/ui'
+
+import { Modal } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { createClient } from '@/lib/supabase/client'
 import { addCase } from '@/app/actions/cases'
+import { getAllServices } from '@/app/actions/services'
 import { PageHeader } from '@/components/shared/PageHeader'
 import type { Case, Client, Status, User } from '@/types/database'
 
 interface CaseWithRelations extends Case {
   clients?: Client
   status?: Status
-  users?: User
+  csr?: User
+  legal?: User
+  case_services?: Array<{ services?: { name: string } }>
 }
 
 const CASES_PER_PAGE = 20
@@ -33,15 +37,18 @@ export default function CasesPage() {
   const [selectedClient, setSelectedClient] = useState<string>('')
   const [selectedStatus, setSelectedStatus] = useState<string>('')
   const [selectedAssignee, setSelectedAssignee] = useState<string>('')
+  const [services, setServices] = useState<{ id: string; name: string }[]>([])
+  const [selectedService, setSelectedService] = useState<string>('')
   const [filters, setFilters] = useState({
-    caseCode: '',
-    clientName: '',
+    search: '',
     status: '',
   })
+  const [stepNames, setStepNames] = useState<Record<string, string>>({})
 
   const supabase = createClient()
   const tableRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
+  const goCase = (href: string) => router.push(href)
 
   useEffect(() => {
     fetchCases()
@@ -52,6 +59,14 @@ export default function CasesPage() {
       if (clients.length === 0) fetchClients()
       if (statuses.length === 0) fetchStatuses()
       if (users.length === 0) fetchUsers()
+      if (services.length === 0) {
+        // For now only "TRC Full service" is offered at case creation
+        getAllServices().then(list => {
+          const allowed = list.filter(s => s.name === 'TRC Full service')
+          setServices(allowed)
+          if (allowed.length === 1) setSelectedService(allowed[0].id)
+        })
+      }
     }
   }, [isModalOpen])
 
@@ -82,6 +97,19 @@ export default function CasesPage() {
     if (data) setUsers(data)
   }
 
+  // Batched lookup of current-step names for a page of cases
+  const fetchStepNames = async (list: CaseWithRelations[]) => {
+    const ids = [...new Set(list.map(c => c.current_step_id).filter(Boolean))] as string[]
+    if (ids.length === 0) return
+    const { data } = await supabase.from('case_steps').select('id, name').in('id', ids)
+    if (!data) return
+    setStepNames(prev => {
+      const next = { ...prev }
+      for (const s of data) next[s.id] = s.name
+      return next
+    })
+  }
+
   const fetchCases = async () => {
     setLoading(true)
     const { data, error } = await supabase
@@ -99,10 +127,20 @@ export default function CasesPage() {
           id,
           name
         ),
-        users (
+        csr:users!cases_csr_id_fkey (
           id,
           display_name,
           email
+        ),
+        legal:users!cases_assigned_to_fkey (
+          id,
+          display_name,
+          email
+        ),
+        case_services:case_services!case_id (
+          services (
+            name
+          )
         )
       `)
       .order('created_at', { ascending: false })
@@ -113,6 +151,7 @@ export default function CasesPage() {
     } else {
       setCases(data || [])
       setHasMore((data?.length || 0) === CASES_PER_PAGE)
+      fetchStepNames(data || [])
     }
     setLoading(false)
   }
@@ -139,10 +178,20 @@ export default function CasesPage() {
           id,
           name
         ),
-        users (
+        csr:users!cases_csr_id_fkey (
           id,
           display_name,
           email
+        ),
+        legal:users!cases_assigned_to_fkey (
+          id,
+          display_name,
+          email
+        ),
+        case_services:case_services!case_id (
+          services (
+            name
+          )
         )
       `)
       .order('created_at', { ascending: false })
@@ -153,6 +202,7 @@ export default function CasesPage() {
     } else {
       setCases([...cases, ...(data || [])])
       setHasMore((data?.length || 0) === CASES_PER_PAGE)
+      fetchStepNames(data || [])
     }
     setLoadingMore(false)
   }
@@ -175,18 +225,23 @@ export default function CasesPage() {
   }, [cases, loadingMore, hasMore])
 
   const filteredCases = cases.filter((caseItem) => {
-    if (!filters.caseCode && !filters.clientName && !filters.status) {
+    if (!filters.search && !filters.status) {
       return true
     }
 
-    const matchesCaseCode = !filters.caseCode || caseItem.case_code?.toLowerCase().includes(filters.caseCode.toLowerCase())
+    const q = filters.search.toLowerCase()
     const clientFullName = `${caseItem.clients?.first_name || ''} ${caseItem.clients?.last_name || ''}`.trim()
-    const matchesClientName = !filters.clientName || 
-      clientFullName.toLowerCase().includes(filters.clientName.toLowerCase()) ||
-      caseItem.clients?.contact_email?.toLowerCase().includes(filters.clientName.toLowerCase())
+    const service = caseItem.case_services?.map(cs => cs.services?.name).filter(Boolean).join(', ') || ''
+    const step = (caseItem.current_step_id && stepNames[caseItem.current_step_id]) || ''
+    const matchesSearch = !q ||
+      caseItem.case_code?.toLowerCase().includes(q) ||
+      clientFullName.toLowerCase().includes(q) ||
+      caseItem.clients?.contact_email?.toLowerCase().includes(q) ||
+      service.toLowerCase().includes(q) ||
+      step.toLowerCase().includes(q)
     const matchesStatus = !filters.status || caseItem.status?.name?.toLowerCase().includes(filters.status.toLowerCase())
 
-    return matchesCaseCode && matchesClientName && matchesStatus
+    return matchesSearch && matchesStatus
   })
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -204,6 +259,7 @@ export default function CasesPage() {
     formData.set('clientId', selectedClient)
     if (selectedStatus) formData.set('statusId', selectedStatus)
     if (selectedAssignee) formData.set('assignedTo', selectedAssignee)
+    if (selectedService) formData.set('serviceId', selectedService)
 
     const result = await addCase(formData)
 
@@ -274,6 +330,19 @@ export default function CasesPage() {
 
           <div>
             <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-2">
+              Service
+            </label>
+            <Select
+              options={services.map(s => ({ id: s.id, label: s.name }))}
+              value={selectedService}
+              onChange={setSelectedService}
+              placeholder="Select service..."
+              searchPlaceholder="Search services..."
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-2">
               Status
             </label>
             <Select
@@ -287,7 +356,7 @@ export default function CasesPage() {
 
           <div>
             <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-2">
-              Assign To
+              Legal rep
             </label>
             <Select
               options={users.map(u => ({ 
@@ -296,9 +365,12 @@ export default function CasesPage() {
               }))}
               value={selectedAssignee}
               onChange={setSelectedAssignee}
-              placeholder="Select user..."
+              placeholder="Assign lawyer..."
               searchPlaceholder="Search users..."
             />
+            <p className="text-[11px] text-[hsl(var(--color-text-muted))] mt-1.5">
+              You'll be the customer success rep automatically
+            </p>
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
@@ -317,194 +389,94 @@ export default function CasesPage() {
         </form>
       </Modal>
 
-      {/* Mobile Search */}
-      <div className="md:hidden relative">
-        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[hsl(var(--color-text-muted))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
+      {/* Search + status filter */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[hsl(var(--color-text-muted))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <Input
+            placeholder="Search cases..."
+            value={filters.search}
+            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+            className="pl-10 bg-[hsl(var(--color-surface))]"
+          />
+        </div>
         <Input
-          placeholder="Search cases..."
-          value={filters.caseCode || filters.clientName}
-          onChange={(e) => setFilters({ caseCode: e.target.value, clientName: e.target.value, status: '' })}
-          className="pl-10 bg-[hsl(var(--color-surface))]"
+          placeholder="Status..."
+          value={filters.status}
+          onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+          className="w-28 sm:w-36 bg-[hsl(var(--color-surface))]"
         />
       </div>
 
-      {/* Mobile Card View */}
-      <div className="md:hidden space-y-2">
-        {loading ? (
-          <div className="text-center py-12">
-            <p className="text-[hsl(var(--color-text-secondary))]">Loading cases...</p>
-          </div>
-        ) : cases.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-[hsl(var(--color-text-secondary))]">
-              No cases yet. Tap "Add Case" to get started.
-            </p>
-          </div>
-        ) : (
-          <div ref={tableRef} className="space-y-3 max-h-[calc(100vh-300px)] overflow-y-auto scrollbar-thin">
-            {filteredCases.map((caseItem) => (
+      {/* Cases list — same row format on all breakpoints */}
+      {loading ? (
+        <div className="text-center py-12">
+          <p className="text-[hsl(var(--color-text-secondary))]">Loading cases...</p>
+        </div>
+      ) : cases.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-[hsl(var(--color-text-secondary))]">
+            No cases yet. Add one to get started.
+          </p>
+        </div>
+      ) : (
+        <div ref={tableRef} className="space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto scrollbar-thin">
+          {filteredCases.map((caseItem) => {
+            const service = caseItem.case_services?.map(cs => cs.services?.name).filter(Boolean).join(', ')
+            const step = caseItem.current_step_id ? stepNames[caseItem.current_step_id] : null
+            const csrName = caseItem.csr?.display_name || caseItem.csr?.email
+            const legalName = caseItem.legal?.display_name || caseItem.legal?.email
+            return (
               <div
                 key={caseItem.id}
-                onClick={() => router.push(`/cases/${caseItem.case_code || caseItem.id}`)}
+                onClick={() => goCase(`/cases/${caseItem.case_code || caseItem.id}`)}
                 className="p-4 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl hover:bg-[hsl(var(--color-surface-hover))] transition-colors active:scale-[0.98] cursor-pointer"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-sm text-[hsl(var(--color-text-primary))]">
-                        {caseItem.case_code || '-'}
+                    <div className="flex items-baseline justify-between gap-2">
+                      <p className="text-sm font-semibold text-[hsl(var(--color-text-primary))] truncate">
+                        {service || caseItem.case_code || 'Case'}
+                      </p>
+                      <span className="text-xs text-[hsl(var(--color-text-muted))] shrink-0">
+                        {new Date(caseItem.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       </span>
-                      {caseItem.status && (
-                        <span className="px-2 py-0.5 rounded text-[10px] bg-[hsl(var(--color-primary))]/10 text-[hsl(var(--color-primary))]">
-                          {caseItem.status.name}
-                        </span>
-                      )}
                     </div>
-                    <p className="text-sm text-[hsl(var(--color-text-secondary))] mt-1 truncate">
+                    <div className="flex items-baseline justify-between gap-2 mt-1">
+                      <p className="text-xs text-[hsl(var(--color-text-secondary))] truncate">
+                        {step || 'No step'}
+                      </p>
+                      <p className="text-xs text-[hsl(var(--color-text-muted))] truncate shrink-0">
+                        {csrName || 'No CSR'} · {legalName || 'No LGL'}
+                      </p>
+                    </div>
+                    <p className="text-xs text-[hsl(var(--color-text-muted))] mt-0.5 truncate">
                       {getClientDisplayName(caseItem.clients)}
                     </p>
-                    {caseItem.users && (
-                      <p className="text-xs text-[hsl(var(--color-text-muted))] mt-0.5">
-                        {caseItem.users.display_name || caseItem.users.email}
-                      </p>
-                    )}
                   </div>
-                  <svg className="w-5 h-5 text-[hsl(var(--color-text-muted))] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {caseItem.status && (
+                      <span className="px-2 py-0.5 rounded text-[10px] bg-[hsl(var(--color-primary))]/10 text-[hsl(var(--color-primary))]">
+                        {caseItem.status.name}
+                      </span>
+                    )}
+                    <svg className="w-5 h-5 text-[hsl(var(--color-text-muted))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
                 </div>
               </div>
-            ))}
-            {loadingMore && (
-              <div className="text-center py-4">
-                <p className="text-sm text-[hsl(var(--color-text-secondary))]">Loading more...</p>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Desktop Table View */}
-      <Card className="hidden md:block">
-        <CardHeader>
-          <CardTitle>All Cases ({filteredCases.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="text-center py-12">
-              <p className="text-[hsl(var(--color-text-secondary))]">Loading cases...</p>
-            </div>
-          ) : cases.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-[hsl(var(--color-text-secondary))]">
-                No cases yet. Click "Add Case" to get started.
-              </p>
-            </div>
-          ) : (
-            <div ref={tableRef} className="overflow-x-auto max-h-[600px] overflow-y-auto scrollbar-thin">
-              <table className="w-full">
-                <thead className="sticky top-0 bg-[hsl(var(--color-surface))] z-10">
-                  <tr className="border-b border-[hsl(var(--color-border))]">
-                    <th className="text-left p-4 text-[hsl(var(--color-text-secondary))] font-medium w-24">
-                      
-                    </th>
-                    <th className="text-left p-4 text-[hsl(var(--color-text-secondary))] font-medium">
-                      <div className="space-y-2">
-                        <div>Case Code</div>
-                        <Input
-                          placeholder="Search..."
-                          value={filters.caseCode}
-                          onChange={(e) => setFilters({ ...filters, caseCode: e.target.value })}
-                          className="text-sm"
-                        />
-                      </div>
-                    </th>
-                    <th className="text-left p-4 text-[hsl(var(--color-text-secondary))] font-medium">
-                      <div className="space-y-2">
-                        <div>Client</div>
-                        <Input
-                          placeholder="Search..."
-                          value={filters.clientName}
-                          onChange={(e) => setFilters({ ...filters, clientName: e.target.value })}
-                          className="text-sm"
-                        />
-                      </div>
-                    </th>
-                    <th className="text-left p-4 text-[hsl(var(--color-text-secondary))] font-medium">
-                      <div className="space-y-2">
-                        <div>Status</div>
-                        <Input
-                          placeholder="Search..."
-                          value={filters.status}
-                          onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                          className="text-sm"
-                        />
-                      </div>
-                    </th>
-                    <th className="text-left p-4 text-[hsl(var(--color-text-secondary))] font-medium">
-                      Assigned To
-                    </th>
-                    <th className="text-left p-4 text-[hsl(var(--color-text-secondary))] font-medium">
-                      Created
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredCases.map((caseItem) => (
-                    <tr
-                      key={caseItem.id}
-                      className="border-b border-[hsl(var(--color-border))] hover:bg-[hsl(var(--color-surface-hover))] transition-colors"
-                    >
-                      <td className="p-4">
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => router.push(`/cases/${caseItem.case_code || caseItem.id}`)}
-                        >
-                          Open
-                        </Button>
-                      </td>
-                      <td className="p-4 text-[hsl(var(--color-text-primary))] font-mono">
-                        {caseItem.case_code || '-'}
-                      </td>
-                      <td className="p-4 text-[hsl(var(--color-text-primary))]">
-                        {getClientDisplayName(caseItem.clients)}
-                        {caseItem.clients?.client_code && (
-                          <span className="text-xs text-[hsl(var(--color-text-secondary))] ml-2">
-                            ({caseItem.clients.client_code})
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-4">
-                        {caseItem.status ? (
-                          <span className="px-2 py-1 rounded text-xs bg-[hsl(var(--color-primary))]/10 text-[hsl(var(--color-primary))]">
-                            {caseItem.status.name}
-                          </span>
-                        ) : (
-                          <span className="text-[hsl(var(--color-text-secondary))]">-</span>
-                        )}
-                      </td>
-                      <td className="p-4 text-[hsl(var(--color-text-primary))]">
-                        {caseItem.users?.display_name || caseItem.users?.email || '-'}
-                      </td>
-                      <td className="p-4 text-[hsl(var(--color-text-secondary))] text-sm">
-                        {new Date(caseItem.created_at).toLocaleDateString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {loadingMore && (
-                <div className="text-center py-4">
-                  <p className="text-sm text-[hsl(var(--color-text-secondary))]">Loading more...</p>
-                </div>
-              )}
+            )
+          })}
+          {loadingMore && (
+            <div className="text-center py-4">
+              <p className="text-sm text-[hsl(var(--color-text-secondary))]">Loading more...</p>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      )}
     </div>
   )
 }

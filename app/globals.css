@@ -37,9 +37,10 @@
     --color-text-muted: 240 2% 39%;             /* Tertiary label #636366 */
     
     /* Brand/Accent Colors */
-    --color-primary: 7 92% 34%;                 /* Primary brand color (#AB1604) */
-    --color-primary-hover: 7 92% 29%;           /* Primary hover state (darker) */
+    --color-primary: 214 84% 55%;               /* Primary action color (#2B85F0-ish) */
+    --color-primary-hover: 215 84% 47%;         /* Primary hover state (darker) */
     --color-primary-foreground: 0 0% 100%;      /* Text on primary color */
+    --color-accent: 7 92% 34%;                  /* Brand red (#AB1604) - logos/marks only */
     
     /* Status Colors */
     --color-success: 142 71% 45%;               /* Success/green */
@@ -57,7 +58,7 @@
     --color-input-focus: 217 91% 60%;           /* Input focus border */
     
     /* ========== GLOW COLORS ========== */
-    --glow-primary: 7 92% 34% / 0.4;
+    --glow-primary: 214 84% 55% / 0.4;
     --glow-cyan: 199 89% 48% / 0.3;
     --glow-blue: 217 91% 60% / 0.3;
     --glow-purple: 270 70% 60% / 0.3;
@@ -258,6 +259,16 @@
   @keyframes shimmer {
     0% { background-position: 200% 0; }
     100% { background-position: -200% 0; }
+  }
+
+  /* Pane columns slide out from underneath the column to their left */
+  .animate-pane-in {
+    animation: pane-in 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  @keyframes pane-in {
+    0% { transform: translateX(-100%); opacity: 0; }
+    100% { transform: translateX(0); opacity: 1; }
   }
   
   /* Gradient border effect */
@@ -501,6 +512,27 @@
   /* Safe area bottom for mobile devices with home indicator */
   .safe-area-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Safe area top for devices with a notch / dynamic island */
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+}
+
+/* ========== MOBILE PERFORMANCE ========== */
+/* backdrop-blur repaints on every scroll frame and is expensive on phone GPUs.
+   Surfaces are already semi-opaque, so disabling it changes little visually. */
+@media (max-width: 767px) {
+  .backdrop-blur,
+  .backdrop-blur-sm,
+  .backdrop-blur-md,
+  .backdrop-blur-lg,
+  .backdrop-blur-xl,
+  .backdrop-blur-2xl,
+  .backdrop-blur-3xl {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 }
 

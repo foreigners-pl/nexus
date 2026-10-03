@@ -210,11 +210,13 @@ export async function recordManualPayment(
   invoiceName: string,
   amount: number,
   paymentMethod: 'cash' | 'bank_transfer' | 'other' = 'other',
+  paidAt?: string,
   notes?: string
 ) {
   const supabase = await createClient()
 
   const now = new Date().toISOString()
+  const paidTimestamp = paidAt || now
   const methodLabel = paymentMethod === 'cash' ? 'Cash' : paymentMethod === 'bank_transfer' ? 'Bank Transfer' : 'Manual'
 
   // Create invoice record marked as paid
@@ -226,7 +228,7 @@ export async function recordManualPayment(
       invoice_name: `${invoiceName} (${methodLabel})`,
       amount,
       status: 'paid',
-      paid_at: now,
+      paid_at: paidTimestamp,
       sent_at: now, // Mark as sent since it's already paid
       payment_method: paymentMethod,
       notes: notes || null,

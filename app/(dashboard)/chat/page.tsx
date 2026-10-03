@@ -1,13 +1,12 @@
 ﻿'use client'
 
 import { useState, useEffect } from 'react'
-import { useConversationsCache, useDeepPrefetchChat } from '@/lib/query'
+import { useConversationsCache } from '@/lib/query'
 import { getConversations, ConversationWithDetails } from '@/app/actions/chat'
 import ChatContainer from './components/ChatContainer'
 
 export default function ChatPage() {
   const { getCached } = useConversationsCache()
-  const deepPrefetchChat = useDeepPrefetchChat()
   const [conversations, setConversations] = useState<ConversationWithDetails[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -17,22 +16,13 @@ export default function ChatPage() {
     if (cached?.conversations && cached.conversations.length > 0) {
       setConversations(cached.conversations)
       setLoading(false)
-      // Deep prefetch: Load messages for ALL conversations in background
-      deepPrefetchChat()
-      // Still refresh conversations list in background
-      getConversations().then(({ conversations: fresh }) => {
-        if (fresh) setConversations(fresh)
-      })
-    } else {
-      // No cache, load fresh
-      getConversations().then(({ conversations: fresh }) => {
-        setConversations(fresh || [])
-        setLoading(false)
-        // Deep prefetch after initial load
-        setTimeout(() => deepPrefetchChat(), 100)
-      })
     }
-  }, [getCached, deepPrefetchChat])
+    // Always refresh conversations list in background
+    getConversations().then(({ conversations: fresh }) => {
+      if (fresh) setConversations(fresh)
+      setLoading(false)
+    })
+  }, [getCached])
 
   if (loading) {
     // Show skeleton UI instead of spinner

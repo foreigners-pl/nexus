@@ -118,7 +118,8 @@ export function Navbar() {
   useEffect(() => {
     async function loadUser() {
       const supabase = createClient()
-      const { data: { user: authUser } } = await supabase.auth.getUser()
+      const { data: { session } } = await supabase.auth.getSession()
+      const authUser = session?.user
       
       if (authUser) {
         // Fetch user profile from public.users table

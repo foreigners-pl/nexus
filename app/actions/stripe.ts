@@ -133,7 +133,7 @@ export async function syncClientToStripe(clientId: string): Promise<{ success?: 
  */
 export async function createStripeInvoice(
   invoiceId: string,
-  options: { autoSend?: boolean; paymentType?: 'online' | 'bank_transfer'; dueDate?: string } = {}
+  options: { autoSend?: boolean; paymentType?: 'online' | 'bank_transfer'; dueDate?: string; email?: string } = {}
 ): Promise<{ stripeInvoiceId?: string; error?: string }> {
   if (!isStripeConfigured()) {
     return { error: 'Stripe is not configured. Add STRIPE_SECRET_KEY to .env.local' }
@@ -202,7 +202,34 @@ export async function createStripeInvoice(
     return { error: 'Could not get or create Stripe customer' }
   }
 
+  // If a custom recipient email was provided, update the Stripe customer so the invoice lands there
+  if (options.email) {
+    try {
+      await getStripe().customers.update(stripeCustomerId, { email: options.email })
+    } catch (err) {
+      console.error('Failed to update Stripe customer email:', err)
+    }
+  }
+
   const paymentType = options.paymentType || 'online'
+
+  // For bank transfer invoices, embed company bank details in the footer
+  let footer: string | undefined
+  if (paymentType === 'bank_transfer') {
+    const { data: company } = await supabase
+      .from('company_settings')
+      .select('company_name, bank_name, bank_account, swift')
+      .limit(1)
+      .maybeSingle()
+    if (company?.bank_account) {
+      footer = `Bank transfer details:\n${[
+        company.company_name,
+        company.bank_name ? `Bank: ${company.bank_name}` : null,
+        `Account: ${company.bank_account}`,
+        company.swift ? `SWIFT: ${company.swift}` : null,
+      ].filter(Boolean).join('\n')}`
+    }
+  }
 
   try {
     // Calculate due date - use option dueDate, then invoice.due_date, then default 14 days
@@ -217,6 +244,7 @@ export async function createStripeInvoice(
       collection_method: 'send_invoice',
       days_until_due: daysUntilDue,
       description: invoice.invoice_name,
+      footer,
       metadata: {
         invoice_id: invoiceId,
         case_id: invoice.case_id,
@@ -242,6 +270,7 @@ export async function createStripeInvoice(
         stripe_invoice_id: stripeInvoice.id,
         currency: DEFAULT_CURRENCY,
         collection_method: paymentType === 'bank_transfer' ? 'bank_transfer' : 'send_invoice',
+        sent_to_email: options.email || client.contact_email || null,
       })
       .eq('id', invoiceId)
 
@@ -313,6 +342,38 @@ export async function sendStripeInvoice(invoiceId: string): Promise<{ success?: 
 }
 
 /**
+ * Re-email an already-finalized Stripe invoice to the customer
+ * (e.g. paid invoices where the client wants a copy).
+ */
+export async function resendStripeInvoiceEmail(invoiceId: string): Promise<{ success?: boolean; error?: string }> {
+  if (!isStripeConfigured()) {
+    return { error: 'Stripe is not configured' }
+  }
+
+  const supabase = await createClient()
+  const { data: invoice, error: invoiceError } = await supabase
+    .from('invoices')
+    .select('stripe_invoice_id, status')
+    .eq('id', invoiceId)
+    .single()
+
+  if (invoiceError || !invoice?.stripe_invoice_id) {
+    return { error: 'Invoice not found or not linked to Stripe' }
+  }
+  if (invoice.status === 'draft') {
+    return { error: 'Invoice has not been sent yet' }
+  }
+
+  try {
+    await getStripe().invoices.sendInvoice(invoice.stripe_invoice_id)
+    return { success: true }
+  } catch (err: any) {
+    console.error('Stripe invoice resend failed:', err)
+    return { error: err.message || 'Failed to send invoice' }
+  }
+}
+
+/**
  * Void/cancel a Stripe invoice
  */
 export async function voidStripeInvoice(invoiceId: string): Promise<{ success?: boolean; error?: string }> {
@@ -370,7 +431,7 @@ export async function voidStripeInvoice(invoiceId: string): Promise<{ success?: 
  * Mark a Stripe invoice as paid out of band (bank transfer, cash, etc.)
  * This will also send a receipt to the customer
  */
-export async function markStripeInvoicePaid(invoiceId: string): Promise<{ success?: boolean; error?: string }> {
+export async function markStripeInvoicePaid(invoiceId: string, paidAt?: string): Promise<{ success?: boolean; error?: string }> {
   if (!isStripeConfigured()) {
     return { error: 'Stripe is not configured' }
   }
@@ -401,9 +462,9 @@ export async function markStripeInvoicePaid(invoiceId: string): Promise<{ succes
         .from('invoices')
         .update({
           status: 'paid',
-          paid_at: stripeInvoice.status_transitions?.paid_at 
+          paid_at: paidAt || (stripeInvoice.status_transitions?.paid_at 
             ? new Date(stripeInvoice.status_transitions.paid_at * 1000).toISOString() 
-            : new Date().toISOString(),
+            : new Date().toISOString()),
         })
         .eq('id', invoiceId)
 
@@ -428,7 +489,7 @@ export async function markStripeInvoicePaid(invoiceId: string): Promise<{ succes
       .from('invoices')
       .update({
         status: 'paid',
-        paid_at: new Date().toISOString(),
+        paid_at: paidAt || new Date().toISOString(),
         payment_method: 'bank_transfer',
       })
       .eq('id', invoiceId)

@@ -8,6 +8,9 @@ export interface Client {
   last_name?: string            // Nullable - at least one of first_name, last_name, email, or phone required
   created_at: string
   contact_email?: string
+  passport_number?: string
+  pesel?: string
+  trc_case_number?: string
   country_of_origin?: string  // UUID reference to countries table
   city_in_poland?: string      // UUID reference to cities table
   stripe_customer_id?: string  // Stripe Customer ID for invoicing
@@ -50,7 +53,10 @@ export interface Case {
   client_id: string
   created_at: string
   status_id?: string
-  assigned_to?: string
+  assigned_to?: string         // Legal rep (lawyer)
+  csr_id?: string              // Customer success rep
+  current_step_id?: string     // Active step in the case process
+  total_price?: number         // Editable billing total (null = service price)
   attachments?: string
   due_date?: string            // Optional due date for the case
   position?: number            // Position within status column for ordering
@@ -79,6 +85,8 @@ export interface Installment {
   due_date?: string
   automatic_invoice: boolean  // If true, auto-send invoice on due_date
   is_down_payment: boolean
+  is_balance?: boolean         // Auto-adjusting final installment (holds remainder)
+  name?: string                // Optional custom title (e.g. "First payment")
   position: number
   paid: boolean
   created_at: string
@@ -172,6 +180,7 @@ export interface Invoice {
   voided_at?: string                   // When invoice was voided
   payment_method?: string              // How payment was made
   notes?: string                       // Internal notes
+  sent_to_email?: string               // Email the invoice was sent to
 }
 
 // ============================================

@@ -60,10 +60,20 @@ export async function addClient(formData: FormData) {
 export async function updateClient(id: string, formData: FormData) {
   const supabase = await createClient()
 
-  const data = {
-    first_name: formData.get('firstName') as string,
-    last_name: formData.get('lastName') as string,
-    contact_email: formData.get('email') as string,
+  // Only update fields that were actually provided in the form
+  const fieldMap: Record<string, string> = {
+    firstName: 'first_name',
+    lastName: 'last_name',
+    email: 'contact_email',
+    passportNumber: 'passport_number',
+    pesel: 'pesel',
+    trcCaseNumber: 'trc_case_number',
+  }
+  const data: Record<string, string | null> = {}
+  for (const [key, column] of Object.entries(fieldMap)) {
+    if (formData.has(key)) {
+      data[column] = (formData.get(key) as string)?.trim() || null
+    }
   }
 
   // Debug log
@@ -181,24 +191,22 @@ export async function findConflictingClients(clientId: string) {
 
     if (matchingPhones && matchingPhones.length > 0) {
       const clientIds = [...new Set(matchingPhones.map(p => p.client_id))]
-      for (const id of clientIds) {
-        const { data: conflictClient } = await supabase
-          .from('clients')
-          .select('*, contact_numbers(*)')
-          .eq('id', id)
-          .single()
+      // One batched query instead of one query per conflicting client
+      const { data: conflictClients } = await supabase
+        .from('clients')
+        .select('*, contact_numbers(*)')
+        .in('id', clientIds)
 
-        if (conflictClient) {
-          const matchedNumbers = matchingPhones
-            .filter(p => p.client_id === id)
-            .map(p => p.number)
-          
-          conflicts.push({
-            client: conflictClient,
-            phoneNumbers: conflictClient.contact_numbers || [],
-            conflictReasons: [`Same phone: ${matchedNumbers.join(', ')}`]
-          })
-        }
+      for (const conflictClient of conflictClients || []) {
+        const matchedNumbers = matchingPhones
+          .filter(p => p.client_id === conflictClient.id)
+          .map(p => p.number)
+        
+        conflicts.push({
+          client: conflictClient,
+          phoneNumbers: conflictClient.contact_numbers || [],
+          conflictReasons: [`Same phone: ${matchedNumbers.join(', ')}`]
+        })
       }
     }
   }
@@ -344,11 +352,11 @@ export async function mergeClients(mainClientId: string, secondaryClientId: stri
   ) || []
 
   if (phonesToTransfer.length > 0) {
+    await supabase
+      .from('contact_numbers')
+      .update({ client_id: mainClientId })
+      .in('id', phonesToTransfer.map((p: any) => p.id))
     for (const phone of phonesToTransfer) {
-      await supabase
-        .from('contact_numbers')
-        .update({ client_id: mainClientId })
-        .eq('id', phone.id)
       secondaryDetails.push(`→ Transferred phone: ${phone.number}`)
     }
   }

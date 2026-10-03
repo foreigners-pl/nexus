@@ -35,7 +35,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   // All dashboard routes are protected
-  const protectedPaths = ['/home', '/clients', '/cases', '/board', '/wiki', '/chat', '/settings', '/leads']
+  const protectedPaths = ['/home', '/clients', '/cases', '/board', '/wiki', '/chat', '/settings', '/leads', '/mobile']
   const isProtectedPath = protectedPaths.some(path =>
     request.nextUrl.pathname.startsWith(path)
   )

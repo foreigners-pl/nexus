@@ -52,6 +52,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const originalTitle = useRef('Nexus CRM')
   const titleIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const buzzTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  // IDs of conversations this user belongs to - lets the realtime handler
+  // ignore messages in other people's conversations without a DB call
+  const myConversationIdsRef = useRef<Set<string>>(new Set())
 
   // Track user interaction for audio
   useEffect(() => {
@@ -156,10 +159,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // Get current user
+  // Get current user (getSession reads locally - no network round-trip)
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUserId(data.user?.id || null)
+    supabase.auth.getSession().then(({ data }) => {
+      const uid = data.session?.user?.id || null
+      setUserId(uid)
+      if (uid) {
+        // Load my conversation IDs so realtime events can be filtered cheaply
+        supabase
+          .from('conversation_members')
+          .select('conversation_id')
+          .eq('user_id', uid)
+          .then(({ data: memberships }) => {
+            myConversationIdsRef.current = new Set(
+              (memberships || []).map(m => m.conversation_id)
+            )
+          })
+      }
     })
   }, [supabase])
 
@@ -202,7 +218,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'messages'
+          table: 'messages',
+          filter: `sender_id=neq.${userId}`
         },
         async (payload) => {
           const newMessage = payload.new as { 
@@ -213,6 +230,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             is_system?: boolean
             created_at: string
           }
+          // Ignore messages in conversations I'm not a member of - no DB work at all
+          if (!myConversationIdsRef.current.has(newMessage.conversation_id)) return
           // Only handle if message is from someone else
           if (newMessage.sender_id && newMessage.sender_id !== userId) {
             // Get sender name for tab title
@@ -269,6 +288,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           refreshCount()
           // Clear the sender name when messages are read
           setLatestSenderName(null)
+          // Also refresh conversation membership in case we joined a new one
+          supabase
+            .from('conversation_members')
+            .select('conversation_id')
+            .eq('user_id', userId)
+            .then(({ data: memberships }) => {
+              myConversationIdsRef.current = new Set(
+                (memberships || []).map(m => m.conversation_id)
+              )
+            })
         }
       )
       .subscribe()

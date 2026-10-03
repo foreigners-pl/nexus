@@ -648,22 +648,26 @@ export async function getTotalUnreadCount(): Promise<{ count: number; error?: st
     .eq('user_id', user.id)
 
   if (memberError || !memberships) return { count: 0, error: memberError?.message }
+  if (memberships.length === 0) return { count: 0 }
 
-  let totalUnread = 0
+  // One batched query instead of N sequential count queries.
+  // Fetch candidate unread messages (id-conversation-date only) newer than the
+  // earliest last_read_at, then filter per-conversation client-side.
+  const readAtMap = new Map(memberships.map(m => [m.conversation_id, m.last_read_at || '1970-01-01']))
+  const earliestReadAt = [...readAtMap.values()].sort()[0]
 
-  // For each conversation, count messages after last_read_at
-  for (const membership of memberships) {
-    const { count, error } = await supabase
-      .from('messages')
-      .select('*', { count: 'exact', head: true })
-      .eq('conversation_id', membership.conversation_id)
-      .neq('sender_id', user.id) // Don't count own messages
-      .gt('created_at', membership.last_read_at || '1970-01-01')
+  const { data: candidates, error: messagesError } = await supabase
+    .from('messages')
+    .select('conversation_id, created_at')
+    .in('conversation_id', memberships.map(m => m.conversation_id))
+    .neq('sender_id', user.id) // Don't count own messages
+    .gt('created_at', earliestReadAt)
 
-    if (!error && count) {
-      totalUnread += count
-    }
-  }
+  if (messagesError) return { count: 0, error: messagesError.message }
+
+  const totalUnread = (candidates || []).filter(
+    m => m.created_at > (readAtMap.get(m.conversation_id) || '1970-01-01')
+  ).length
 
   return { count: totalUnread }
 }

@@ -213,7 +213,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const refreshCount = useCallback(async () => {
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
     
     if (!user) return
     
@@ -238,9 +239,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const init = async () => {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        setUserId(user.id)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) {
+        setUserId(session.user.id)
         refreshCount()
       }
     }

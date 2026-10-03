@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { logActivity, logActivityForUsers } from './dashboard'
+import { ensureSystemSteps, setInitialStep, generateStepsForService } from './workflow'
 
 export async function addCase(formData: FormData) {
   const supabase = await createClient()
@@ -11,6 +12,7 @@ export async function addCase(formData: FormData) {
   const clientId = formData.get('clientId') as string
   let statusId = formData.get('statusId') as string | null
   const assignedTo = formData.get('assignedTo') as string | null
+  const serviceId = formData.get('serviceId') as string | null
 
   if (!clientId) {
     return { error: 'Client ID is required' }
@@ -35,6 +37,7 @@ export async function addCase(formData: FormData) {
       client_id: clientId,
       status_id: statusId,
       assigned_to: assignedTo,
+      csr_id: user?.id || null,
     })
     .select(`
       *,
@@ -47,17 +50,32 @@ export async function addCase(formData: FormData) {
     return { error: 'Failed to create case' }
   }
 
-  // Create default down payment installment
   if (data?.id) {
-    await supabase
-      .from('installments')
-      .insert({
-        case_id: data.id,
-        amount: 0,
-        position: 1,
-        is_down_payment: true,
-        automatic_invoice: false,
-      })
+    // Keep case_assignees in sync with the two role fields (drives notifications)
+    const repIds = [...new Set([data.csr_id, data.assigned_to].filter(Boolean) as string[])]
+    for (const uid of repIds) {
+      await supabase.from('case_assignees').insert({ case_id: data.id, user_id: uid })
+    }
+
+    // Initialize the workflow: Pre-sale + Consultation steps, active at Pre-sale
+    await ensureSystemSteps(data.id)
+    await setInitialStep(data.id)
+
+    // Attach the selected service and copy its step template onto the case
+    if (serviceId) {
+      await supabase
+        .from('case_services')
+        .insert({ case_id: data.id, service_id: serviceId })
+      await generateStepsForService(data.id, serviceId)
+    }
+
+    // setInitialStep ran after the insert — pull the current step onto the returned row
+    const { data: refreshed } = await supabase
+      .from('cases')
+      .select('current_step_id')
+      .eq('id', data.id)
+      .single()
+    if (refreshed) data.current_step_id = refreshed.current_step_id
   }
 
   revalidatePath('/cases')
@@ -68,19 +86,33 @@ export async function addCase(formData: FormData) {
 
 export async function updateCase(formData: FormData) {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
   const caseId = formData.get('caseId') as string
   const statusId = formData.get('statusId') as string | null
   const assignedTo = formData.get('assignedTo') as string | null
+  const csrId = formData.get('csrId') as string | null
   const dueDate = formData.get('dueDate') as string | null
 
   if (!caseId) {
     return { error: 'Case ID is required' }
   }
 
+  const { data: caseData } = await supabase
+    .from('cases')
+    .select('case_code, due_date, clients(first_name, last_name)')
+    .eq('id', caseId)
+    .single()
+
+  const client = caseData?.clients as any
+  const clientName = client
+    ? `${client.first_name || ''} ${client.last_name || ''}`.trim() || 'Unknown'
+    : 'Unknown'
+
   const updateData: any = {}
   if (statusId !== null) updateData.status_id = statusId
-  if (assignedTo !== null) updateData.assigned_to = assignedTo
+  if (assignedTo !== null) updateData.assigned_to = assignedTo || null
+  if (csrId !== null) updateData.csr_id = csrId || null
   if (dueDate !== undefined) updateData.due_date = dueDate || null
 
   const { error } = await supabase
@@ -93,9 +125,53 @@ export async function updateCase(formData: FormData) {
     return { error: 'Failed to update case' }
   }
 
+  // Keep case_assignees in sync with the role fields so they keep
+  // getting notifications (logActivityForUsers reads case_assignees).
+  const repIds = [updateData.assigned_to, updateData.csr_id].filter(Boolean) as string[]
+  for (const uid of repIds) {
+    const { data: existing } = await supabase
+      .from('case_assignees')
+      .select('id')
+      .eq('case_id', caseId)
+      .eq('user_id', uid)
+      .limit(1)
+    if (!existing?.length) {
+      await supabase.from('case_assignees').insert({ case_id: caseId, user_id: uid })
+    }
+  }
+
   revalidatePath('/cases')
   revalidatePath(`/cases/${caseId}`)
-  
+
+  // Log due date change if it actually changed
+  if (caseData && dueDate !== undefined) {
+    const newDueDate = dueDate || null
+    if (newDueDate !== caseData.due_date) {
+      const { data: assignees } = await supabase
+        .from('case_assignees')
+        .select('user_id')
+        .eq('case_id', caseId)
+
+      const assigneeIds = assignees?.map(a => a.user_id) || []
+      if (assigneeIds.length > 0) {
+        await logActivityForUsers({
+          userIds: assigneeIds,
+          actorId: user?.id,
+          actionType: 'case_due_date_changed',
+          entityType: 'case',
+          entityId: caseId,
+          message: `Due date changed for case ${caseData.case_code || ''}`,
+          metadata: {
+            case_code: caseData.case_code,
+            client_name: clientName,
+            old_due_date: caseData.due_date,
+            new_due_date: newDueDate,
+          }
+        })
+      }
+    }
+  }
+
   return { success: true }
 }
 

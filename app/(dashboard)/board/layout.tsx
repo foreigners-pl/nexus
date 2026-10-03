@@ -3,7 +3,7 @@
 import { useState, useEffect, ReactNode, createContext, useContext } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { getUserBoards } from '@/app/actions/board/core'
-import { useBoardsCache, useDeepPrefetchBoard } from '@/lib/query'
+import { useBoardsCache } from '@/lib/query'
 import { BoardList } from './components/BoardList'
 import { CreateBoardModal } from './components/CreateBoardModal'
 import { createClient } from '@/lib/supabase/client'
@@ -31,7 +31,6 @@ export default function BoardLayout({ children }: { children: ReactNode }) {
   const router = useRouter()
   const currentBoardId = params?.boardId as string | undefined
   const { getCached: getCachedBoards, setCached: setCachedBoards } = useBoardsCache()
-  const deepPrefetchBoard = useDeepPrefetchBoard()
 
   const [boards, setBoards] = useState<BoardWithAccess[]>([])
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -69,9 +68,9 @@ export default function BoardLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     async function getCurrentUser() {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        setCurrentUserId(user.id)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) {
+        setCurrentUserId(session.user.id)
       }
     }
     getCurrentUser()
@@ -85,8 +84,6 @@ export default function BoardLayout({ children }: { children: ReactNode }) {
       if (cached?.data && cached.data.length > 0) {
         setBoards(cached.data as BoardWithAccess[])
         setBoardsLoading(false)
-        // Deep prefetch: Load cards for ALL boards in background
-        deepPrefetchBoard()
         // Still refresh in background
         getUserBoards().then(result => {
           if (result?.data) {
@@ -106,8 +103,6 @@ export default function BoardLayout({ children }: { children: ReactNode }) {
     if (result?.data) {
       setBoards(result.data as BoardWithAccess[])
       setCachedBoards(result)
-      // Deep prefetch after initial load
-      setTimeout(() => deepPrefetchBoard(), 100)
     }
     setBoardsLoading(false)
   }

@@ -73,8 +73,8 @@ export default function MiniChat() {
 
   // Get current user
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setCurrentUserId(data.user?.id || null)
+    supabase.auth.getSession().then(({ data }) => {
+      setCurrentUserId(data.session?.user?.id || null)
     })
   }, [supabase])
 
