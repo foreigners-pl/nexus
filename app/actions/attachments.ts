@@ -113,7 +113,7 @@ export async function getAttachments(caseId: string) {
   
   const { data, error } = await supabase
     .from('case_attachments')
-    .select('*, uploader:users!uploaded_by(display_name, email)')
+    .select('*')
     .eq('case_id', caseId)
     .order('created_at', { ascending: false })
 
@@ -122,7 +122,21 @@ export async function getAttachments(caseId: string) {
     return []
   }
 
-  return data
+  // uploaded_by has no FK to users — resolve names in a second query
+  const uploaderIds = [...new Set((data || []).map(a => a.uploaded_by).filter(Boolean))] as string[]
+  const names: Record<string, { display_name: string | null; email: string }> = {}
+  if (uploaderIds.length) {
+    const { data: users } = await supabase
+      .from('users')
+      .select('id, display_name, email')
+      .in('id', uploaderIds)
+    for (const u of users || []) names[u.id] = u
+  }
+
+  return (data || []).map(a => ({
+    ...a,
+    uploader: a.uploaded_by ? names[a.uploaded_by] ?? null : null,
+  }))
 }
 
 export async function downloadAttachment(filePath: string) {
