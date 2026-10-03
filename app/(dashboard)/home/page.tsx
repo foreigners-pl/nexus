@@ -31,11 +31,6 @@ export default function MobileHomePage() {
     if (!paneNav(href)) router.push(href)
   }
 
-  /** Same, but as a Link onClick (desktop only prevents the navigation). */
-  const goLink = (href: string) => (e: React.MouseEvent) => {
-    if (paneNav(href)) e.preventDefault()
-  }
-
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<ClientSearchResult[]>([])
   const [searching, setSearching] = useState(false)
@@ -162,7 +157,6 @@ export default function MobileHomePage() {
                     <li key={c.id}>
                       <Link
                         href={`/clients/${c.id}`}
-                        onClick={goLink(`/clients/${c.id}`)}
                         className="flex items-center gap-3 px-4 py-3 active:bg-[hsl(var(--color-surface-hover))]"
                       >
                         <div className="w-9 h-9 rounded-full bg-[hsl(var(--color-surface-active))] flex items-center justify-center text-sm font-semibold text-[hsl(var(--color-text-primary))] shrink-0">
@@ -286,7 +280,6 @@ export default function MobileHomePage() {
               <Link
                 key={c.id}
                 href={`/clients/${c.id}`}
-                onClick={goLink(`/clients/${c.id}`)}
                 className="flex flex-col items-center active:opacity-70"
               >
                 <div className="w-12 h-12 rounded-full bg-[hsl(var(--color-surface-active))] border border-[hsl(var(--color-border))] flex items-center justify-center text-base font-semibold text-[hsl(var(--color-text-primary))]">

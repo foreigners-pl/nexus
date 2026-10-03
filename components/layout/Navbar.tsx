@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { useNotifications } from '@/lib/notifications/NotificationContext'
 import { useChat } from '@/lib/chat/ChatContext'
+import { NotificationsNavLink } from '@/components/notifications/NotificationBell'
 import type { User } from '@/types/database'
 
 // Icons as simple SVG components
@@ -258,6 +259,9 @@ export function Navbar() {
           )}
         </div>
         
+        {/* Notifications */}
+        <NotificationsNavLink collapsed={isCollapsed} />
+
         {/* Settings Link */}
         <Link
           href="/settings"
