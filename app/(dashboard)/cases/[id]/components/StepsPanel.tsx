@@ -280,24 +280,20 @@ function ActionPanel({ caseId, openAction, onChanged }: {
   return (
     <>
       {openAction ? (
-        // --- Action set: single row, tap to edit in a popup ---
+        // --- Action set: centered row, tap to edit in a popup ---
         <button
           onClick={() => setModal('edit')}
-          className={`w-full rounded-xl border border-[hsl(var(--color-border))] border-l-[3px] bg-[hsl(var(--color-surface))] px-4 py-3 flex items-center gap-3 text-left ${
+          className={`w-full rounded-xl border border-[hsl(var(--color-border))] border-l-[3px] bg-[hsl(var(--color-surface))] px-4 py-3 flex flex-col items-center justify-center gap-0.5 text-center hover:bg-[hsl(var(--color-surface-hover))] active:bg-[hsl(var(--color-surface-hover))] transition-colors ${
             isOverdue ? 'border-l-red-500' : 'border-l-[hsl(var(--color-primary))]'
           }`}
         >
-          <Zap className={`w-4 h-4 shrink-0 ${isOverdue ? 'text-red-400' : 'text-[hsl(var(--color-primary))]'}`} />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-[hsl(var(--color-text-primary))] truncate">
-              {openAction.body}
-            </p>
-            <p className={`text-[11px] mt-0.5 ${isOverdue ? 'text-red-400 font-semibold' : 'text-[hsl(var(--color-text-muted))]'}`}>
-              {isOverdue ? 'Overdue · ' : 'Due '}
-              {new Date(openAction.due_date!).toLocaleDateString()}
-            </p>
-          </div>
-          <ChevronRight className="w-4 h-4 text-[hsl(var(--color-text-muted))] shrink-0" />
+          <span className="flex items-center gap-1.5 text-sm font-medium text-[hsl(var(--color-text-primary))] max-w-full">
+            <Zap className={`w-4 h-4 shrink-0 ${isOverdue ? 'text-red-400' : 'text-[hsl(var(--color-primary))]'}`} />
+            <span className="truncate">{openAction.body}</span>
+          </span>
+          <span className={`text-[11px] ${isOverdue ? 'text-red-400 font-semibold' : 'text-[hsl(var(--color-text-muted))]'}`}>
+            {isOverdue ? 'Overdue' : `Due ${new Date(openAction.due_date!).toLocaleDateString()}`} · Tap to open
+          </span>
         </button>
       ) : (
         // --- No action set: warning CTA, opens the set-action popup ---
