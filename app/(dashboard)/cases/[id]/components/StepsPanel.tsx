@@ -15,6 +15,7 @@ import {
   type CaseQuery,
 } from '@/app/actions/workflow'
 import { usePaneLink } from '@/lib/panes'
+import { isDesktopViewport } from '@/lib/viewport'
 import {
   ChevronRight,
   ChevronLeft,
@@ -234,7 +235,7 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
   return (
     <div
       ref={slideRef}
-      className="space-y-3 min-h-[70vh] [touch-action:pan-y]"
+      className="space-y-3 min-h-[70dvh] [touch-action:pan-y]"
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
@@ -277,18 +278,15 @@ function ActionPanel({ caseId, openAction, onChanged }: {
   const isOverdue = openAction?.due_date &&
     new Date(openAction.due_date) < new Date(new Date().toDateString())
 
-  // --- No action set: single warning row that expands into the form ---
+  // --- No action set: warning CTA that expands into the form ---
   if (!openAction && !completing && !expanded) {
     return (
       <button
         onClick={() => setExpanded(true)}
-        className="w-full rounded-xl border border-[hsl(var(--color-border))] border-l-[3px] border-l-amber-500 bg-[hsl(var(--color-surface))] px-4 py-3 flex items-center gap-2.5 text-left"
+        className="w-full h-11 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-400 flex items-center justify-center gap-2 text-sm font-semibold active:bg-amber-500/25"
       >
-        <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
-        <span className="text-sm font-medium text-[hsl(var(--color-text-primary))] flex-1">
-          No action set
-        </span>
-        <span className="text-xs text-[hsl(var(--color-text-muted))]">Tap to add</span>
+        <AlertTriangle className="w-4 h-4 shrink-0" />
+        No action set — tap to add
       </button>
     )
   }
@@ -479,16 +477,20 @@ function EntryComposer({ caseId, onAdded }: { caseId: string; onAdded: () => voi
   return (
     <div className="py-1">
       <div className="flex gap-2">
-        {(['note', 'query'] as const).map(k => (
-          <button
-            key={k}
-            onClick={() => open(k)}
-            className="flex-1 h-10 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 bg-[hsl(var(--color-primary))] text-white hover:bg-[hsl(var(--color-primary-hover))]"
-          >
-            {k === 'note' ? <StickyNote className="w-4 h-4" /> : <MessageSquare className="w-4 h-4" />}
-            {k === 'note' ? 'Note' : 'Query'}
-          </button>
-        ))}
+        <button
+          onClick={() => open('note')}
+          className="flex-1 h-10 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 bg-[hsl(var(--color-surface-active))] text-[hsl(var(--color-text-secondary))] hover:bg-[hsl(var(--color-border))]"
+        >
+          <StickyNote className="w-4 h-4" />
+          Note
+        </button>
+        <button
+          onClick={() => open('query')}
+          className="flex-1 h-10 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 bg-[hsl(var(--color-primary))] text-white hover:bg-[hsl(var(--color-primary-hover))]"
+        >
+          <MessageSquare className="w-4 h-4" />
+          Query
+        </button>
       </div>
       <Modal isOpen={kind !== null} onClose={close} title={kind === 'note' ? 'Add note' : 'New query'}>
         <div className="space-y-4">
@@ -496,7 +498,7 @@ function EntryComposer({ caseId, onAdded }: { caseId: string; onAdded: () => voi
             value={text}
             onChange={e => setText(e.target.value)}
             rows={6}
-            autoFocus
+            autoFocus={isDesktopViewport()}
             placeholder={
               kind === 'note'
                 ? 'Write a note for this step…'
@@ -543,16 +545,20 @@ function EntryRow({ entry, query, caseId }: {
   }[queryStatus] : null
 
   const Icon = isQuery ? MessageSquare : isAction ? Zap : StickyNote
-  const iconCls = isQuery
-    ? (queryStatus === 'closed' ? 'text-[hsl(var(--color-text-muted))]' : 'text-blue-400')
+  const chipCls = isQuery
+    ? (queryStatus === 'closed'
+        ? 'bg-[hsl(var(--color-surface-active))] text-[hsl(var(--color-text-muted))]'
+        : 'bg-blue-400/15 text-blue-400')
     : isAction
-      ? (done ? 'text-green-500' : 'text-[hsl(var(--color-primary))]')
-      : 'text-[hsl(var(--color-text-muted))]'
+      ? (done ? 'bg-green-500/15 text-green-500' : 'bg-orange-500/15 text-orange-400')
+      : 'bg-[hsl(var(--color-surface-active))] text-[hsl(var(--color-text-muted))]'
 
   return (
     <li>
-      <Link {...link} className="py-2.5 flex items-center gap-2.5 active:bg-[hsl(var(--color-surface-hover))] -mx-2 px-2 rounded-lg">
-        <Icon className={`w-4 h-4 shrink-0 ${iconCls}`} />
+      <Link {...link} className={`py-2.5 flex items-center gap-2.5 active:bg-[hsl(var(--color-surface-hover))] -mx-2 px-2 rounded-lg ${isQuery && queryStatus !== 'closed' ? 'bg-blue-400/5' : ''}`}>
+        <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${chipCls}`}>
+          <Icon className="w-4 h-4" />
+        </div>
         <div className="flex-1 min-w-0">
           <p className={`text-sm truncate ${isQuery && queryStatus === 'closed' ? 'text-[hsl(var(--color-text-secondary))]' : 'text-[hsl(var(--color-text-primary))] font-medium'}`}>
             {entry.body}

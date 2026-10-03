@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { addInstallment, setCaseTotal } from '@/app/actions/installments'
 import { usePaneNavigate } from '@/lib/panes'
+import { isDesktopViewport } from '@/lib/viewport'
 import { getInvoicesForCase } from '@/app/actions/invoices'
 import type { Installment, Invoice } from '@/types/database'
 
@@ -147,7 +148,7 @@ export function PaymentPanel({ caseId, caseUrlId, installments, totalPrice, onUp
                 onChange={(e) => setEditTotalValue(e.target.value)}
                 placeholder={totalPrice.toFixed(2)}
                 className="w-full"
-                autoFocus
+                autoFocus={isDesktopViewport()}
               />
               <div className="flex justify-end gap-2">
                 <Button size="sm" variant="ghost" onClick={() => setEditingTotal(false)}>Cancel</Button>
@@ -270,7 +271,7 @@ export function PaymentPanel({ caseId, caseUrlId, installments, totalPrice, onUp
               value={newInstAmount}
               onChange={(e) => setNewInstAmount(e.target.value)}
               placeholder="0.00"
-              autoFocus
+              autoFocus={isDesktopViewport()}
             />
           </div>
           <div>

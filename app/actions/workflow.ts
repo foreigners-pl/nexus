@@ -161,17 +161,19 @@ export async function getCaseWorkflow(caseId: string): Promise<{
   }
 }
 
-/** Single board entry + its step/query context — feeds the entry detail page. */
+/** Single board entry + its step/query/case context — feeds the entry detail page. */
 export async function getCaseEntry(entryId: string): Promise<{
   entry: CaseEntry | null
   stepName: string | null
   query: CaseQuery | null
+  caseTitle: string | null
+  caseSubtitle: string | null
   openerName: string | null
   assigneeName: string | null
   completedByName: string | null
   meId: string | null
 }> {
-  const empty = { entry: null, stepName: null, query: null, openerName: null, assigneeName: null, completedByName: null, meId: null }
+  const empty = { entry: null, stepName: null, query: null, caseTitle: null, caseSubtitle: null, openerName: null, assigneeName: null, completedByName: null, meId: null }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return empty
@@ -183,7 +185,7 @@ export async function getCaseEntry(entryId: string): Promise<{
     .single()
   if (!entry) return { ...empty, meId: user.id }
 
-  const [stepRes, queryRes, completerRes] = await Promise.all([
+  const [stepRes, queryRes, completerRes, caseRes] = await Promise.all([
     entry.step_id
       ? supabase.from('case_steps').select('name').eq('id', entry.step_id).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -193,7 +195,34 @@ export async function getCaseEntry(entryId: string): Promise<{
     entry.completed_by
       ? supabase.from('users').select('display_name, email').eq('id', entry.completed_by).maybeSingle()
       : Promise.resolve({ data: null }),
+    supabase
+      .from('cases')
+      .select('case_code, client_id, clients(first_name, last_name, contact_email), case_services!fk_case_services_case(services(name))')
+      .eq('id', entry.case_id)
+      .maybeSingle(),
   ])
+
+  // Case header context: service name as title, client · phone · code as subtitle
+  const caseRow = caseRes.data as any
+  let caseTitle: string | null = null
+  let caseSubtitle: string | null = null
+  if (caseRow) {
+    const svc = caseRow.case_services?.[0]?.services?.name
+    caseTitle = svc || caseRow.case_code || null
+    const cl = caseRow.clients
+    const clientName = cl ? ([cl.first_name, cl.last_name].filter(Boolean).join(' ') || cl.contact_email) : null
+    let phone: string | null = null
+    if (caseRow.client_id) {
+      const { data: p } = await supabase
+        .from('contact_numbers')
+        .select('country_code, number')
+        .eq('client_id', caseRow.client_id)
+        .limit(1)
+        .maybeSingle()
+      if (p) phone = `${p.country_code || ''} ${p.number}`.trim()
+    }
+    caseSubtitle = [clientName, phone, caseRow.case_code].filter(Boolean).join(' · ') || null
+  }
 
   const query = (queryRes.data || null) as CaseQuery | null
   let openerName: string | null = null
@@ -215,6 +244,8 @@ export async function getCaseEntry(entryId: string): Promise<{
     entry: entry as CaseEntry,
     stepName: (stepRes.data as { name: string } | null)?.name ?? null,
     query,
+    caseTitle,
+    caseSubtitle,
     openerName,
     assigneeName,
     completedByName: completer ? completer.display_name || completer.email.split('@')[0] : null,

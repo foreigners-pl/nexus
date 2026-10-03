@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Input } from './Input'
+import { isDesktopViewport } from '@/lib/viewport'
 
 interface SelectOption {
   id: string
@@ -114,7 +115,7 @@ export function Select({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder={searchPlaceholder}
-              autoFocus
+              autoFocus={isDesktopViewport()}
               className="bg-[hsl(var(--color-surface))]"
             />
           </div>

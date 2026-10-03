@@ -41,7 +41,7 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'md' }: Mod
 
     return () => {
       document.removeEventListener('keydown', handleEscape)
-      document.body.style.overflow = 'unset'
+      document.body.style.overflow = ''
     }
   }, [isOpen, onClose])
 
@@ -56,7 +56,7 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'md' }: Mod
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
       onClick={handleBackdropClick}
     >
       <div
@@ -66,7 +66,7 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'md' }: Mod
           rounded-2xl 
           border border-[hsl(var(--color-border))] 
           shadow-[0_25px_50px_-12px_rgb(0_0_0/0.5),0_0_0_1px_rgb(255_255_255/0.05)_inset]
-          w-full ${maxWidthClasses[maxWidth]} mx-4 
+          w-full ${maxWidthClasses[maxWidth]}
           animate-in fade-in zoom-in duration-200
           overflow-hidden
         `}
@@ -97,7 +97,7 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'md' }: Mod
         </div>
 
         {/* Content */}
-        <div className="p-6 max-h-[calc(100vh-200px)] overflow-y-auto">{children}</div>
+        <div className="p-6 max-h-[calc(100dvh-200px)] overflow-y-auto">{children}</div>
       </div>
     </div>
   )

@@ -112,6 +112,10 @@
     border-color: hsl(var(--color-border));
   }
   
+  html, body {
+    overflow-x: hidden;
+  }
+
   body {
     background-color: hsl(var(--color-background));
     color: hsl(var(--color-text-primary));

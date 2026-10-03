@@ -41,6 +41,8 @@ export default function EntryPage({ params }: { params: Promise<{ id: string; en
   const { id: urlId, entryId } = use(params)
   const [entry, setEntry] = useState<CaseEntry | null>(null)
   const [stepName, setStepName] = useState<string | null>(null)
+  const [caseTitle, setCaseTitle] = useState<string | null>(null)
+  const [caseSubtitle, setCaseSubtitle] = useState<string | null>(null)
   const [query, setQuery] = useState<CaseQuery | null>(null)
   const [openerName, setOpenerName] = useState<string | null>(null)
   const [assigneeName, setAssigneeName] = useState<string | null>(null)
@@ -52,6 +54,8 @@ export default function EntryPage({ params }: { params: Promise<{ id: string; en
     const d = await getCaseEntry(entryId)
     setEntry(d.entry)
     setStepName(d.stepName)
+    setCaseTitle(d.caseTitle)
+    setCaseSubtitle(d.caseSubtitle)
     setQuery(d.query)
     setOpenerName(d.openerName)
     setAssigneeName(d.assigneeName)
@@ -86,8 +90,8 @@ export default function EntryPage({ params }: { params: Promise<{ id: string; en
     <div className="pb-20">
       <SubPageHeader
         backHref={`/cases/${urlId}/progress`}
-        title={meta.label}
-        subtitle={stepName ? `Step · ${stepName}` : undefined}
+        title={caseTitle || meta.label}
+        subtitle={caseSubtitle || (stepName ? `Step · ${stepName}` : undefined)}
         icon={<Icon className="w-4 h-4 text-white" />}
       />
 
@@ -95,7 +99,10 @@ export default function EntryPage({ params }: { params: Promise<{ id: string; en
       <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4">
         <div className="flex items-center gap-2.5 mb-3">
           <Icon className={`w-4 h-4 shrink-0 ${meta.cls}`} />
-          <p className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">{meta.label}</p>
+          <p className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">
+            {meta.label}
+            {stepName ? ` · ${stepName}` : ''}
+          </p>
           {query && (
             <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-medium ${STATUS_BADGE[query.status].cls}`}>
               {STATUS_BADGE[query.status].label}
