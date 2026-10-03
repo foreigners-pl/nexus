@@ -7,6 +7,7 @@ import { searchClients, type ClientSearchResult } from '@/app/actions/search'
 import { getMyOpenTasks, getCurrentUser } from '@/app/actions/dashboard'
 import { getMyOpenActions, getMyQueries } from '@/app/actions/workflow'
 import { getRecentClients, type RecentClient } from '@/lib/recent-clients'
+import { usePaneNavigate } from '@/lib/panes'
 import {
   Search,
   ListChecks,
@@ -23,6 +24,17 @@ type DeadlineRange = typeof DEADLINE_RANGES[number]
 
 export default function MobileHomePage() {
   const router = useRouter()
+  const paneNav = usePaneNavigate()
+
+  /** On desktop opens href as a pane; otherwise navigates normally. */
+  const go = (href: string) => {
+    if (!paneNav(href)) router.push(href)
+  }
+
+  /** Same, but as a Link onClick (desktop only prevents the navigation). */
+  const goLink = (href: string) => (e: React.MouseEvent) => {
+    if (paneNav(href)) e.preventDefault()
+  }
 
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<ClientSearchResult[]>([])
@@ -97,7 +109,7 @@ export default function MobileHomePage() {
 
   const goToFullSearch = () => {
     setDropdownOpen(false)
-    router.push(`/mobile/search?q=${encodeURIComponent(query.trim())}`)
+    go(`/mobile/search?q=${encodeURIComponent(query.trim())}`)
   }
 
   return (
@@ -150,6 +162,7 @@ export default function MobileHomePage() {
                     <li key={c.id}>
                       <Link
                         href={`/clients/${c.id}`}
+                        onClick={goLink(`/clients/${c.id}`)}
                         className="flex items-center gap-3 px-4 py-3 active:bg-[hsl(var(--color-surface-hover))]"
                       >
                         <div className="w-9 h-9 rounded-full bg-[hsl(var(--color-surface-active))] flex items-center justify-center text-sm font-semibold text-[hsl(var(--color-text-primary))] shrink-0">
@@ -189,7 +202,7 @@ export default function MobileHomePage() {
         {/* Tasks — New = created in last 24h, Late = open for over 24h */}
         <div
           role="button"
-          onClick={() => router.push('/mobile/tasks')}
+          onClick={() => go('/mobile/tasks')}
           className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl p-4 active:bg-[hsl(var(--color-surface-hover))] cursor-pointer"
         >
           <div className="flex items-center gap-3">
@@ -218,7 +231,7 @@ export default function MobileHomePage() {
         {/* Deadlines — upcoming due dates within the selected range */}
         <div
           role="button"
-          onClick={() => router.push('/mobile/deadlines')}
+          onClick={() => go('/mobile/deadlines')}
           className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl p-4 active:bg-[hsl(var(--color-surface-hover))] cursor-pointer"
         >
           <div className="flex items-center gap-3">
@@ -273,6 +286,7 @@ export default function MobileHomePage() {
               <Link
                 key={c.id}
                 href={`/clients/${c.id}`}
+                onClick={goLink(`/clients/${c.id}`)}
                 className="flex flex-col items-center active:opacity-70"
               >
                 <div className="w-12 h-12 rounded-full bg-[hsl(var(--color-surface-active))] border border-[hsl(var(--color-border))] flex items-center justify-center text-base font-semibold text-[hsl(var(--color-text-primary))]">
