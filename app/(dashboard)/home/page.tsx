@@ -236,12 +236,12 @@ export default function MobileHomePage() {
               <CalendarClock className="w-5 h-5 text-orange-400" />
             </div>
             <p className="text-base font-semibold text-[hsl(var(--color-text-primary))] flex-1">Actions</p>
-            <div className="flex rounded-lg border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface-secondary))] overflow-hidden shrink-0 divide-x divide-[hsl(var(--color-border))]">
+            <div className="flex rounded-lg border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface-secondary))] p-1 shrink-0">
               {DEADLINE_RANGES.map(r => (
                 <button
                   key={r}
                   onClick={(e) => { e.stopPropagation(); setDeadlineRange(r) }}
-                  className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                     deadlineRange === r
                       ? 'bg-white text-black'
                       : 'text-[hsl(var(--color-text-muted))]'
