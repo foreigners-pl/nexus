@@ -23,7 +23,7 @@ function formatDeadline(dateStr: string) {
 }
 
 function DeadlineRow({ action }: { action: MyAction }) {
-  const paneLink = usePaneLink(`/cases/${action.case_id}/progress?e=${action.id}`)
+  const paneLink = usePaneLink(`/cases/${action.case_id}/progress/${action.id}`)
   const deadline = formatDeadline(action.due_date!)
   return (
     <li>

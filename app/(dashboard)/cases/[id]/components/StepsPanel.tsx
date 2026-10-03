@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import Link from 'next/link'
 import {
   getCaseWorkflow,
   moveToStep,
@@ -9,22 +10,16 @@ import {
   completeAction,
   updateAction,
   openQuery,
-  replyToQuery,
-  closeQuery,
-  getQueryThread,
   type CaseStep,
   type CaseEntry,
   type CaseQuery,
-  type QueryMessage,
 } from '@/app/actions/workflow'
+import { usePaneLink } from '@/lib/panes'
 import {
-  CheckCircle2,
-  ChevronDown,
   ChevronRight,
   ChevronLeft,
   StickyNote,
   Zap,
-  Send,
   Loader2,
   AlertTriangle,
   MessageSquare,
@@ -33,19 +28,15 @@ import { Modal } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
 
 interface StepsPanelProps {
-  focusEntryId?: string
   caseId: string
-  /** Deep-link target: jump to the step holding this query and open its thread */
-  focusQueryId?: string
 }
 
-export function StepsPanel({ caseId, focusQueryId, focusEntryId }: StepsPanelProps) {
+export function StepsPanel({ caseId }: StepsPanelProps) {
   const [steps, setSteps] = useState<CaseStep[]>([])
   const [entries, setEntries] = useState<CaseEntry[]>([])
   const [currentStepId, setCurrentStepId] = useState<string | null>(null)
   const [openAction, setOpenAction] = useState<CaseEntry | null>(null)
   const [queries, setQueries] = useState<Record<string, CaseQuery>>({})
-  const [meId, setMeId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [viewIdx, setViewIdx] = useState(0)
   const [dragPct, setDragPct] = useState(0)
@@ -59,19 +50,11 @@ export function StepsPanel({ caseId, focusQueryId, focusEntryId }: StepsPanelPro
     setSteps(data.steps)
     setEntries(data.entries)
     setQueries(data.queries)
-    setMeId(data.meId)
     setCurrentStepId(data.currentStepId)
     setOpenAction(data.openAction)
     setLoading(false)
     if (!didInit.current) {
-      // Deep link: land on the step that holds the focused query or entry
-      const focusEntry = focusQueryId
-        ? data.entries.find(e => e.query_id === focusQueryId)
-        : focusEntryId
-          ? data.entries.find(e => e.id === focusEntryId)
-          : undefined
-      const targetStep = focusEntry?.step_id ?? data.currentStepId
-      const idx = data.steps.findIndex(s => s.id === targetStep)
+      const idx = data.steps.findIndex(s => s.id === data.currentStepId)
       setViewIdx(idx >= 0 ? idx : 0)
       didInit.current = true
     }
@@ -238,10 +221,7 @@ export function StepsPanel({ caseId, focusQueryId, focusEntryId }: StepsPanelPro
                   key={entry.id}
                   entry={entry}
                   query={entry.query_id ? queries[entry.query_id] : undefined}
-                  meId={meId}
                   caseId={caseId}
-                  focusQueryId={focusQueryId}
-                  onChanged={load}
                 />
               ))}
             </ul>
@@ -538,228 +518,59 @@ function EntryComposer({ caseId, onAdded }: { caseId: string; onAdded: () => voi
 }
 
 // ============================================================
-// Board entry rows
+// Board entry rows — one-line previews that open the entry page
 // ============================================================
-function EntryRow({ entry, query, meId, caseId, focusQueryId, onChanged }: {
+function EntryRow({ entry, query, caseId }: {
   entry: CaseEntry
   query?: CaseQuery
-  meId: string | null
   caseId: string
-  focusQueryId?: string
-  onChanged: () => void
 }) {
+  const link = usePaneLink(`/cases/${caseId}/progress/${entry.id}`)
   const author = entry.author?.display_name || entry.author?.email?.split('@')[0] || 'Someone'
   const date = new Date(entry.created_at).toLocaleDateString(undefined, {
     month: 'short', day: 'numeric',
   })
 
-  if (entry.kind === 'query' && entry.query_id) {
-    return (
-      <QueryRow
-        entry={entry}
-        query={query}
-        meId={meId}
-        caseId={caseId}
-        author={author}
-        date={date}
-        defaultOpen={entry.query_id === focusQueryId}
-        onChanged={onChanged}
-      />
-    )
-  }
+  const isQuery = entry.kind === 'query' && entry.query_id
+  const isAction = entry.kind === 'action'
+  const done = !!entry.completed_at
+  const queryStatus = query?.status
 
-  if (entry.kind === 'action') {
-    const done = !!entry.completed_at
-    return (
-      <li className="py-2.5 flex gap-2.5">
-        <Zap className={`w-4 h-4 mt-0.5 shrink-0 ${done ? 'text-green-500' : 'text-[hsl(var(--color-primary))]'}`} />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm text-[hsl(var(--color-text-primary))] font-medium">
-            {entry.body}
-          </p>
-          <p className="text-xs text-[hsl(var(--color-text-muted))] mt-0.5">
-            {author} · {date}
-            {entry.due_date && ` · due ${new Date(entry.due_date).toLocaleDateString()}`}
-            {done && ` · done ${new Date(entry.completed_at!).toLocaleDateString()}`}
-          </p>
-        </div>
-      </li>
-    )
-  }
-
-  return (
-    <li className="py-2.5 flex gap-2.5">
-      <StickyNote className="w-4 h-4 mt-0.5 shrink-0 text-[hsl(var(--color-text-muted))]" />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm text-[hsl(var(--color-text-primary))] whitespace-pre-wrap">{entry.body}</p>
-        <p className="text-xs text-[hsl(var(--color-text-muted))] mt-0.5">{author} · {date}</p>
-      </div>
-    </li>
-  )
-}
-
-// ============================================================
-// Query row — collapsed by default, expands into the thread
-// ============================================================
-function QueryRow({ entry, query, meId, caseId, author, date, defaultOpen, onChanged }: {
-  entry: CaseEntry
-  query?: CaseQuery
-  meId: string | null
-  caseId: string
-  author: string
-  date: string
-  defaultOpen?: boolean
-  onChanged: () => void
-}) {
-  const [open, setOpen] = useState(!!defaultOpen)
-  const [thread, setThread] = useState<QueryMessage[] | null>(null)
-  const [status, setStatus] = useState<CaseQuery['status']>(query?.status || 'open')
-  const [openedBy, setOpenedBy] = useState<string | null>(query?.opened_by || null)
-  const [assignedTo, setAssignedTo] = useState<string | null>(query?.assigned_to || null)
-  const [closedAt, setClosedAt] = useState<string | null>(query?.closed_at || null)
-  const [reply, setReply] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  const loadThread = useCallback(async () => {
-    if (!entry.query_id) return
-    const data = await getQueryThread(entry.query_id)
-    setThread(data.messages)
-    if (data.query) {
-      setStatus(data.query.status)
-      setOpenedBy(data.query.opened_by)
-      setAssignedTo(data.query.assigned_to)
-      setClosedAt(data.query.closed_at)
-    }
-  }, [entry.query_id])
-
-  // Deep-linked query starts expanded — fetch the thread on mount
-  useEffect(() => {
-    if (defaultOpen && !thread) loadThread()
-  }, [defaultOpen, thread, loadThread])
-
-  const toggle = async () => {
-    if (open) { setOpen(false); return }
-    setOpen(true)
-    if (!thread) loadThread()
-  }
-
-  const sendReply = async () => {
-    if (!reply.trim() || !entry.query_id) return
-    setSaving(true)
-    await replyToQuery(entry.query_id, caseId, reply)
-    const data = await getQueryThread(entry.query_id)
-    setThread(data.messages)
-    if (data.query) {
-      setStatus(data.query.status)
-      setClosedAt(data.query.closed_at)
-    }
-    setReply('')
-    setSaving(false)
-    onChanged()
-  }
-
-  const close = async () => {
-    if (!entry.query_id) return
-    setSaving(true)
-    await closeQuery(entry.query_id, caseId)
-    setStatus('closed')
-    setClosedAt(new Date().toISOString())
-    setSaving(false)
-    onChanged()
-  }
-
-  const statusBadge = {
+  const statusBadge = queryStatus ? {
     open: { label: 'Open', cls: 'text-blue-400 bg-blue-400/10' },
     answered: { label: 'Answered', cls: 'text-amber-400 bg-amber-400/10' },
     closed: { label: 'Closed', cls: 'text-[hsl(var(--color-text-muted))] bg-[hsl(var(--color-surface-active))]' },
-  }[status]
+  }[queryStatus] : null
 
-  const canReply = status !== 'closed' && (meId === openedBy || meId === assignedTo)
-  const canClose = status !== 'closed' && meId === openedBy
+  const Icon = isQuery ? MessageSquare : isAction ? Zap : StickyNote
+  const iconCls = isQuery
+    ? (queryStatus === 'closed' ? 'text-[hsl(var(--color-text-muted))]' : 'text-blue-400')
+    : isAction
+      ? (done ? 'text-green-500' : 'text-[hsl(var(--color-primary))]')
+      : 'text-[hsl(var(--color-text-muted))]'
 
   return (
-    <li className="py-2.5">
-      <button onClick={toggle} className="flex gap-2.5 w-full text-left">
-        <MessageSquare className={`w-4 h-4 mt-0.5 shrink-0 ${status === 'closed' ? 'text-[hsl(var(--color-text-muted))]' : 'text-blue-400'}`} />
+    <li>
+      <Link {...link} className="py-2.5 flex items-center gap-2.5 active:bg-[hsl(var(--color-surface-hover))] -mx-2 px-2 rounded-lg">
+        <Icon className={`w-4 h-4 shrink-0 ${iconCls}`} />
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <p className={`text-sm flex-1 min-w-0 ${open ? 'whitespace-pre-wrap' : 'truncate'} ${status === 'closed' ? 'text-[hsl(var(--color-text-secondary))]' : 'text-[hsl(var(--color-text-primary))] font-medium'}`}>
-              {entry.body}
-            </p>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${statusBadge.cls}`}>
-              {statusBadge.label}
-            </span>
-          </div>
-          <p className="text-xs text-[hsl(var(--color-text-muted))] mt-0.5">
+          <p className={`text-sm truncate ${isQuery && queryStatus === 'closed' ? 'text-[hsl(var(--color-text-secondary))]' : 'text-[hsl(var(--color-text-primary))] font-medium'}`}>
+            {entry.body}
+          </p>
+          <p className="text-xs text-[hsl(var(--color-text-muted))] mt-0.5 truncate">
             {author} · {date}
-            {query?.direction === 'legal_to_csr' ? ' · Legal → CSR' : ' · CSR → Legal'}
-            {status === 'closed' && closedAt && ` · closed ${new Date(closedAt).toLocaleDateString()}`}
+            {isAction && entry.due_date && ` · due ${new Date(entry.due_date).toLocaleDateString()}`}
+            {isAction && done && ` · done ${new Date(entry.completed_at!).toLocaleDateString()}`}
+            {isQuery && (query?.direction === 'legal_to_csr' ? ' · Legal → CSR' : ' · CSR → Legal')}
           </p>
         </div>
-        {open
-          ? <ChevronDown className="w-4 h-4 text-[hsl(var(--color-text-muted))] shrink-0 mt-1" />
-          : <ChevronRight className="w-4 h-4 text-[hsl(var(--color-text-muted))] shrink-0 mt-1" />}
-      </button>
-
-      {open && (
-        <div className="ml-6 mt-2 rounded-lg bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] p-2.5 space-y-2">
-          {!thread ? (
-            <div className="flex justify-center py-3">
-              <Loader2 className="w-4 h-4 animate-spin text-[hsl(var(--color-text-muted))]" />
-            </div>
-          ) : (
-            <>
-              {thread.map(m => {
-                const mAuthor = m.author?.display_name || m.author?.email?.split('@')[0] || 'Someone'
-                const mine = m.author_id === meId
-                return (
-                  <div key={m.id} className={`text-sm ${mine ? 'text-right' : ''}`}>
-                    <div className={`inline-block max-w-[85%] rounded-lg px-2.5 py-1.5 text-left ${
-                      mine
-                        ? 'bg-[hsl(var(--color-primary))]/15 text-[hsl(var(--color-text-primary))]'
-                        : 'bg-[hsl(var(--color-surface-active))] text-[hsl(var(--color-text-primary))]'
-                    }`}>
-                      <p className="whitespace-pre-wrap">{m.body}</p>
-                    </div>
-                    <p className="text-[10px] text-[hsl(var(--color-text-muted))] mt-0.5">
-                      {mAuthor} · {new Date(m.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                    </p>
-                  </div>
-                )
-              })}
-
-              {canReply && (
-                <div className="flex gap-2 pt-1">
-                  <input
-                    value={reply}
-                    onChange={e => setReply(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && sendReply()}
-                    placeholder="Reply…"
-                    className="flex-1 h-8 px-2.5 rounded-md bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] text-sm text-[hsl(var(--color-text-primary))] outline-none"
-                  />
-                  <button
-                    onClick={sendReply}
-                    disabled={saving || !reply.trim()}
-                    className="w-8 h-8 rounded-md bg-[hsl(var(--color-primary))] text-white flex items-center justify-center disabled:opacity-40"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
-
-              {canClose && (
-                <button
-                  onClick={close}
-                  disabled={saving}
-                  className="text-xs font-medium text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))] pt-1"
-                >
-                  Close query
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      )}
+        {statusBadge && (
+          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${statusBadge.cls}`}>
+            {statusBadge.label}
+          </span>
+        )}
+        <ChevronRight className="w-4 h-4 text-[hsl(var(--color-text-muted))] shrink-0" />
+      </Link>
     </li>
   )
 }

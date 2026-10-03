@@ -161,6 +161,79 @@ export async function getCaseWorkflow(caseId: string): Promise<{
   }
 }
 
+/** Single board entry + its step/query context — feeds the entry detail page. */
+export async function getCaseEntry(entryId: string): Promise<{
+  entry: CaseEntry | null
+  stepName: string | null
+  query: CaseQuery | null
+  openerName: string | null
+  assigneeName: string | null
+  completedByName: string | null
+  meId: string | null
+}> {
+  const empty = { entry: null, stepName: null, query: null, openerName: null, assigneeName: null, completedByName: null, meId: null }
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return empty
+
+  const { data: entry } = await supabase
+    .from('case_entries')
+    .select('*, author:users!created_by(display_name, email)')
+    .eq('id', entryId)
+    .single()
+  if (!entry) return { ...empty, meId: user.id }
+
+  const [stepRes, queryRes, completerRes] = await Promise.all([
+    entry.step_id
+      ? supabase.from('case_steps').select('name').eq('id', entry.step_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    entry.query_id
+      ? supabase.from('case_queries').select('*').eq('id', entry.query_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    entry.completed_by
+      ? supabase.from('users').select('display_name, email').eq('id', entry.completed_by).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ])
+
+  const query = (queryRes.data || null) as CaseQuery | null
+  let openerName: string | null = null
+  let assigneeName: string | null = null
+  const partyIds = [query?.opened_by, query?.assigned_to].filter(Boolean) as string[]
+  if (partyIds.length) {
+    const { data: partyUsers } = await supabase
+      .from('users').select('id, display_name, email').in('id', partyIds)
+    const nameOf = (id?: string | null) => {
+      const u = (partyUsers || []).find((p: any) => p.id === id)
+      return u ? u.display_name || u.email.split('@')[0] : null
+    }
+    openerName = nameOf(query?.opened_by)
+    assigneeName = nameOf(query?.assigned_to)
+  }
+
+  const completer = completerRes.data as { display_name: string | null; email: string } | null
+  return {
+    entry: entry as CaseEntry,
+    stepName: (stepRes.data as { name: string } | null)?.name ?? null,
+    query,
+    openerName,
+    assigneeName,
+    completedByName: completer ? completer.display_name || completer.email.split('@')[0] : null,
+    meId: user.id,
+  }
+}
+
+/** The board entry that carries a given query (for deep links). */
+export async function getEntryIdForQuery(queryId: string): Promise<string | null> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('case_entries')
+    .select('id')
+    .eq('query_id', queryId)
+    .limit(1)
+    .maybeSingle()
+  return data?.id ?? null
+}
+
 // ============================================================
 // Step actions
 // ============================================================
@@ -277,7 +350,7 @@ export async function addNote(caseId: string, body: string) {
     kind: 'note',
     title: `New note on ${ctx.caseLabel}`,
     body: `${ctx.actorName}: ${trimmed.length > 140 ? trimmed.slice(0, 140) + '…' : trimmed}`,
-    link: `/cases/${caseId}/progress?e=${entry.id}`,
+    link: `/cases/${caseId}/progress/${entry.id}`,
     caseId,
   })
   return { success: true }
@@ -322,7 +395,7 @@ export async function createAction(caseId: string, body: string, dueDate: string
     kind: 'deadline',
     title: `New deadline on ${ctx.caseLabel}`,
     body: `${trimmed} — due ${new Date(dueDate).toLocaleDateString()}`,
-    link: `/cases/${caseId}/progress?e=${entry.id}`,
+    link: `/cases/${caseId}/progress/${entry.id}`,
     caseId,
   })
   return { success: true }
@@ -372,7 +445,7 @@ export async function updateAction(entryId: string, caseId: string, body: string
       kind: 'deadline',
       title: `Deadline moved on ${ctx.caseLabel}`,
       body: `${body.trim()} — now due ${new Date(dueDate).toLocaleDateString()}`,
-      link: `/cases/${caseId}/progress?e=${entryId}`,
+      link: `/cases/${caseId}/progress/${entryId}`,
       caseId,
     })
   }
@@ -485,7 +558,7 @@ export async function openQuery(caseId: string, body: string) {
     .single()
   if (qErr || !query) return { error: 'Failed to open query' }
 
-  const [{ error: mErr }, { error: eErr }] = await Promise.all([
+  const [{ error: mErr }, { data: queryEntry, error: eErr }] = await Promise.all([
     supabase.from('case_query_messages').insert({
       query_id: query.id,
       author_id: user.id,
@@ -498,7 +571,7 @@ export async function openQuery(caseId: string, body: string) {
       body: trimmed,
       created_by: user.id,
       query_id: query.id,
-    }),
+    }).select('id').single(),
   ])
 
   if (mErr || eErr) return { error: 'Failed to open query' }
@@ -509,7 +582,7 @@ export async function openQuery(caseId: string, body: string) {
     kind: 'query',
     title: `New query on ${ctx.caseLabel}`,
     body: `${ctx.actorName}: ${trimmed.length > 140 ? trimmed.slice(0, 140) + '…' : trimmed}`,
-    link: `/cases/${caseId}/progress?q=${query.id}`,
+    link: `/cases/${caseId}/progress/${queryEntry.id}`,
     caseId,
   })
   return { success: true, queryId: query.id }
@@ -549,12 +622,13 @@ export async function replyToQuery(queryId: string, caseId: string, body: string
   revalidatePath(`/cases/${caseId}`)
 
   const otherParty = user.id === query.assigned_to ? query.opened_by : query.assigned_to
+  const entryId = await getEntryIdForQuery(queryId)
   const ctx = await getCaseNotifyContext(caseId)
   await notifyUsers([otherParty], {
     kind: 'query',
     title: `Query reply on ${ctx.caseLabel}`,
     body: `${ctx.actorName}: ${trimmed.length > 140 ? trimmed.slice(0, 140) + '…' : trimmed}`,
-    link: `/cases/${caseId}/progress?q=${queryId}`,
+    link: entryId ? `/cases/${caseId}/progress/${entryId}` : `/cases/${caseId}/progress`,
     caseId,
   })
   return { success: true }
@@ -605,6 +679,7 @@ export async function getQueryThread(queryId: string): Promise<{
 export interface MyQuery {
   id: string
   case_id: string
+  entry_id: string | null
   status: 'open' | 'answered' | 'closed'
   direction: 'csr_to_legal' | 'legal_to_csr'
   created_at: string
@@ -631,7 +706,8 @@ export async function getMyQueries(): Promise<{ queries: MyQuery[]; error?: stri
       id, case_id, status, direction, created_at, opened_by, assigned_to,
       case_steps(name),
       cases(case_code, clients(first_name, last_name)),
-      case_query_messages(body, created_at)
+      case_query_messages(body, created_at),
+      case_entries(id)
     `)
     .or(`and(assigned_to.eq.${user.id},status.eq.open),and(opened_by.eq.${user.id},status.eq.answered)`)
     .order('created_at', { ascending: false })
@@ -646,6 +722,7 @@ export async function getMyQueries(): Promise<{ queries: MyQuery[]; error?: stri
       return {
         id: q.id,
         case_id: q.case_id,
+        entry_id: (q.case_entries || [])[0]?.id ?? null,
         status: q.status,
         direction: q.direction,
         created_at: q.created_at,

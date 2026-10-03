@@ -72,7 +72,11 @@ function TaskRow({ task }: { task: Task }) {
 }
 
 function QueryRow({ query }: { query: MyQuery }) {
-  const paneLink = usePaneLink(`/cases/${query.case_id}/progress?q=${query.id}`)
+  const paneLink = usePaneLink(
+    query.entry_id
+      ? `/cases/${query.case_id}/progress/${query.entry_id}`
+      : `/cases/${query.case_id}/progress?q=${query.id}`
+  )
   return (
     <li>
       <Link

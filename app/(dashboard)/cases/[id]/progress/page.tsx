@@ -1,8 +1,10 @@
 'use client'
 
 import { use, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { StepsPanel } from '../components/StepsPanel'
+import { getEntryIdForQuery } from '@/app/actions/workflow'
 import { SubPageHeader } from '@/components/shared/SubPageHeader'
 import { Loader2, ListChecks } from 'lucide-react'
 
@@ -14,13 +16,33 @@ interface ProgressPageProps {
 export default function CaseProgressPage({ params, searchParams }: ProgressPageProps) {
   const { id: urlId } = use(params)
   const { q: focusQueryId, e: focusEntryId } = use(searchParams)
+  const router = useRouter()
   const [caseId, setCaseId] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [subtitle, setSubtitle] = useState('')
   const [loading, setLoading] = useState(true)
+  const [redirecting, setRedirecting] = useState(!!(focusQueryId || focusEntryId))
   const isMounted = useRef(true)
 
+  // Legacy deep links (?e=entry / ?q=query) → straight to the entry page
   useEffect(() => {
+    if (focusEntryId) {
+      router.replace(`/cases/${urlId}/progress/${focusEntryId}`)
+      return
+    }
+    if (focusQueryId) {
+      getEntryIdForQuery(focusQueryId).then(entryId => {
+        if (entryId) {
+          router.replace(`/cases/${urlId}/progress/${entryId}`)
+        } else if (isMounted.current) {
+          setRedirecting(false)
+        }
+      })
+    }
+  }, [focusEntryId, focusQueryId, urlId, router])
+
+  useEffect(() => {
+    if (redirecting) return
     isMounted.current = true
     ;(async () => {
       const supabase = createClient()
@@ -54,9 +76,9 @@ export default function CaseProgressPage({ params, searchParams }: ProgressPageP
       setLoading(false)
     })()
     return () => { isMounted.current = false }
-  }, [urlId])
+  }, [urlId, redirecting])
 
-  if (loading) {
+  if (redirecting || loading) {
     return (
       <div className="flex justify-center py-16 text-[hsl(var(--color-text-secondary))]">
         <Loader2 className="w-6 h-6 animate-spin" />
@@ -71,7 +93,7 @@ export default function CaseProgressPage({ params, searchParams }: ProgressPageP
   return (
     <div className="max-w-3xl mx-auto pb-20">
       <SubPageHeader backHref={`/cases/${urlId}`} title={title} subtitle={subtitle} icon={<ListChecks className="w-4 h-4 text-white" />} />
-      <StepsPanel caseId={caseId} focusQueryId={focusQueryId} focusEntryId={focusEntryId} />
+      <StepsPanel caseId={caseId} />
     </div>
   )
 }
