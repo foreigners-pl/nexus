@@ -272,102 +272,85 @@ function ActionPanel({ caseId, openAction, onChanged }: {
   openAction: CaseEntry | null
   onChanged: () => void
 }) {
-  const [completing, setCompleting] = useState(false)
-  const [expanded, setExpanded] = useState(false)
+  const [modal, setModal] = useState<'set' | 'edit' | 'next' | null>(null)
 
   const isOverdue = openAction?.due_date &&
     new Date(openAction.due_date) < new Date(new Date().toDateString())
 
-  // --- No action set: warning CTA that expands into the form ---
-  if (!openAction && !completing && !expanded) {
-    return (
-      <button
-        onClick={() => setExpanded(true)}
-        className="w-full rounded-xl bg-amber-500 text-amber-950 py-2.5 flex flex-col items-center justify-center gap-0.5 hover:bg-amber-400 active:bg-amber-400 transition-colors"
-      >
-        <span className="flex items-center gap-1.5 text-sm font-semibold">
-          <AlertTriangle className="w-4 h-4" />
-          No action set
-        </span>
-        <span className="text-[11px] font-medium text-amber-900/70">Tap to add</span>
-      </button>
-    )
-  }
+  return (
+    <>
+      {openAction ? (
+        // --- Action set: single row, tap to edit in a popup ---
+        <button
+          onClick={() => setModal('edit')}
+          className={`w-full rounded-xl border border-[hsl(var(--color-border))] border-l-[3px] bg-[hsl(var(--color-surface))] px-4 py-3 flex items-center gap-3 text-left ${
+            isOverdue ? 'border-l-red-500' : 'border-l-[hsl(var(--color-primary))]'
+          }`}
+        >
+          <Zap className={`w-4 h-4 shrink-0 ${isOverdue ? 'text-red-400' : 'text-[hsl(var(--color-primary))]'}`} />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-[hsl(var(--color-text-primary))] truncate">
+              {openAction.body}
+            </p>
+            <p className={`text-[11px] mt-0.5 ${isOverdue ? 'text-red-400 font-semibold' : 'text-[hsl(var(--color-text-muted))]'}`}>
+              {isOverdue ? 'Overdue · ' : 'Due '}
+              {new Date(openAction.due_date!).toLocaleDateString()}
+            </p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-[hsl(var(--color-text-muted))] shrink-0" />
+        </button>
+      ) : (
+        // --- No action set: warning CTA, opens the set-action popup ---
+        <button
+          onClick={() => setModal('set')}
+          className="w-full rounded-xl bg-amber-500 text-amber-950 py-2.5 flex flex-col items-center justify-center gap-0.5 hover:bg-amber-400 active:bg-amber-400 transition-colors"
+        >
+          <span className="flex items-center gap-1.5 text-sm font-semibold">
+            <AlertTriangle className="w-4 h-4" />
+            No action set
+          </span>
+          <span className="text-[11px] font-medium text-amber-900/70">Tap to add</span>
+        </button>
+      )}
 
-  // --- Set next action (either just-completed prompt or expanded warning) ---
-  if (!openAction || completing) {
-    return (
-      <div className={`rounded-xl border border-[hsl(var(--color-border))] border-l-[3px] bg-[hsl(var(--color-surface))] p-4 ${
-        completing ? 'border-l-[hsl(var(--color-primary))]' : 'border-l-amber-500'
-      }`}>
-        <div className="flex items-center gap-2 mb-3">
-          {completing ? (
-            <Zap className="w-4 h-4 text-[hsl(var(--color-primary))]" />
-          ) : (
-            <AlertTriangle className="w-4 h-4 text-amber-500" />
-          )}
-          <p className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">
-            {completing ? "Done — what's next?" : 'Set the next action'}
-          </p>
-        </div>
+      <Modal isOpen={modal === 'set'} onClose={() => setModal(null)} title="Set the next action">
         <ActionForm
           caseId={caseId}
-          submitLabel={completing ? 'Set next action' : 'Set action'}
+          submitLabel="Set action"
           skipLabel="Not now"
-          onDone={() => { setCompleting(false); setExpanded(false); onChanged() }}
-          onSkip={() => { setCompleting(false); setExpanded(false) }}
+          onDone={() => { setModal(null); onChanged() }}
+          onSkip={() => setModal(null)}
         />
-      </div>
-    )
-  }
+      </Modal>
 
-  // --- Action set: single row, tap to expand into edit ---
-  if (!expanded) {
-    return (
-      <button
-        onClick={() => setExpanded(true)}
-        className={`w-full rounded-xl border border-[hsl(var(--color-border))] border-l-[3px] bg-[hsl(var(--color-surface))] px-4 py-3 flex items-center gap-3 text-left ${
-          isOverdue ? 'border-l-red-500' : 'border-l-[hsl(var(--color-primary))]'
-        }`}
-      >
-        <Zap className={`w-4 h-4 shrink-0 ${isOverdue ? 'text-red-400' : 'text-[hsl(var(--color-primary))]'}`} />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-[hsl(var(--color-text-primary))] truncate">
-            {openAction.body}
-          </p>
-          <p className={`text-[11px] mt-0.5 ${isOverdue ? 'text-red-400 font-semibold' : 'text-[hsl(var(--color-text-muted))]'}`}>
-            {isOverdue ? 'Overdue · ' : 'Due '}
-            {new Date(openAction.due_date!).toLocaleDateString()}
-          </p>
-        </div>
-        <ChevronRight className="w-4 h-4 text-[hsl(var(--color-text-muted))] shrink-0" />
-      </button>
-    )
-  }
+      <Modal isOpen={modal === 'edit' && !!openAction} onClose={() => setModal(null)} title="Current action">
+        {openAction && (
+          <ActionForm
+            caseId={caseId}
+            existing={openAction}
+            submitLabel="Save"
+            skipLabel="Cancel"
+            onDone={() => { setModal(null); onChanged() }}
+            onSkip={() => setModal(null)}
+            onComplete={async () => {
+              await completeAction(openAction.id, caseId)
+              onChanged()
+              setModal('next')
+            }}
+          />
+        )}
+      </Modal>
 
-  return (
-    <div className={`rounded-xl border border-[hsl(var(--color-border))] border-l-[3px] bg-[hsl(var(--color-surface))] p-4 ${
-      isOverdue ? 'border-l-red-500' : 'border-l-[hsl(var(--color-primary))]'
-    }`}>
-      <div className="flex items-center gap-2 mb-3">
-        <Zap className={`w-4 h-4 ${isOverdue ? 'text-red-400' : 'text-[hsl(var(--color-primary))]'}`} />
-        <p className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Current action</p>
-      </div>
-      <ActionForm
-        caseId={caseId}
-        existing={openAction}
-        submitLabel="Save"
-        skipLabel="Cancel"
-        onDone={() => { setExpanded(false); onChanged() }}
-        onSkip={() => setExpanded(false)}
-        onComplete={async () => {
-          await completeAction(openAction.id, caseId)
-          setExpanded(false)
-          setCompleting(true)
-          onChanged()
-        }}
-      />
-    </div>
+      <Modal isOpen={modal === 'next'} onClose={() => setModal(null)} title="Done — what's next?">
+        <ActionForm
+          caseId={caseId}
+          submitLabel="Set next action"
+          skipLabel="Not now"
+          onDone={() => { setModal(null); onChanged() }}
+          onSkip={() => setModal(null)}
+        />
+      </Modal>
+    </>
   )
 }
 
