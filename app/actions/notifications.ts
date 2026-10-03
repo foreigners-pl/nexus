@@ -24,7 +24,7 @@ export async function notifyUsers(userIds: (string | null | undefined)[], input:
   if (recipients.length === 0) return
 
   try {
-    const res = await supabase.from('user_notifications').insert(
+    const res = await supabase.from('user_alerts').insert(
       recipients.map(uid => ({
         user_id: uid,
         kind: input.kind,
@@ -94,7 +94,7 @@ export async function getMyNotifications(limit = 30): Promise<{
   if (!user) return { notifications: [], unreadCount: 0 }
 
   const { data } = await supabase
-    .from('user_notifications')
+    .from('user_alerts')
     .select('id, kind, title, body, link, read_at, created_at, actor:users!actor_id(display_name, email)')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
@@ -123,7 +123,7 @@ export async function markNotificationRead(id: string) {
   if (!user) return
 
   await supabase
-    .from('user_notifications')
+    .from('user_alerts')
     .update({ read_at: new Date().toISOString() })
     .eq('id', id)
     .eq('user_id', user.id)
@@ -136,7 +136,7 @@ export async function markAllNotificationsRead() {
   if (!user) return
 
   await supabase
-    .from('user_notifications')
+    .from('user_alerts')
     .update({ read_at: new Date().toISOString() })
     .eq('user_id', user.id)
     .is('read_at', null)
