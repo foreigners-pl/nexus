@@ -11,7 +11,7 @@ self.addEventListener('push', (e) => {
     self.registration.showNotification(data.title || 'Nexus CRM', {
       body: data.body || '',
       icon: '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
+      badge: '/icons/badge-96.png',
       data: { url: data.url || '/home' },
     })
   )

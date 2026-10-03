@@ -80,7 +80,7 @@ export async function getCaseNotifyContext(caseId: string): Promise<{
 
   return {
     recipients: [c?.csr_id, c?.assigned_to].filter(Boolean),
-    caseLabel: [c?.case_code, clientName].filter(Boolean).join(' · ') || 'a case',
+    caseLabel: clientName || c?.case_code || 'a case',
     actorName: actorRes.data?.display_name || actorRes.data?.email || 'Someone',
   }
 }
