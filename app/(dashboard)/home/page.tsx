@@ -241,13 +241,13 @@ export default function MobileHomePage() {
                 <button
                   key={r}
                   onClick={(e) => { e.stopPropagation(); setDeadlineRange(r) }}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                     deadlineRange === r
                       ? 'bg-white text-black'
                       : 'text-[hsl(var(--color-text-muted))]'
                   }`}
                 >
-                  {r}d
+                  {r} days
                 </button>
               ))}
             </div>
