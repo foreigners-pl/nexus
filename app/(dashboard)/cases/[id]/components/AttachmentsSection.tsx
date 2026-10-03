@@ -180,21 +180,21 @@ export function AttachmentsSection({ caseId, attachments, onUpdate, onAddClick }
             <div className="space-y-2">
               <button
                 onClick={() => { handleView(selected) }}
-                className="w-full h-11 rounded-xl bg-[hsl(var(--color-primary))] text-white text-sm font-semibold flex items-center justify-center gap-2 active:bg-[hsl(var(--color-primary-hover))]"
+                className="w-full h-11 rounded-xl bg-[hsl(var(--color-primary))] text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[hsl(var(--color-primary-hover))] active:bg-[hsl(var(--color-primary-hover))]"
               >
                 <Eye className="w-4 h-4" />
                 Open
               </button>
               <button
                 onClick={() => { handleDownload(selected) }}
-                className="w-full h-11 rounded-xl bg-[hsl(var(--color-surface-active))] text-[hsl(var(--color-text-primary))] text-sm font-semibold flex items-center justify-center gap-2 active:bg-[hsl(var(--color-border))]"
+                className="w-full h-11 rounded-xl bg-[hsl(var(--color-surface-active))] text-[hsl(var(--color-text-primary))] text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[hsl(var(--color-border))] active:bg-[hsl(var(--color-border))]"
               >
                 <Download className="w-4 h-4" />
                 Download
               </button>
               <button
                 onClick={() => { setSelected(null); handleDelete(selected) }}
-                className="w-full h-11 rounded-xl bg-red-500/15 text-red-400 text-sm font-semibold flex items-center justify-center gap-2 active:bg-red-500/25"
+                className="w-full h-11 rounded-xl bg-red-500/15 text-red-400 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-red-500/25 active:bg-red-500/25"
               >
                 <Trash2 className="w-4 h-4" />
                 Delete
@@ -252,7 +252,7 @@ export function AttachmentsSection({ caseId, attachments, onUpdate, onAddClick }
                 <button
                   key={attachment.id}
                   onClick={() => setSelected(attachment)}
-                  className="border border-[hsl(var(--color-border))] rounded-xl bg-[hsl(var(--color-surface-secondary))] p-3 overflow-hidden text-left active:bg-[hsl(var(--color-surface-hover))]"
+                  className="border border-[hsl(var(--color-border))] rounded-xl bg-[hsl(var(--color-surface-secondary))] p-3 overflow-hidden text-left cursor-pointer hover:bg-[hsl(var(--color-surface-hover))] hover:border-[hsl(var(--color-text-muted))]/40 active:bg-[hsl(var(--color-surface-active))]"
                 >
                   <div className="min-w-0">
                     <p className="text-xs font-medium text-[hsl(var(--color-text-primary))] leading-snug line-clamp-3 break-all" title={attachment.file_name}>
