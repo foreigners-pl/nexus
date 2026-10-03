@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { Navbar } from '@/components/layout/Navbar'
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
+import { logout } from '@/app/actions/auth'
+import { LogOut } from 'lucide-react'
 import { NotificationProvider } from '@/lib/notifications/NotificationContext'
 import { ChatProvider } from '@/lib/chat/ChatContext'
 import { QueryProvider } from '@/lib/query'
@@ -49,8 +51,17 @@ export default function DashboardLayout({
                 <h1 className="text-lg font-bold text-[hsl(var(--color-text-primary))]">
                   Nexus CRM
                 </h1>
-                <div className="ml-auto">
+                <div className="ml-auto flex items-center gap-1">
                   <NotificationBell />
+                  <form action={logout}>
+                    <button
+                      type="submit"
+                      className="w-10 h-10 rounded-xl flex items-center justify-center text-[hsl(var(--color-text-secondary))] active:bg-[hsl(var(--color-surface-active))]"
+                      aria-label="Log out"
+                    >
+                      <LogOut className="w-5 h-5" />
+                    </button>
+                  </form>
                 </div>
               </div>
             </header>
