@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { notifyUsers, getCaseNotifyContext } from './notifications'
 
 // ============================================================
 // Types
@@ -260,16 +261,25 @@ export async function addNote(caseId: string, body: string) {
   const trimmed = body.trim()
   if (!trimmed) return { error: 'Note cannot be empty' }
 
-  const { error } = await supabase.from('case_entries').insert({
+  const { data: entry, error } = await supabase.from('case_entries').insert({
     case_id: caseId,
     step_id: await getActiveStepId(supabase, caseId),
     kind: 'note',
     body: trimmed,
     created_by: user.id,
-  })
+  }).select('id').single()
 
   if (error) return { error: 'Failed to add note' }
   revalidatePath(`/cases/${caseId}`)
+
+  const ctx = await getCaseNotifyContext(caseId)
+  await notifyUsers(ctx.recipients, {
+    kind: 'note',
+    title: `New note on ${ctx.caseLabel}`,
+    body: `${ctx.actorName}: ${trimmed.length > 140 ? trimmed.slice(0, 140) + '…' : trimmed}`,
+    link: `/cases/${caseId}/progress?e=${entry.id}`,
+    caseId,
+  })
   return { success: true }
 }
 
@@ -294,7 +304,7 @@ export async function createAction(caseId: string, body: string, dueDate: string
     return { error: 'Complete the current action first' }
   }
 
-  const { error } = await supabase.from('case_entries').insert({
+  const { data: entry, error } = await supabase.from('case_entries').insert({
     case_id: caseId,
     step_id: await getActiveStepId(supabase, caseId),
     kind: 'action',
@@ -302,10 +312,19 @@ export async function createAction(caseId: string, body: string, dueDate: string
     due_date: dueDate,
     waiting_on: waitingOn || null,
     created_by: user.id,
-  })
+  }).select('id').single()
 
   if (error) return { error: 'Failed to create action' }
   revalidatePath(`/cases/${caseId}`)
+
+  const ctx = await getCaseNotifyContext(caseId)
+  await notifyUsers(ctx.recipients, {
+    kind: 'deadline',
+    title: `New deadline on ${ctx.caseLabel}`,
+    body: `${trimmed} — due ${new Date(dueDate).toLocaleDateString()}`,
+    link: `/cases/${caseId}/progress?e=${entry.id}`,
+    caseId,
+  })
   return { success: true }
 }
 
@@ -331,6 +350,12 @@ export async function updateAction(entryId: string, caseId: string, body: string
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
 
+  const { data: old } = await supabase
+    .from('case_entries')
+    .select('due_date')
+    .eq('id', entryId)
+    .single()
+
   const { error } = await supabase
     .from('case_entries')
     .update({ body: body.trim(), due_date: dueDate, waiting_on: waitingOn || null })
@@ -340,6 +365,17 @@ export async function updateAction(entryId: string, caseId: string, body: string
 
   if (error) return { error: 'Failed to update action' }
   revalidatePath(`/cases/${caseId}`)
+
+  if (old?.due_date !== dueDate) {
+    const ctx = await getCaseNotifyContext(caseId)
+    await notifyUsers(ctx.recipients, {
+      kind: 'deadline',
+      title: `Deadline moved on ${ctx.caseLabel}`,
+      body: `${body.trim()} — now due ${new Date(dueDate).toLocaleDateString()}`,
+      link: `/cases/${caseId}/progress?e=${entryId}`,
+      caseId,
+    })
+  }
   return { success: true }
 }
 
@@ -467,6 +503,15 @@ export async function openQuery(caseId: string, body: string) {
 
   if (mErr || eErr) return { error: 'Failed to open query' }
   revalidatePath(`/cases/${caseId}`)
+
+  const ctx = await getCaseNotifyContext(caseId)
+  await notifyUsers([assignedTo], {
+    kind: 'query',
+    title: `New query on ${ctx.caseLabel}`,
+    body: `${ctx.actorName}: ${trimmed.length > 140 ? trimmed.slice(0, 140) + '…' : trimmed}`,
+    link: `/cases/${caseId}/progress?q=${query.id}`,
+    caseId,
+  })
   return { success: true, queryId: query.id }
 }
 
@@ -502,6 +547,16 @@ export async function replyToQuery(queryId: string, caseId: string, body: string
   }
 
   revalidatePath(`/cases/${caseId}`)
+
+  const otherParty = user.id === query.assigned_to ? query.opened_by : query.assigned_to
+  const ctx = await getCaseNotifyContext(caseId)
+  await notifyUsers([otherParty], {
+    kind: 'query',
+    title: `Query reply on ${ctx.caseLabel}`,
+    body: `${ctx.actorName}: ${trimmed.length > 140 ? trimmed.slice(0, 140) + '…' : trimmed}`,
+    link: `/cases/${caseId}/progress?q=${queryId}`,
+    caseId,
+  })
   return { success: true }
 }
 

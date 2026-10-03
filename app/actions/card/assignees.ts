@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { logActivity } from '../dashboard'
+import { notifyUsers } from '../notifications'
 
 /**
  * Add an assignee to a card
@@ -77,6 +78,14 @@ export async function addCardAssignee(cardId: string, userId: string) {
       .select('board_id')
       .eq('id', cardId)
       .single()
+
+    await notifyUsers([userId], {
+      kind: 'task',
+      title: `New task: ${card?.title || 'Untitled'}`,
+      body: `${actorName} assigned you · ${boardName}`,
+      link: `/board/${cardWithBoard?.board_id}?cardId=${cardId}`,
+      cardId,
+    })
 
     await logActivity({
       userId: userId,

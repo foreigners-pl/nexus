@@ -1,4 +1,5 @@
 import { MobileTabBar } from '@/components/layout/MobileTabBar'
+import { NotificationBell } from '@/components/notifications/NotificationBell'
 
 export default function MobileLayout({
   children,
@@ -16,6 +17,9 @@ export default function MobileLayout({
           <h1 className="text-lg font-bold text-[hsl(var(--color-text-primary))]">
             Nexus CRM
           </h1>
+          <div className="ml-auto">
+            <NotificationBell />
+          </div>
         </div>
       </header>
 
