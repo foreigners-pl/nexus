@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { searchClients, type ClientSearchResult } from '@/app/actions/search'
 import { getMyOpenTasks, getCurrentUser } from '@/app/actions/dashboard'
-import { getMyOpenActions, getMyQueries } from '@/app/actions/workflow'
+import { getMyOpenActions, getMyQueries, getCasesMissingActions } from '@/app/actions/workflow'
 import { getRecentClients, type RecentClient } from '@/lib/recent-clients'
 import { usePaneNavigate } from '@/lib/panes'
 import {
@@ -43,6 +43,7 @@ export default function MobileHomePage() {
   const [deadlineRange, setDeadlineRange] = useState<DeadlineRange>(7)
   const [deadlineCounts, setDeadlineCounts] = useState<Record<DeadlineRange, number> | null>(null)
   const [overdueCount, setOverdueCount] = useState(0)
+  const [stalledCount, setStalledCount] = useState<number | null>(null)
   const [recentClients, setRecentClients] = useState<RecentClient[]>([])
 
   // Load counts + user name once
@@ -59,6 +60,8 @@ export default function MobileHomePage() {
       setNewTasks(all.filter(d => new Date(d).getTime() >= cutoff).length)
       setLateTasks(all.filter(d => new Date(d).getTime() < cutoff).length)
     })
+
+    getCasesMissingActions().then(({ cases }) => setStalledCount(cases.length))
 
     getMyOpenActions().then(({ actions }) => {
       const today = new Date()
@@ -244,18 +247,24 @@ export default function MobileHomePage() {
               Next {deadlineRange} days
             </button>
           </div>
-          <div className="grid grid-cols-2 text-center mt-4">
+          <div className="grid grid-cols-3 text-center mt-4">
             <div className="border-r border-[hsl(var(--color-border))]">
               <p className={`text-4xl font-bold ${deadlineCounts?.[deadlineRange] ? 'text-blue-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
                 {deadlineCounts?.[deadlineRange] ?? '–'}
               </p>
               <p className="text-xs text-[hsl(var(--color-text-muted))] mt-1.5">Upcoming</p>
             </div>
-            <div>
+            <div className="border-r border-[hsl(var(--color-border))]">
               <p className={`text-4xl font-bold ${overdueCount ? 'text-red-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
                 {overdueCount}
               </p>
               <p className="text-xs text-[hsl(var(--color-text-muted))] mt-1.5">Late</p>
+            </div>
+            <div>
+              <p className={`text-4xl font-bold ${stalledCount ? 'text-amber-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
+                {stalledCount ?? '–'}
+              </p>
+              <p className="text-xs text-[hsl(var(--color-text-muted))] mt-1.5">Stalled</p>
             </div>
           </div>
         </div>
