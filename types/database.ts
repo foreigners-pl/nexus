@@ -103,6 +103,7 @@ export interface CaseAttachment {
   file_size?: number
   file_type?: string
   uploaded_by?: string
+  uploader?: { display_name: string | null; email: string } | null
   created_at: string
 }
 

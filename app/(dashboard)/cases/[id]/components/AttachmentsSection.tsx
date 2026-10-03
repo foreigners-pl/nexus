@@ -3,7 +3,7 @@
 import { useState, useRef, DragEvent } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui'
-import { Input } from '@/components/ui/Input'
+import { Eye, Download, Trash2 } from 'lucide-react'
 import { uploadAttachment, deleteAttachment, getAttachmentUrl } from '@/app/actions/attachments'
 import type { CaseAttachment } from '@/types/database'
 
@@ -18,12 +18,8 @@ export function AttachmentsSection({ caseId, attachments, onUpdate, onAddClick }
   const [uploading, setUploading] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
-  const [renameModalOpen, setRenameModalOpen] = useState(false)
   const [attachmentToDelete, setAttachmentToDelete] = useState<CaseAttachment | null>(null)
-  const [attachmentToRename, setAttachmentToRename] = useState<CaseAttachment | null>(null)
-  const [newFileName, setNewFileName] = useState('')
   const [deleting, setDeleting] = useState(false)
-  const [renaming, setRenaming] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileSelect = async (files: FileList | null) => {
@@ -77,12 +73,6 @@ export function AttachmentsSection({ caseId, attachments, onUpdate, onAddClick }
     setDeleteModalOpen(true)
   }
 
-  const handleRename = (attachment: CaseAttachment) => {
-    setAttachmentToRename(attachment)
-    setNewFileName(attachment.file_name)
-    setRenameModalOpen(true)
-  }
-
   const confirmDelete = async () => {
     if (!attachmentToDelete) return
     
@@ -96,18 +86,6 @@ export function AttachmentsSection({ caseId, attachments, onUpdate, onAddClick }
     setDeleting(false)
     setDeleteModalOpen(false)
     setAttachmentToDelete(null)
-  }
-
-  const confirmRename = async () => {
-    if (!attachmentToRename || !newFileName.trim()) return
-    
-    setRenaming(true)
-    // TODO: Implement rename functionality in server action
-    // For now, just close the modal
-    setRenaming(false)
-    setRenameModalOpen(false)
-    setAttachmentToRename(null)
-    setNewFileName('')
   }
 
   const handleView = async (attachment: CaseAttachment) => {
@@ -196,33 +174,6 @@ export function AttachmentsSection({ caseId, attachments, onUpdate, onAddClick }
         </div>
       </Modal>
 
-      <Modal isOpen={renameModalOpen} onClose={() => setRenameModalOpen(false)} title="Rename File">
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-1">
-              New file name
-            </label>
-            <Input
-              value={newFileName}
-              onChange={(e) => setNewFileName(e.target.value)}
-              placeholder="Enter new file name"
-              disabled={renaming}
-            />
-          </div>
-          <div className="flex justify-end gap-3">
-            <Button variant="ghost" onClick={() => setRenameModalOpen(false)} disabled={renaming}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={confirmRename} 
-              disabled={renaming || !newFileName.trim()}
-            >
-              {renaming ? 'Renaming...' : 'Rename'}
-            </Button>
-          </div>
-        </div>
-      </Modal>
-      
       <div
         onDrop={handleDrop}
         onDragOver={handleDragOver}
@@ -246,66 +197,53 @@ export function AttachmentsSection({ caseId, attachments, onUpdate, onAddClick }
         )}
 
         {!uploading && attachments.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {attachments.map((attachment) => (
-              <div
-                key={attachment.id}
-                className="relative border border-[hsl(var(--color-border))] rounded p-4 transition-colors group overflow-hidden"
-              >
-                {/* File Icon - Larger, centered */}
-                <div className="flex flex-col items-center justify-center mb-2">
-                  <span className="text-6xl mb-2">{getFileIcon(attachment.file_type, attachment.file_name)}</span>
-                  <div className="w-full text-center">
-                    <p className="text-xs text-[hsl(var(--color-text-primary))] truncate font-medium px-1" title={attachment.file_name}>
-                      {attachment.file_name}
-                    </p>
-                    <p className="text-xs text-[hsl(var(--color-text-secondary))] mt-0.5">
-                      {new Date(attachment.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </p>
+          <div className="grid grid-cols-2 gap-3">
+            {attachments.map((attachment) => {
+              const uploader = attachment.uploader?.display_name || attachment.uploader?.email?.split('@')[0]
+              return (
+                <div
+                  key={attachment.id}
+                  className="border border-[hsl(var(--color-border))] rounded-xl bg-[hsl(var(--color-surface-secondary))] p-3 flex flex-col gap-2.5 overflow-hidden"
+                >
+                  <div className="flex items-start gap-2.5 min-w-0">
+                    <span className="text-3xl leading-none mt-0.5 shrink-0">{getFileIcon(attachment.file_type, attachment.file_name)}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-[hsl(var(--color-text-primary))] truncate" title={attachment.file_name}>
+                        {attachment.file_name}
+                      </p>
+                      <p className="text-[11px] text-[hsl(var(--color-text-muted))] mt-1 truncate">
+                        {[uploader, new Date(attachment.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), formatFileSize(attachment.file_size)].filter(Boolean).join(' · ')}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Actions — always visible (no hover on touch) */}
+                  <div className="flex gap-1.5 mt-auto">
+                    <button
+                      onClick={() => handleView(attachment)}
+                      className="flex-1 h-8 rounded-lg bg-[hsl(var(--color-surface-active))] flex items-center justify-center text-[hsl(var(--color-text-secondary))] active:bg-[hsl(var(--color-border))]"
+                      title="Open"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDownload(attachment)}
+                      className="flex-1 h-8 rounded-lg bg-[hsl(var(--color-surface-active))] flex items-center justify-center text-[hsl(var(--color-text-secondary))] active:bg-[hsl(var(--color-border))]"
+                      title="Download"
+                    >
+                      <Download className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(attachment)}
+                      className="flex-1 h-8 rounded-lg bg-red-500/15 flex items-center justify-center text-red-400 active:bg-red-500/25"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
-
-                {/* Hover Buttons - Show on hover */}
-                <div className="absolute inset-0 bg-black/70 rounded opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 p-2">
-                  <button
-                    onClick={() => handleView(attachment)}
-                    className="p-1.5 bg-[hsl(var(--color-surface))] hover:bg-[hsl(var(--color-surface-hover))] text-[hsl(var(--color-text-primary))] rounded transition-colors"
-                    title="Open"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => handleDownload(attachment)}
-                    className="p-1.5 bg-[hsl(var(--color-surface))] hover:bg-[hsl(var(--color-surface-hover))] text-[hsl(var(--color-text-primary))] rounded transition-colors"
-                    title="Download"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => handleRename(attachment)}
-                    className="p-1.5 bg-[hsl(var(--color-surface))] hover:bg-[hsl(var(--color-surface-hover))] text-[hsl(var(--color-text-primary))] rounded transition-colors"
-                    title="Rename"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => handleDelete(attachment)}
-                    className="p-1.5 bg-red-500 hover:bg-red-600 text-white rounded transition-colors"
-                    title="Delete"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

@@ -113,7 +113,7 @@ export async function getAttachments(caseId: string) {
   
   const { data, error } = await supabase
     .from('case_attachments')
-    .select('*')
+    .select('*, uploader:users!uploaded_by(display_name, email)')
     .eq('case_id', caseId)
     .order('created_at', { ascending: false })
 
