@@ -388,7 +388,7 @@ function ActionForm({ caseId, existing, submitLabel, skipLabel = 'Skip', onDone,
         />
       </div>
       <div>
-        <p className="text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-1.5">Deadline</p>
+        <p className="text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-1.5">Due date</p>
         <input
           type="date"
           value={dueDate}
@@ -469,10 +469,10 @@ function EntryComposer({ caseId, onAdded }: { caseId: string; onAdded: () => voi
           className="flex-1 h-10 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 bg-[hsl(var(--color-primary))] text-white hover:bg-[hsl(var(--color-primary-hover))]"
         >
           <MessageSquare className="w-4 h-4" />
-          Query
+          Request
         </button>
       </div>
-      <Modal isOpen={kind !== null} onClose={close} title={kind === 'note' ? 'Add note' : 'New query'}>
+      <Modal isOpen={kind !== null} onClose={close} title={kind === 'note' ? 'Add note' : 'New request'}>
         <div className="space-y-4">
           <textarea
             value={text}

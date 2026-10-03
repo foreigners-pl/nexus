@@ -424,7 +424,7 @@ export async function createAction(caseId: string, body: string, dueDate: string
   const ctx = await getCaseNotifyContext(caseId)
   await notifyUsers(ctx.recipients, {
     kind: 'deadline',
-    title: `New deadline on ${ctx.caseLabel}`,
+    title: `New action on ${ctx.caseLabel}`,
     body: `${trimmed} — due ${new Date(dueDate).toLocaleDateString()}`,
     link: `/cases/${caseId}/progress/${entry.id}`,
     caseId,
@@ -474,7 +474,7 @@ export async function updateAction(entryId: string, caseId: string, body: string
     const ctx = await getCaseNotifyContext(caseId)
     await notifyUsers(ctx.recipients, {
       kind: 'deadline',
-      title: `Deadline moved on ${ctx.caseLabel}`,
+      title: `Action deadline moved on ${ctx.caseLabel}`,
       body: `${body.trim()} — now due ${new Date(dueDate).toLocaleDateString()}`,
       link: `/cases/${caseId}/progress/${entryId}`,
       caseId,
@@ -491,6 +491,59 @@ export interface MyAction {
   case_id: string
   case_code: string | null
   client_name: string | null
+}
+
+export interface MissingActionCase {
+  case_id: string
+  case_code: string | null
+  client_name: string | null
+  step_name: string | null
+}
+
+/**
+ * My cases sitting on a real service step (past Pre-sale/Consultation)
+ * with no open action — the "fell through the cracks" list.
+ */
+export async function getCasesMissingActions(): Promise<{ cases: MissingActionCase[]; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { cases: [], error: 'Not authenticated' }
+
+  const { data: rows, error } = await supabase
+    .from('cases')
+    .select('id, case_code, status:status_id(name), step:case_steps!cases_current_step_id_fkey(name, step_type), clients(first_name, last_name)')
+    .or(`assigned_to.eq.${user.id},csr_id.eq.${user.id}`)
+
+  if (error) return { cases: [], error: error.message }
+
+  const eligible = (rows || []).filter((c: any) =>
+    c.step &&
+    c.step.step_type !== 'presale' &&
+    c.step.step_type !== 'consultation' &&
+    !(c.status?.name || '').toLowerCase().startsWith('complet')
+  )
+  if (eligible.length === 0) return { cases: [] }
+
+  const { data: openActions } = await supabase
+    .from('case_entries')
+    .select('case_id')
+    .eq('kind', 'action')
+    .is('completed_at', null)
+    .in('case_id', eligible.map((c: any) => c.id))
+
+  const hasAction = new Set((openActions || []).map(r => r.case_id))
+  return {
+    cases: eligible
+      .filter((c: any) => !hasAction.has(c.id))
+      .map((c: any) => ({
+        case_id: c.id,
+        case_code: c.case_code ?? null,
+        client_name: c.clients
+          ? [c.clients.first_name, c.clients.last_name].filter(Boolean).join(' ')
+          : null,
+        step_name: c.step?.name ?? null,
+      })),
+  }
 }
 
 /** Open actions on cases where the user is the lawyer or the CSR. */
@@ -611,7 +664,7 @@ export async function openQuery(caseId: string, body: string) {
   const ctx = await getCaseNotifyContext(caseId)
   await notifyUsers([assignedTo], {
     kind: 'query',
-    title: `New query on ${ctx.caseLabel}`,
+    title: `New request on ${ctx.caseLabel}`,
     body: `${ctx.actorName}: ${trimmed.length > 140 ? trimmed.slice(0, 140) + '…' : trimmed}`,
     link: `/cases/${caseId}/progress/${queryEntry.id}`,
     caseId,
@@ -657,7 +710,7 @@ export async function replyToQuery(queryId: string, caseId: string, body: string
   const ctx = await getCaseNotifyContext(caseId)
   await notifyUsers([otherParty], {
     kind: 'query',
-    title: `Query reply on ${ctx.caseLabel}`,
+    title: `Request reply on ${ctx.caseLabel}`,
     body: `${ctx.actorName}: ${trimmed.length > 140 ? trimmed.slice(0, 140) + '…' : trimmed}`,
     link: entryId ? `/cases/${caseId}/progress/${entryId}` : `/cases/${caseId}/progress`,
     caseId,

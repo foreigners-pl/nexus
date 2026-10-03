@@ -191,19 +191,19 @@ export default function MobileHomePage() {
         )}
       </section>
 
-      {/* Tasks + Deadlines — one row each */}
+      {/* Requests + Actions — one row each */}
       <div className="space-y-3">
-        {/* Tasks — New = created in last 24h, Late = open for over 24h */}
+        {/* Requests — New = created in last 24h, Late = open for over 24h */}
         <div
           role="button"
-          onClick={() => go('/tasks')}
+          onClick={() => go('/requests')}
           className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl p-4 active:bg-[hsl(var(--color-surface-hover))] cursor-pointer"
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-purple-500/15 flex items-center justify-center shrink-0">
               <ListChecks className="w-5 h-5 text-purple-400" />
             </div>
-            <p className="text-base font-semibold text-[hsl(var(--color-text-primary))] flex-1">Tasks</p>
+            <p className="text-base font-semibold text-[hsl(var(--color-text-primary))] flex-1">Requests</p>
             <ChevronRight className="w-5 h-5 text-[hsl(var(--color-text-muted))]" />
           </div>
           <div className="grid grid-cols-2 text-center mt-4">
@@ -222,17 +222,17 @@ export default function MobileHomePage() {
           </div>
         </div>
 
-        {/* Deadlines — upcoming due dates within the selected range */}
+        {/* Actions — upcoming due dates within the selected range */}
         <div
           role="button"
-          onClick={() => go('/deadlines')}
+          onClick={() => go('/actions')}
           className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl p-4 active:bg-[hsl(var(--color-surface-hover))] cursor-pointer"
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-orange-500/15 flex items-center justify-center shrink-0">
               <CalendarClock className="w-5 h-5 text-orange-400" />
             </div>
-            <p className="text-base font-semibold text-[hsl(var(--color-text-primary))] flex-1">Deadlines</p>
+            <p className="text-base font-semibold text-[hsl(var(--color-text-primary))] flex-1">Actions</p>
             <button
               onClick={(e) => {
                 e.stopPropagation()

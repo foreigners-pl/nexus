@@ -86,7 +86,7 @@ function QueryRow({ query }: { query: MyQuery }) {
         <MessageSquare className={`w-4 h-4 shrink-0 ${query.needs_me === 'respond' ? 'text-blue-400' : 'text-amber-400'}`} />
         <div className="flex-1 min-w-0">
           <p className="text-[15px] font-medium text-[hsl(var(--color-text-primary))] truncate">
-            {query.preview || 'Query'}
+            {query.preview || 'Request'}
           </p>
           <p className="text-xs text-[hsl(var(--color-text-secondary))] mt-0.5 truncate">
             {query.client_name || query.case_code || 'Case'}
@@ -120,7 +120,7 @@ function TaskGroup({ title, tasks, accent }: { title: string; tasks: Task[]; acc
   )
 }
 
-export function TasksContent() {
+export function RequestsContent() {
   const [tasks, setTasks] = useState<Task[] | null>(null)
   const [queries, setQueries] = useState<MyQuery[]>([])
 
@@ -134,7 +134,7 @@ export function TasksContent() {
   if (!tasks) {
     return (
       <div>
-        <MobileBackHeader title="Tasks" />
+        <MobileBackHeader title="Requests" />
         <div className="flex justify-center py-10">
           <Loader2 className="w-5 h-5 animate-spin text-[hsl(var(--color-text-muted))]" />
         </div>
@@ -149,26 +149,26 @@ export function TasksContent() {
 
   return (
     <div className="space-y-5">
-      <MobileBackHeader title="Tasks" />
+      <MobileBackHeader title="Requests" />
 
       {empty ? (
         <div className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl p-8 text-center">
-          <p className="text-sm text-[hsl(var(--color-text-secondary))]">No open tasks assigned to you</p>
+          <p className="text-sm text-[hsl(var(--color-text-secondary))]">Nothing needs your attention</p>
         </div>
       ) : (
         <>
           {queries.length > 0 && (
             <section>
               <p className="text-xs font-semibold uppercase tracking-wide mb-2 px-1 text-blue-400">
-                Queries · {queries.length}
+                Requests · {queries.length}
               </p>
               <ul className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl divide-y divide-[hsl(var(--color-border))] overflow-hidden">
                 {queries.map(q => <QueryRow key={q.id} query={q} />)}
               </ul>
             </section>
           )}
-          <TaskGroup title="Late" tasks={late} accent="text-red-400" />
-          <TaskGroup title="New" tasks={fresh} accent="text-blue-400" />
+          <TaskGroup title="Late tasks" tasks={late} accent="text-red-400" />
+          <TaskGroup title="New tasks" tasks={fresh} accent="text-blue-400" />
         </>
       )}
     </div>

@@ -22,7 +22,7 @@ import {
 const KIND_META = {
   note: { label: 'Note', icon: StickyNote, cls: 'text-[hsl(var(--color-text-secondary))]' },
   action: { label: 'Action', icon: Zap, cls: 'text-[hsl(var(--color-primary))]' },
-  query: { label: 'Query', icon: MessageSquare, cls: 'text-blue-400' },
+  query: { label: 'Request', icon: MessageSquare, cls: 'text-blue-400' },
 } as const
 
 const STATUS_BADGE: Record<CaseQuery['status'], { label: string; cls: string }> = {
@@ -216,7 +216,7 @@ function QueryChat({ query, stepName, caseId, meId, onChanged }: {
             disabled={saving}
             className="ml-auto text-xs font-medium text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))] shrink-0"
           >
-            Close query
+            Close request
           </button>
         )}
       </div>
@@ -248,7 +248,7 @@ function QueryChat({ query, stepName, caseId, meId, onChanged }: {
           })}
           {status === 'closed' && (
             <p className="text-center text-xs text-[hsl(var(--color-text-muted))] py-2">
-              Query closed
+              Request closed
             </p>
           )}
           <div ref={bottomRef} />
