@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { sendPushToUsers } from './push'
 
 export type NotificationKind = 'task' | 'deadline' | 'note' | 'query'
 
@@ -39,6 +40,16 @@ export async function notifyUsers(userIds: (string | null | undefined)[], input:
     if (res.error) console.error('[notifyUsers] insert error:', res.error)
   } catch (e) {
     console.error('[notifyUsers] failed:', e)
+  }
+
+  try {
+    await sendPushToUsers(recipients, {
+      title: input.title,
+      body: input.body ?? '',
+      url: input.link ?? '/home',
+    })
+  } catch (e) {
+    console.error('[notifyUsers] push failed:', e)
   }
 }
 
