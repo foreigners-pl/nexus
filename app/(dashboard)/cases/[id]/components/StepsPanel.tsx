@@ -329,9 +329,7 @@ function ActionPanel({ caseId, openAction, onChanged }: {
             caseId={caseId}
             existing={openAction}
             submitLabel="Save"
-            skipLabel="Cancel"
             onDone={() => { setModal(null); onChanged() }}
-            onSkip={() => setModal(null)}
             onComplete={async () => {
               await completeAction(openAction.id, caseId)
               onChanged()
