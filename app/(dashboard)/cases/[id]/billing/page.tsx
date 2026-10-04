@@ -96,7 +96,7 @@ export default function CaseBillingPage({ params }: BillingPageProps) {
 
   return (
     <div className="max-w-3xl mx-auto pb-20">
-      <SubPageHeader backHref={`/cases/${urlId}`} title={clientName || caseData.case_code || 'Case'} subtitle={subtitle} icon={<Receipt className="w-4 h-4 text-white" />} />
+      <SubPageHeader backHref={`/cases/${urlId}`} title={clientName || caseData.case_code || 'Case'} subtitle={subtitle} icon={<Receipt className="w-4 h-4 text-white" />} titleHref={caseData.client_id ? `/clients/${caseData.client_id}` : undefined} />
 
       <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-5 space-y-6">
         <div>

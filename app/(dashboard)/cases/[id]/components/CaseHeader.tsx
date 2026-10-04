@@ -43,14 +43,28 @@ export function CaseHeader({ caseData, client, clientPhoneNumbers, serviceName, 
             </svg>
           </div>
         </div>
-        <div className="min-w-0 flex-1">
-          <h1 className="text-base font-semibold text-[hsl(var(--color-text-primary))] truncate leading-tight">
-            {client ? clientName : (caseData.case_code || 'Case')}
-          </h1>
-          <p className="text-xs text-[hsl(var(--color-text-secondary))] truncate leading-tight">
-            {subtitle}
-          </p>
-        </div>
+        {client ? (
+          <Link
+            href={backHref}
+            className="min-w-0 flex-1 rounded-lg -mx-1 px-1 hover:bg-[hsl(var(--color-surface-hover))] active:bg-[hsl(var(--color-surface-hover))] transition-colors"
+          >
+            <h1 className="text-base font-semibold text-[hsl(var(--color-text-primary))] truncate leading-tight">
+              {clientName}
+            </h1>
+            <p className="text-xs text-[hsl(var(--color-text-secondary))] truncate leading-tight">
+              {subtitle}
+            </p>
+          </Link>
+        ) : (
+          <div className="min-w-0 flex-1">
+            <h1 className="text-base font-semibold text-[hsl(var(--color-text-primary))] truncate leading-tight">
+              {caseData.case_code || 'Case'}
+            </h1>
+            <p className="text-xs text-[hsl(var(--color-text-secondary))] truncate leading-tight">
+              {subtitle}
+            </p>
+          </div>
+        )}
         <Button
           variant="ghost"
           size="sm"

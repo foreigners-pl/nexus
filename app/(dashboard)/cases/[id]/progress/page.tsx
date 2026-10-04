@@ -18,6 +18,7 @@ export default function CaseProgressPage({ params, searchParams }: ProgressPageP
   const { q: focusQueryId, e: focusEntryId } = use(searchParams)
   const router = useRouter()
   const [caseId, setCaseId] = useState<string | null>(null)
+  const [clientId, setClientId] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [subtitle, setSubtitle] = useState('')
   const [loading, setLoading] = useState(true)
@@ -55,6 +56,7 @@ export default function CaseProgressPage({ params, searchParams }: ProgressPageP
       const caseRow = result.data
       if (caseRow) {
         setCaseId(caseRow.id)
+        setClientId(caseRow.client_id ?? null)
 
         const svc = (caseRow.case_services as any[])?.[0]?.services?.name || null
 
@@ -94,7 +96,7 @@ export default function CaseProgressPage({ params, searchParams }: ProgressPageP
 
   return (
     <div className="max-w-3xl mx-auto pb-20">
-      <SubPageHeader backHref={`/cases/${urlId}`} title={title} subtitle={subtitle} icon={<ListChecks className="w-4 h-4 text-white" />} />
+      <SubPageHeader backHref={`/cases/${urlId}`} title={title} subtitle={subtitle} icon={<ListChecks className="w-4 h-4 text-white" />} titleHref={clientId ? `/clients/${clientId}` : undefined} />
       <StepsPanel caseId={caseId} />
     </div>
   )

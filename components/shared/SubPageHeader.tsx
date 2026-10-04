@@ -10,14 +10,29 @@ import { usePaneBack } from '@/lib/panes'
  * Negative margins bleed it edge-to-edge over the dashboard padding;
  * the negative `top` matches the negative margin so it sticks flush to the top.
  */
-export function SubPageHeader({ backHref, title, subtitle, icon, action }: {
+export function SubPageHeader({ backHref, title, subtitle, icon, action, titleHref }: {
   backHref: string
   title: string
   subtitle?: string
   icon?: ReactNode
   action?: ReactNode
+  /** When set, the title/subtitle block links here (real navigation). */
+  titleHref?: string
 }) {
   const paneBack = usePaneBack()
+
+  const titleBlock = (
+    <>
+      <h1 className="text-base font-semibold text-[hsl(var(--color-text-primary))] truncate leading-tight">
+        {title}
+      </h1>
+      {subtitle && (
+        <p className="text-xs text-[hsl(var(--color-text-secondary))] truncate leading-tight">
+          {subtitle}
+        </p>
+      )}
+    </>
+  )
   return (
     <header className="sticky -top-4 md:-top-6 z-40 -mx-4 md:-mx-6 -mt-4 md:-mt-6 mb-6 bg-[hsl(var(--color-surface))]/90 backdrop-blur border-b border-[hsl(var(--color-border))]">
       <div className="px-4 md:px-6 h-14 flex items-center gap-3">
@@ -34,16 +49,15 @@ export function SubPageHeader({ backHref, title, subtitle, icon, action }: {
             {icon}
           </div>
         )}
-        <div className="min-w-0 flex-1">
-          <h1 className="text-base font-semibold text-[hsl(var(--color-text-primary))] truncate leading-tight">
-            {title}
-          </h1>
-          {subtitle && (
-            <p className="text-xs text-[hsl(var(--color-text-secondary))] truncate leading-tight">
-              {subtitle}
-            </p>
-          )}
-        </div>
+        {titleHref ? (
+          <Link href={titleHref} className="min-w-0 flex-1 rounded-lg -mx-1 px-1 hover:bg-[hsl(var(--color-surface-hover))] active:bg-[hsl(var(--color-surface-hover))] transition-colors">
+            {titleBlock}
+          </Link>
+        ) : (
+          <div className="min-w-0 flex-1">
+            {titleBlock}
+          </div>
+        )}
         {action}
       </div>
     </header>

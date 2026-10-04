@@ -277,6 +277,7 @@ export default function InstallmentPage({ params }: InstallmentPageProps) {
         title={client ? ([client.first_name, client.last_name].filter(Boolean).join(' ') || client.contact_email) : (caseData?.case_code || 'Case')}
         subtitle={[services[0]?.services?.name, clientPhone, displayName].filter(Boolean).join(' · ')}
         icon={<Receipt className="w-4 h-4 text-white" />}
+        titleHref={caseData?.client_id ? `/clients/${caseData.client_id}` : undefined}
         action={canDelete && (
           <button
             onClick={handleDelete}

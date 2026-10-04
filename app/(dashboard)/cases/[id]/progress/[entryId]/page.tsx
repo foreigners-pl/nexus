@@ -45,6 +45,7 @@ export default function EntryPage({ params }: { params: Promise<{ id: string; en
   const [caseSubtitle, setCaseSubtitle] = useState<string | null>(null)
   const [query, setQuery] = useState<CaseQuery | null>(null)
   const [completedByName, setCompletedByName] = useState<string | null>(null)
+  const [clientId, setClientId] = useState<string | null>(null)
   const [meId, setMeId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -56,6 +57,7 @@ export default function EntryPage({ params }: { params: Promise<{ id: string; en
     setCaseSubtitle(d.caseSubtitle)
     setQuery(d.query)
     setCompletedByName(d.completedByName)
+    setClientId(d.clientId)
     setMeId(d.meId)
     setLoading(false)
   }, [entryId])
@@ -89,6 +91,7 @@ export default function EntryPage({ params }: { params: Promise<{ id: string; en
         title={caseTitle || meta.label}
         subtitle={caseSubtitle || (stepName ? `Step · ${stepName}` : undefined)}
         icon={<Icon className="w-4 h-4 text-white" />}
+        titleHref={clientId ? `/clients/${clientId}` : undefined}
       />
 
       {query ? (

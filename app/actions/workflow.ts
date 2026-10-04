@@ -168,12 +168,13 @@ export async function getCaseEntry(entryId: string): Promise<{
   query: CaseQuery | null
   caseTitle: string | null
   caseSubtitle: string | null
+  clientId: string | null
   openerName: string | null
   assigneeName: string | null
   completedByName: string | null
   meId: string | null
 }> {
-  const empty = { entry: null, stepName: null, query: null, caseTitle: null, caseSubtitle: null, openerName: null, assigneeName: null, completedByName: null, meId: null }
+  const empty = { entry: null, stepName: null, query: null, caseTitle: null, caseSubtitle: null, clientId: null, openerName: null, assigneeName: null, completedByName: null, meId: null }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return empty
@@ -246,6 +247,7 @@ export async function getCaseEntry(entryId: string): Promise<{
     query,
     caseTitle,
     caseSubtitle,
+    clientId: (caseRow?.client_id as string | undefined) ?? null,
     openerName,
     assigneeName,
     completedByName: completer ? completer.display_name || completer.email.split('@')[0] : null,
