@@ -2,7 +2,8 @@
 // Offline caching can be layered on top later.
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (e) => e.waitUntil(clients.claim()))
-self.addEventListener('fetch', (e) => e.respondWith(fetch(e.request)))
+// No fetch handler — let requests go straight to the network. A passthrough
+// respondWith(fetch(...)) would proxy every request through the SW for nothing.
 
 self.addEventListener('push', (e) => {
   let data = {}
