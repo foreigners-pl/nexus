@@ -9,6 +9,7 @@ import CaseEntryPage from '@/app/(dashboard)/cases/[id]/progress/[entryId]/page'
 import CaseBillingPage from '@/app/(dashboard)/cases/[id]/billing/page'
 import InstallmentPage from '@/app/(dashboard)/cases/[id]/billing/[installmentId]/page'
 import CaseFilesPage from '@/app/(dashboard)/cases/[id]/files/page'
+import CaseLegacyPage from '@/app/(dashboard)/cases/[id]/legacy/page'
 import ClientPage from '@/app/(dashboard)/clients/[id]/page'
 import ClientInfoPage from '@/app/(dashboard)/clients/[id]/info/page'
 import { RequestsContent } from '@/components/mobile/RequestsContent'
@@ -20,7 +21,7 @@ import { MobileBackHeader } from '@/components/mobile/MobileBackHeader'
 /** Routes that render at pane (mobile-like) width on desktop. */
 function isPaneRoute(href: string): boolean {
   const path = href.split('?')[0]
-  return /^\/cases\/[^/]+(\/progress(\/[^/]+)?|\/billing(\/[^/]+)?|\/files)?$/.test(path)
+  return /^\/cases\/[^/]+(\/progress(\/[^/]+)?|\/billing(\/[^/]+)?|\/files|\/legacy)?$/.test(path)
     || /^\/clients\/[^/]+(\/info)?$/.test(path)
     || /^\/home$/.test(path)
     || /^\/(requests|actions|search|notifications)$/.test(path)
@@ -42,6 +43,8 @@ function renderPaneRoute(href: string): React.ReactNode | null {
     return <CaseBillingPage params={Promise.resolve({ id: m[1] })} />
   if ((m = path.match(/^\/cases\/([^/]+)\/files$/)))
     return <CaseFilesPage params={Promise.resolve({ id: m[1] })} />
+  if ((m = path.match(/^\/cases\/([^/]+)\/legacy$/)))
+    return <CaseLegacyPage params={Promise.resolve({ id: m[1] })} />
   if ((m = path.match(/^\/cases\/([^/]+)$/)))
     return <CasePage params={Promise.resolve({ id: m[1] })} />
   if ((m = path.match(/^\/clients\/([^/]+)\/info$/)))
