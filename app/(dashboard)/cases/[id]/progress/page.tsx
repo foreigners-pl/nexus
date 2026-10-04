@@ -99,7 +99,7 @@ export default function CaseProgressPage({ params, searchParams }: ProgressPageP
 
   return (
     <div className="max-w-3xl mx-auto pb-20">
-      <SubPageHeader backHref={`/cases/${urlId}`} label="Case" title={caseCode || 'Case'} subtitle={[clientName, serviceName, phone].filter(Boolean).join(' · ')} icon={<ListChecks className="w-4 h-4 text-white" />} titleHref={clientId ? `/clients/${clientId}` : undefined} />
+      <SubPageHeader backHref={`/cases/${urlId}`} title={caseCode || 'Case'} subtitle={[clientName, serviceName, phone].filter(Boolean).join(' · ')} icon={<ListChecks className="w-4 h-4 text-white" />} titleHref={clientId ? `/clients/${clientId}` : undefined} />
       <StepsPanel caseId={caseId} />
     </div>
   )

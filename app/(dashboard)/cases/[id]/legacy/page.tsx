@@ -91,7 +91,6 @@ export default function CaseLegacyPage({ params }: LegacyPageProps) {
     <div className="max-w-3xl mx-auto pb-20">
       <SubPageHeader
         backHref={`/cases/${urlId}`}
-        label="Case"
         title={caseCode || caseData.case_code || 'Case'}
         subtitle={[clientName, serviceName, phone].filter(Boolean).join(' · ')}
         icon={<MessageSquareText className="w-4 h-4 text-white" />}
@@ -103,7 +102,7 @@ export default function CaseLegacyPage({ params }: LegacyPageProps) {
           <h3 className="text-base font-semibold text-[hsl(var(--color-text-primary))]">Legacy notes</h3>
           <span className="text-xs text-[hsl(var(--color-text-muted))]">{comments.length} note{comments.length === 1 ? '' : 's'}</span>
         </div>
-        <CommentsSection caseId={caseData.id} comments={comments} onUpdate={reloadComments} currentUserId={undefined} />
+        <CommentsSection caseId={caseData.id} comments={comments} onUpdate={reloadComments} currentUserId={undefined} readOnly />
       </div>
     </div>
   )

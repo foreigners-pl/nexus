@@ -10,9 +10,10 @@ interface CommentsSectionProps {
   comments: Comment[]
   onUpdate: () => void
   currentUserId?: string
+  readOnly?: boolean
 }
 
-export function CommentsSection({ caseId, comments, onUpdate, currentUserId }: CommentsSectionProps) {
+export function CommentsSection({ caseId, comments, onUpdate, currentUserId, readOnly }: CommentsSectionProps) {
   const [newComment, setNewComment] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -57,33 +58,35 @@ export function CommentsSection({ caseId, comments, onUpdate, currentUserId }: C
     <>
       <div className="space-y-4">
         {/* Add Comment Form */}
-        <form onSubmit={handleSubmit} className="space-y-3">
-          {error && (
-            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-sm">
-              {error}
+        {!readOnly && (
+          <form onSubmit={handleSubmit} className="space-y-3">
+            {error && (
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-sm">
+                {error}
+              </div>
+            )}
+            <textarea
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder="Write a comment..."
+              className="w-full px-3 py-2 bg-[hsl(var(--color-surface-hover))]/50 border border-[hsl(var(--color-border))] rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-border-hover))] text-[hsl(var(--color-text-primary))] placeholder:text-[hsl(var(--color-text-muted))]"
+              rows={3}
+              disabled={submitting}
+            />
+            <div className="flex justify-end">
+              <Button type="submit" disabled={submitting || !newComment.trim()}>
+                {submitting ? 'Adding...' : 'Add Comment'}
+              </Button>
             </div>
-          )}
-          <textarea
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            placeholder="Write a comment..."
-            className="w-full px-3 py-2 bg-[hsl(var(--color-surface-hover))]/50 border border-[hsl(var(--color-border))] rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-[hsl(var(--color-border-hover))] text-[hsl(var(--color-text-primary))] placeholder:text-[hsl(var(--color-text-muted))]"
-            rows={3}
-            disabled={submitting}
-          />
-          <div className="flex justify-end">
-            <Button type="submit" disabled={submitting || !newComment.trim()}>
-              {submitting ? 'Adding...' : 'Add Comment'}
-            </Button>
-          </div>
-        </form>
+          </form>
+        )}
 
         {/* Comments List */}
         <div className="max-h-[300px] overflow-y-auto pr-2">
           <div className="space-y-3">
           {comments.length === 0 ? (
             <p className="text-sm text-[hsl(var(--color-text-secondary))] text-center py-8">
-              No comments yet. Be the first to comment!
+              {readOnly ? 'No legacy notes.' : 'No comments yet. Be the first to comment!'}
             </p>
           ) : (
             comments.map((comment) => (

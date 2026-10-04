@@ -82,7 +82,7 @@ export default function CaseFilesPage({ params }: FilesPageProps) {
 
   return (
     <div className="max-w-3xl mx-auto pb-20">
-      <SubPageHeader backHref={`/cases/${urlId}`} label="Case" title={caseCode || caseData.case_code || 'Case'} subtitle={[clientName, headerSub].filter(Boolean).join(' · ')} icon={<FolderOpen className="w-4 h-4 text-white" />} titleHref={caseData.client_id ? `/clients/${caseData.client_id}` : undefined} />
+      <SubPageHeader backHref={`/cases/${urlId}`} title={caseCode || caseData.case_code || 'Case'} subtitle={[clientName, headerSub].filter(Boolean).join(' · ')} icon={<FolderOpen className="w-4 h-4 text-white" />} titleHref={caseData.client_id ? `/clients/${caseData.client_id}` : undefined} />
 
       <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-5">
         <div className="flex items-center justify-between mb-4">

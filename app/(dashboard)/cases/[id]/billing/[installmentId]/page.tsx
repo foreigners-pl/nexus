@@ -275,7 +275,6 @@ export default function InstallmentPage({ params }: InstallmentPageProps) {
     <div className="max-w-3xl mx-auto pb-20">
       <SubPageHeader
         backHref={`/cases/${urlId}/billing`}
-        label="Case"
         title={caseData?.case_code || 'Case'}
         subtitle={[client ? ([client.first_name, client.last_name].filter(Boolean).join(' ') || client.contact_email) : null, services[0]?.services?.name, clientPhone, displayName].filter(Boolean).join(' · ')}
         icon={<Receipt className="w-4 h-4 text-white" />}

@@ -112,7 +112,6 @@ export default function EntryPage({ params }: { params: Promise<{ id: string; en
     <div className="pb-20">
       <SubPageHeader
         backHref={`/cases/${urlId}/progress`}
-        label="Case"
         title={caseCode || caseTitle || meta.label}
         subtitle={[clientName, serviceName, phone, stepName].filter(Boolean).join(' · ')}
         icon={<Icon className="w-4 h-4 text-white" />}
