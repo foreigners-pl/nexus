@@ -94,6 +94,8 @@ export function ActionsContent() {
       return { actions: actionsRes.actions, missing: missingRes.cases }
     },
     staleTime: 60 * 1000,
+    refetchInterval: 15 * 1000,
+    refetchIntervalInBackground: false,
   })
 
   const actions = data?.actions ?? null

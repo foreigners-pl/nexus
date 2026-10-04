@@ -16,7 +16,7 @@ import {
 } from '@/app/actions/workflow'
 import { usePaneLink } from '@/lib/panes'
 import { useQueryClient } from '@tanstack/react-query'
-import { useWorkflowCache, fetchWorkflowQuery } from '@/lib/query'
+import { useWorkflowCache, fetchWorkflowQuery, queryKeys } from '@/lib/query'
 import { isDesktopViewport } from '@/lib/viewport'
 import {
   ChevronRight,
@@ -68,6 +68,10 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
     const data = await fetchWorkflowQuery(queryClient, caseId)
     applyData(data)
     setLoading(false)
+    // Home / Requests / Actions pages share these keys — keep them fresh
+    // after workflow mutations (new request, completed action, etc.)
+    queryClient.invalidateQueries({ queryKey: queryKeys.requests })
+    queryClient.invalidateQueries({ queryKey: queryKeys.myActions })
   }, [caseId, applyData, queryClient])
 
   useEffect(() => {

@@ -133,6 +133,8 @@ export function RequestsContent() {
       return { tasks: tasksRes.tasks, queries: queriesRes.queries }
     },
     staleTime: 60 * 1000,
+    refetchInterval: 15 * 1000,
+    refetchIntervalInBackground: false,
   })
 
   const tasks = data?.tasks ?? null

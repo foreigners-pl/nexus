@@ -52,6 +52,8 @@ export default function MobileHomePage() {
       return { tasks: tasksRes.tasks, queries: queriesRes.queries }
     },
     staleTime: 60 * 1000,
+    refetchInterval: 15 * 1000,
+    refetchIntervalInBackground: false,
   })
   const { data: actionsData } = useQuery({
     queryKey: queryKeys.myActions,
@@ -60,6 +62,8 @@ export default function MobileHomePage() {
       return { actions: actionsRes.actions, missing: missingRes.cases }
     },
     staleTime: 60 * 1000,
+    refetchInterval: 15 * 1000,
+    refetchIntervalInBackground: false,
   })
 
   const newTasks = requestsData == null ? null : (() => {

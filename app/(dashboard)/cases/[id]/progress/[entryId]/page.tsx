@@ -174,6 +174,7 @@ function QueryChat({ query, stepName, caseId, meId, onChanged }: {
   meId: string | null
   onChanged: () => void
 }) {
+  const queryClient = useQueryClient()
   const [thread, setThread] = useState<QueryMessage[] | null>(null)
   const [status, setStatus] = useState<CaseQuery['status']>(query.status)
   const [reply, setReply] = useState('')
@@ -203,6 +204,7 @@ function QueryChat({ query, stepName, caseId, meId, onChanged }: {
     setReply('')
     setSaving(false)
     onChanged()
+    queryClient.invalidateQueries({ queryKey: queryKeys.requests })
   }
 
   const close = async () => {
@@ -211,6 +213,7 @@ function QueryChat({ query, stepName, caseId, meId, onChanged }: {
     setStatus('closed')
     setSaving(false)
     onChanged()
+    queryClient.invalidateQueries({ queryKey: queryKeys.requests })
   }
 
   const canReply = status !== 'closed' && (meId === query.opened_by || meId === query.assigned_to)
