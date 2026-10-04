@@ -9,11 +9,10 @@ import { deleteCase, getCasePageData } from '@/app/actions/cases'
 import { usePaneBack } from '@/lib/panes'
 import { useQueryClient } from '@tanstack/react-query'
 import { useCasePageCache, fetchCasePageQuery, queryKeys } from '@/lib/query'
-import { fetchComments } from '@/lib/data'
 import { CaseHeader } from './components/CaseHeader'
 import { AssignedPeople } from './components/AssignedPeople'
 import { CaseSubNav } from './components/CaseSubNav'
-import type { Case, Client, ContactNumber, Comment } from '@/types/database'
+import type { Case, Client, ContactNumber } from '@/types/database'
 
 interface CasePageProps {
   params: Promise<{ id: string }>
@@ -30,7 +29,7 @@ export default function CasePage({ params }: CasePageProps) {
   const [currentStepName, setCurrentStepName] = useState('')
   const [paidAmount, setPaidAmount] = useState(0)
   const [fileCount, setFileCount] = useState(0)
-  const [comments, setComments] = useState<Comment[]>([])
+  const [commentsCount, setCommentsCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -67,6 +66,7 @@ export default function CasePage({ params }: CasePageProps) {
     setCurrentStepName(data.currentStepName || '')
     setPaidAmount(data.paidAmount || 0)
     setFileCount(data.fileCount || 0)
+    setCommentsCount(data.commentsCount || 0)
   }
 
   async function fetchCaseData(caseIdParam: string, showLoading = true) {
@@ -84,13 +84,6 @@ export default function CasePage({ params }: CasePageProps) {
     }
 
     applyData(data)
-
-    // Load legacy comments in background so the Legacy nav row appears if any exist
-    fetchComments(data.case.id).then(commentsData => {
-      if (!isMounted.current) return
-      setComments(commentsData)
-    })
-
     setLoading(false)
   }
 
@@ -185,7 +178,7 @@ export default function CasePage({ params }: CasePageProps) {
         processInfo={currentStepName ? `Current: ${currentStepName}` : undefined}
         billingInfo={`${paidAmount.toFixed(2)} PLN paid`}
         filesInfo={fileCount === 0 ? 'No files' : `${fileCount} file${fileCount === 1 ? '' : 's'}`}
-        legacyInfo={comments.length > 0 ? `${comments.length} old note${comments.length === 1 ? '' : 's'}` : undefined}
+        legacyInfo={commentsCount > 0 ? `${commentsCount} old note${commentsCount === 1 ? '' : 's'}` : undefined}
       />
 
       {/* Mobile Delete Button - shows at bottom on mobile only */}

@@ -33,6 +33,7 @@ import {
   fetchCaseHeaderData,
   fetchBillingData,
   fetchAttachments,
+  fetchComments,
 } from '@/lib/data'
 
 // Client prefetch type
@@ -611,6 +612,14 @@ export function fetchAttachmentsQuery(queryClient: ReturnType<typeof useQueryCli
   return queryClient.fetchQuery({
     queryKey: queryKeys.attachments(caseId),
     queryFn: () => fetchAttachments(caseId),
+    staleTime: 0,
+  })
+}
+
+export function fetchCommentsQuery(queryClient: ReturnType<typeof useQueryClient>, caseId: string) {
+  return queryClient.fetchQuery({
+    queryKey: queryKeys.comments(caseId),
+    queryFn: () => fetchComments(caseId),
     staleTime: 0,
   })
 }

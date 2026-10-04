@@ -36,5 +36,6 @@ export {
   fetchEntryQuery,
   fetchCaseHeaderQuery,
   fetchBillingQuery,
-  fetchAttachmentsQuery
+  fetchAttachmentsQuery,
+  fetchCommentsQuery,
 } from './usePrefetch'

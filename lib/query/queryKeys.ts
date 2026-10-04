@@ -19,6 +19,7 @@ export const queryKeys = {
   workflow: (caseId: string) => ['workflow', caseId] as const,
   billing: (id: string) => ['billing', id] as const,
   attachments: (caseId: string) => ['attachments', caseId] as const,
+  comments: (caseId: string) => ['comments', caseId] as const,
   entry: (entryId: string) => ['entry', entryId] as const,
 
   // Requests / Actions

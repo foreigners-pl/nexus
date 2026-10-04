@@ -2,8 +2,7 @@
 
 import { use, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { fetchComments } from '@/lib/data'
-import { useCaseHeaderCache, fetchCaseHeaderQuery } from '@/lib/query'
+import { queryKeys, useCaseHeaderCache, fetchCaseHeaderQuery, fetchCommentsQuery } from '@/lib/query'
 import { SubPageHeader } from '@/components/shared/SubPageHeader'
 import { CommentsSection } from '../components/CommentsSection'
 import { Loader2, MessageSquareText } from 'lucide-react'
@@ -24,35 +23,50 @@ export default function CaseLegacyPage({ params }: LegacyPageProps) {
   const queryClient = useQueryClient()
   const { getCached: getCachedHeader } = useCaseHeaderCache(urlId)
 
+  const applyData = (commentsData: Comment[]) => {
+    setComments(commentsData)
+  }
+
   useEffect(() => {
     isMounted.current = true
-    ;(async () => {
-      const cachedHeader = getCachedHeader()
-      if (cachedHeader?.caseId) {
-        setCaseData({ id: cachedHeader.caseId, client_id: cachedHeader.clientId })
-        setClientName(cachedHeader.title)
-        setHeaderSub(cachedHeader.subtitle)
-      }
 
-      const header = await fetchCaseHeaderQuery(queryClient, urlId)
-      if (!isMounted.current) return
-      if ('error' in header) { setLoading(false); return }
-      setCaseData({ id: header.caseId, client_id: header.clientId, case_code: urlId.startsWith('C') ? urlId : undefined })
-      setClientName(header.title)
-      setHeaderSub(header.subtitle)
-
-      const commentsData = await fetchComments(header.caseId)
-      if (!isMounted.current) return
-      setComments(commentsData)
+    const cachedComments = queryClient.getQueryData<Comment[]>(queryKeys.comments(urlId))
+    const cachedHeader = getCachedHeader()
+    if (cachedHeader?.caseId) {
+      setCaseData({ id: cachedHeader.caseId, client_id: cachedHeader.clientId })
+      setClientName(cachedHeader.title)
+      setHeaderSub(cachedHeader.subtitle)
+    }
+    if (cachedComments) {
+      applyData(cachedComments)
       setLoading(false)
-    })()
+      load() // background refresh
+    } else {
+      load()
+    }
+
     return () => { isMounted.current = false }
   }, [urlId])
 
+  const load = async () => {
+    const header = await fetchCaseHeaderQuery(queryClient, urlId)
+    if (!isMounted.current) return
+    if ('error' in header) { setLoading(false); return }
+    setCaseData({ id: header.caseId, client_id: header.clientId, case_code: urlId.startsWith('C') ? urlId : undefined })
+    setClientName(header.title)
+    setHeaderSub(header.subtitle)
+
+    const commentsData = await fetchCommentsQuery(queryClient, header.caseId)
+    if (!isMounted.current) return
+    applyData(commentsData)
+    setLoading(false)
+  }
+
   const reloadComments = async () => {
     if (!caseData) return
-    const commentsData = await fetchComments(caseData.id)
-    setComments(commentsData)
+    const commentsData = await fetchCommentsQuery(queryClient, caseData.id)
+    if (!isMounted.current) return
+    applyData(commentsData)
   }
 
   if (loading) {

@@ -20,7 +20,7 @@ export async function getCasePageData(idOrCode: string) {
   const caseData = caseRes.data
   if (!caseData) return { error: 'Case not found' as const }
 
-  const [clientRes, phonesRes, serviceRes, stepRes, installmentsRes, attachmentsRes] = await Promise.all([
+  const [clientRes, phonesRes, serviceRes, stepRes, installmentsRes, attachmentsRes, commentsCountRes] = await Promise.all([
     caseData.client_id
       ? supabase.from('clients').select('*').eq('id', caseData.client_id).single()
       : Promise.resolve({ data: null }),
@@ -33,6 +33,7 @@ export async function getCasePageData(idOrCode: string) {
       : Promise.resolve({ data: null }),
     supabase.from('installments').select('amount, paid, parent_installment_id').eq('case_id', caseData.id),
     supabase.from('case_attachments').select('id', { count: 'exact', head: true }).eq('case_id', caseData.id),
+    supabase.from('comments').select('id', { count: 'exact', head: true }).eq('case_id', caseData.id),
   ])
 
   const svc = (serviceRes.data?.services as { name?: string } | null)?.name || ''
@@ -47,6 +48,7 @@ export async function getCasePageData(idOrCode: string) {
     currentStepName: (stepRes.data as { name?: string } | null)?.name || '',
     paidAmount: inst.filter(i => i.paid && !i.parent_installment_id).reduce((sum, i) => sum + (i.amount || 0), 0),
     fileCount: attachmentsRes.count || 0,
+    commentsCount: commentsCountRes.count || 0,
   }
 }
 
