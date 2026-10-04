@@ -50,11 +50,11 @@ export function SubPageHeader({ backHref, title, subtitle, icon, action, titleHr
           </div>
         )}
         {titleHref ? (
-          <Link href={titleHref} className="min-w-0 flex-1 rounded-lg -mx-1 px-1 hover:bg-[hsl(var(--color-surface-hover))] active:bg-[hsl(var(--color-surface-hover))] transition-colors">
+          <Link href={titleHref} className="min-w-0 flex-1 h-full flex flex-col justify-center rounded-lg -mx-1 px-1 hover:bg-[hsl(var(--color-surface-hover))] active:bg-[hsl(var(--color-surface-hover))] transition-colors">
             {titleBlock}
           </Link>
         ) : (
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 h-full flex flex-col justify-center">
             {titleBlock}
           </div>
         )}

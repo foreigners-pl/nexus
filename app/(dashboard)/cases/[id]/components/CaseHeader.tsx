@@ -44,7 +44,7 @@ export function CaseHeader({ caseData, client, clientPhoneNumbers, serviceName }
         {client ? (
           <Link
             href={backHref}
-            className="min-w-0 flex-1 rounded-lg -mx-1 px-1 hover:bg-[hsl(var(--color-surface-hover))] active:bg-[hsl(var(--color-surface-hover))] transition-colors"
+            className="min-w-0 flex-1 h-full flex flex-col justify-center rounded-lg px-1 hover:bg-[hsl(var(--color-surface-hover))] active:bg-[hsl(var(--color-surface-hover))] transition-colors"
           >
             <h1 className="text-base font-semibold text-[hsl(var(--color-text-primary))] truncate leading-tight">
               {caseData.case_code || 'Case'}
@@ -54,7 +54,7 @@ export function CaseHeader({ caseData, client, clientPhoneNumbers, serviceName }
             </p>
           </Link>
         ) : (
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 h-full flex flex-col justify-center">
             <h1 className="text-base font-semibold text-[hsl(var(--color-text-primary))] truncate leading-tight">
               {caseData.case_code || 'Case'}
             </h1>
