@@ -4,20 +4,20 @@ import Link from 'next/link'
 import { ListChecks, Receipt, FolderOpen, MessageSquareText, ChevronRight } from 'lucide-react'
 import { usePaneNavigate } from '@/lib/panes'
 
-/** Process / Billing / Files navigation for a case, each row showing a summary. */
-export function CaseSubNav({ caseId, processInfo, billingInfo, filesInfo, legacyInfo, onLegacyClick }: {
+/** Process / Billing / Files / Legacy navigation for a case, each row showing a summary. */
+export function CaseSubNav({ caseId, processInfo, billingInfo, filesInfo, legacyInfo }: {
   caseId: string
   processInfo?: string
   billingInfo?: string
   filesInfo?: string
   legacyInfo?: string
-  onLegacyClick?: () => void
 }) {
   const paneNav = usePaneNavigate()
   const items = [
     { key: 'process', label: 'Process', info: processInfo, href: `/cases/${caseId}/progress`, icon: ListChecks },
     { key: 'billing', label: 'Billing', info: billingInfo, href: `/cases/${caseId}/billing`, icon: Receipt },
     { key: 'files', label: 'Files', info: filesInfo, href: `/cases/${caseId}/files`, icon: FolderOpen },
+    ...(legacyInfo !== undefined ? [{ key: 'legacy', label: 'Legacy', info: legacyInfo, href: `/cases/${caseId}/legacy`, icon: MessageSquareText }] : []),
   ]
 
   return (
@@ -42,23 +42,6 @@ export function CaseSubNav({ caseId, processInfo, billingInfo, filesInfo, legacy
           </Link>
         )
       })}
-
-      {legacyInfo !== undefined && onLegacyClick && (
-        <button
-          type="button"
-          onClick={onLegacyClick}
-          className="w-full flex items-center gap-3 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-4 py-3.5 hover:bg-[hsl(var(--color-surface-hover))] transition-colors text-left"
-        >
-          <MessageSquareText className="w-5 h-5 text-[hsl(var(--color-text-secondary))] shrink-0" />
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Legacy</p>
-            {legacyInfo && (
-              <p className="text-xs text-[hsl(var(--color-text-secondary))] truncate mt-0.5">{legacyInfo}</p>
-            )}
-          </div>
-          <ChevronRight className="w-5 h-5 text-[hsl(var(--color-text-muted))] shrink-0" />
-        </button>
-      )}
     </div>
   )
 }

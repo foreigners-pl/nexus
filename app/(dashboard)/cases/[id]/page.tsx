@@ -13,7 +13,6 @@ import { fetchComments } from '@/lib/data'
 import { CaseHeader } from './components/CaseHeader'
 import { AssignedPeople } from './components/AssignedPeople'
 import { CaseSubNav } from './components/CaseSubNav'
-import { CommentsSection } from './components/CommentsSection'
 import type { Case, Client, ContactNumber, Comment } from '@/types/database'
 
 interface CasePageProps {
@@ -32,7 +31,6 @@ export default function CasePage({ params }: CasePageProps) {
   const [paidAmount, setPaidAmount] = useState(0)
   const [fileCount, setFileCount] = useState(0)
   const [comments, setComments] = useState<Comment[]>([])
-  const [legacyOpen, setLegacyOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -102,12 +100,6 @@ export default function CasePage({ params }: CasePageProps) {
     queryClient.invalidateQueries({ queryKey: queryKeys.case(urlId) })
     queryClient.invalidateQueries({ queryKey: queryKeys.case(caseData.id) })
     if (caseData.case_code) queryClient.invalidateQueries({ queryKey: queryKeys.case(caseData.case_code) })
-  }
-
-  const reloadComments = async () => {
-    if (!caseData) return
-    const commentsData = await fetchComments(caseData.id)
-    setComments(commentsData)
   }
 
   const handleCaseUpdate = async () => {
@@ -194,12 +186,7 @@ export default function CasePage({ params }: CasePageProps) {
         billingInfo={`${paidAmount.toFixed(2)} PLN paid`}
         filesInfo={fileCount === 0 ? 'No files' : `${fileCount} file${fileCount === 1 ? '' : 's'}`}
         legacyInfo={comments.length > 0 ? `${comments.length} old note${comments.length === 1 ? '' : 's'}` : undefined}
-        onLegacyClick={() => setLegacyOpen(true)}
       />
-
-      <Modal isOpen={legacyOpen} onClose={() => setLegacyOpen(false)} title="Legacy notes">
-        <CommentsSection caseId={caseData.id} comments={comments} onUpdate={reloadComments} currentUserId={undefined} />
-      </Modal>
 
       {/* Mobile Delete Button - shows at bottom on mobile only */}
       <div className="sm:hidden pb-20">
