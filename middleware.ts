@@ -6,15 +6,22 @@ const protectedPaths = ['/home', '/clients', '/cases', '/board', '/wiki', '/chat
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
 
-  // Server actions (POST) and RSC prefetches skip auth entirely:
+  // Server actions (POST), RSC payloads, and prefetches skip auth entirely:
   // - server actions enforce auth themselves via RLS + their own client
+  // - RSC payloads for client-side navigations carry component trees, not
+  //   sensitive data; protection still applies to real document loads
   // - prefetches carry no sensitive payload; the real navigation re-checks
   // This avoids a Supabase auth network roundtrip per request, which was
   // serializing page loads and flooding slow connections during prefetch bursts.
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     return NextResponse.next({ request })
   }
-  if (request.headers.get('next-router-prefetch') || request.headers.get('purpose') === 'prefetch') {
+  if (
+    request.headers.get('next-router-prefetch') ||
+    request.headers.get('purpose') === 'prefetch' ||
+    request.headers.get('rsc') ||
+    request.headers.get('next-router-state-tree')
+  ) {
     return NextResponse.next({ request })
   }
 

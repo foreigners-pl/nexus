@@ -3,8 +3,8 @@
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query'
-import { getMyOpenTasks } from '@/app/actions/dashboard'
-import { getMyQueries, type MyQuery } from '@/app/actions/workflow'
+import type { MyQuery } from '@/app/actions/workflow'
+import { fetchMyOpenTasks, fetchMyQueries } from '@/lib/data'
 import { MobileBackHeader } from '@/components/mobile/MobileBackHeader'
 import { usePaneLink } from '@/lib/panes'
 import { usePrefetchEntry } from '@/lib/query'
@@ -12,7 +12,7 @@ import { ChevronRight, MessageSquare, Loader2 } from 'lucide-react'
 
 const DAY_MS = 86400000
 
-type Task = Awaited<ReturnType<typeof getMyOpenTasks>>['tasks'][number]
+type Task = Awaited<ReturnType<typeof fetchMyOpenTasks>>['tasks'][number]
 
 function formatDueDate(dateStr: string | null) {
   if (!dateStr) return null
@@ -129,7 +129,7 @@ export function RequestsContent() {
   const { data } = useQuery({
     queryKey: queryKeys.requests,
     queryFn: async () => {
-      const [tasksRes, queriesRes] = await Promise.all([getMyOpenTasks(), getMyQueries()])
+      const [tasksRes, queriesRes] = await Promise.all([fetchMyOpenTasks(), fetchMyQueries()])
       return { tasks: tasksRes.tasks, queries: queriesRes.queries }
     },
     staleTime: 60 * 1000,

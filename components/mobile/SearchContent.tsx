@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { searchClients, type ClientSearchResult } from '@/app/actions/search'
+import { searchClientsQuery, type ClientSearchResult } from '@/lib/data'
 import { usePaneLink } from '@/lib/panes'
 import { Search, Phone, Mail, ChevronRight } from 'lucide-react'
 
@@ -62,7 +62,7 @@ export function SearchContent({ initialQuery = '' }: { initialQuery?: string }) 
 
     setSearching(true)
     debounceRef.current = setTimeout(async () => {
-      const { results } = await searchClients(q, 50)
+      const { results } = await searchClientsQuery(q, 50)
       setResults(results)
       setSearched(true)
       setSearching(false)

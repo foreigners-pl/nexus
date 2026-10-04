@@ -3,9 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { searchClients, type ClientSearchResult } from '@/app/actions/search'
-import { getMyOpenTasks, getCurrentUser } from '@/app/actions/dashboard'
-import { getMyOpenActions, getMyQueries, getCasesMissingActions } from '@/app/actions/workflow'
+import { searchClientsQuery, type ClientSearchResult } from '@/lib/data'
+import { fetchCurrentUser, fetchMyOpenTasks, fetchMyOpenActions, fetchMyQueries, fetchCasesMissingActions } from '@/lib/data'
 import { getRecentClients, type RecentClient } from '@/lib/recent-clients'
 import { usePaneNavigate } from '@/lib/panes'
 import { usePrefetchClientPage, queryKeys } from '@/lib/query'
@@ -49,7 +48,7 @@ export default function MobileHomePage() {
   const { data: requestsData } = useQuery({
     queryKey: queryKeys.requests,
     queryFn: async () => {
-      const [tasksRes, queriesRes] = await Promise.all([getMyOpenTasks(), getMyQueries()])
+      const [tasksRes, queriesRes] = await Promise.all([fetchMyOpenTasks(), fetchMyQueries()])
       return { tasks: tasksRes.tasks, queries: queriesRes.queries }
     },
     staleTime: 60 * 1000,
@@ -57,7 +56,7 @@ export default function MobileHomePage() {
   const { data: actionsData } = useQuery({
     queryKey: queryKeys.myActions,
     queryFn: async () => {
-      const [actionsRes, missingRes] = await Promise.all([getMyOpenActions(), getCasesMissingActions()])
+      const [actionsRes, missingRes] = await Promise.all([fetchMyOpenActions(), fetchCasesMissingActions()])
       return { actions: actionsRes.actions, missing: missingRes.cases }
     },
     staleTime: 60 * 1000,
@@ -89,7 +88,7 @@ export default function MobileHomePage() {
   useEffect(() => {
     setRecentClients(getRecentClients())
 
-    getCurrentUser().then(({ user }) => {
+    fetchCurrentUser().then(({ user }) => {
       setUserName(user?.display_name || user?.email || null)
     })
   }, [])
@@ -108,7 +107,7 @@ export default function MobileHomePage() {
     setSearching(true)
     setDropdownOpen(true)
     debounceRef.current = setTimeout(async () => {
-      const { results } = await searchClients(q, 5)
+      const { results } = await searchClientsQuery(q, 5)
       setResults(results)
       setSearching(false)
     }, 300)

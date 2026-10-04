@@ -3,7 +3,7 @@
 import { use, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query'
-import { getAttachments } from '@/app/actions/attachments'
+import { fetchAttachments } from '@/lib/data'
 import { useCaseHeaderCache, fetchCaseHeaderQuery, fetchAttachmentsQuery } from '@/lib/query'
 import { SubPageHeader } from '@/components/shared/SubPageHeader'
 import { AttachmentsSection } from '../components/AttachmentsSection'
@@ -63,7 +63,7 @@ export default function CaseFilesPage({ params }: FilesPageProps) {
 
   const reloadAttachments = async () => {
     if (!caseData) return
-    const atts = await getAttachments(caseData.id)
+    const atts = await fetchAttachments(caseData.id)
     setAttachments(atts)
     queryClient.setQueryData(queryKeys.attachments(caseData.id), atts)
   }

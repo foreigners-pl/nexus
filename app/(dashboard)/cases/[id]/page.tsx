@@ -9,7 +9,7 @@ import { deleteCase, getCasePageData } from '@/app/actions/cases'
 import { usePaneBack } from '@/lib/panes'
 import { useQueryClient } from '@tanstack/react-query'
 import { useCasePageCache, fetchCasePageQuery, queryKeys } from '@/lib/query'
-import { getComments } from '@/app/actions/comments'
+import { fetchComments } from '@/lib/data'
 import { CaseHeader } from './components/CaseHeader'
 import { AssignedPeople } from './components/AssignedPeople'
 import { CaseSubNav } from './components/CaseSubNav'
@@ -101,7 +101,7 @@ export default function CasePage({ params }: CasePageProps) {
 
   const handleCommentsUpdate = async () => {
     if (!caseData) return
-    const commentsData = await getComments(caseData.id)
+    const commentsData = await fetchComments(caseData.id)
     setComments(commentsData)
     invalidateCaseCache()
   }

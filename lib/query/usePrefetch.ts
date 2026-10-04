@@ -22,6 +22,18 @@ import { getConversations, getMessages } from '@/app/actions/chat'
 import { getAllDashboardData, getWeeklyCases, getWeeklyCards, getWeeklyPayments } from '@/app/actions/dashboard'
 import { getUserBoards, getCasesBoardData } from '@/app/actions/board/core'
 import { getWikiFolders } from '@/app/actions/wiki'
+import { ensureBalanceInstallment } from '@/app/actions/installments'
+
+// Read paths go browser→Supabase directly — no Vercel function hop.
+import {
+  fetchCasePageData,
+  fetchClientPageData,
+  fetchCaseWorkflow,
+  fetchCaseEntry,
+  fetchCaseHeaderData,
+  fetchBillingData,
+  fetchAttachments,
+} from '@/lib/data'
 
 // Client prefetch type
 interface ClientWithPhones {
@@ -458,7 +470,7 @@ export function useClientsCache() {
 // CASE / WORKFLOW / MY-WORK CACHES + INTENT PREFETCH
 // ============================================
 
-type CasePageData = NonNullable<Awaited<ReturnType<typeof import('@/app/actions/cases')['getCasePageData']>>>
+type CasePageData = NonNullable<Awaited<ReturnType<typeof fetchCasePageData>>>
 
 /** Cache for the case detail page bundle. Written under id + code so any URL variant hits it. */
 export function useCasePageCache(idOrCode: string) {
@@ -496,8 +508,7 @@ export function usePrefetchCasePage() {
 }
 
 async function casePageQueryFn(queryClient: ReturnType<typeof useQueryClient>, idOrCode: string) {
-  const { getCasePageData } = await import('@/app/actions/cases')
-  const data = await getCasePageData(idOrCode)
+  const data = await fetchCasePageData(idOrCode)
   if ('case' in data && data.case?.id) {
     queryClient.setQueryData(queryKeys.case(data.case.id), data)
     if (data.case.case_code) queryClient.setQueryData(queryKeys.case(data.case.case_code), data)
@@ -536,8 +547,7 @@ export function usePrefetchClientPage() {
 }
 
 async function clientPageQueryFn(queryClient: ReturnType<typeof useQueryClient>, idOrCode: string) {
-  const { getClientPageData } = await import('@/app/actions/clients')
-  const data = await getClientPageData(idOrCode)
+  const data = await fetchClientPageData(idOrCode)
   if ('client' in data && data.client?.id) {
     queryClient.setQueryData(queryKeys.client(data.client.id), data)
     if (data.client.client_code) queryClient.setQueryData(queryKeys.client(data.client.client_code), data)
@@ -556,10 +566,7 @@ export function fetchClientPageQuery(queryClient: ReturnType<typeof useQueryClie
 export function fetchWorkflowQuery(queryClient: ReturnType<typeof useQueryClient>, caseId: string) {
   return queryClient.fetchQuery({
     queryKey: queryKeys.workflow(caseId),
-    queryFn: async () => {
-      const { getCaseWorkflow } = await import('@/app/actions/workflow')
-      return getCaseWorkflow(caseId)
-    },
+    queryFn: () => fetchCaseWorkflow(caseId),
     staleTime: 0,
   })
 }
@@ -567,10 +574,7 @@ export function fetchWorkflowQuery(queryClient: ReturnType<typeof useQueryClient
 export function fetchEntryQuery(queryClient: ReturnType<typeof useQueryClient>, entryId: string) {
   return queryClient.fetchQuery({
     queryKey: queryKeys.entry(entryId),
-    queryFn: async () => {
-      const { getCaseEntry } = await import('@/app/actions/workflow')
-      return getCaseEntry(entryId)
-    },
+    queryFn: () => fetchCaseEntry(entryId),
     staleTime: 0,
   })
 }
@@ -579,8 +583,7 @@ export function fetchCaseHeaderQuery(queryClient: ReturnType<typeof useQueryClie
   return queryClient.fetchQuery({
     queryKey: queryKeys.caseHeader(idOrCode),
     queryFn: async () => {
-      const { getCaseHeaderData } = await import('@/app/actions/cases')
-      const data = await getCaseHeaderData(idOrCode)
+      const data = await fetchCaseHeaderData(idOrCode)
       if ('caseId' in data && data.caseId) {
         queryClient.setQueryData(queryKeys.caseHeader(data.caseId), data)
       }
@@ -594,8 +597,7 @@ export function fetchBillingQuery(queryClient: ReturnType<typeof useQueryClient>
   return queryClient.fetchQuery({
     queryKey: queryKeys.billing(idOrCode),
     queryFn: async () => {
-      const { getCaseBillingData } = await import('@/app/actions/installments')
-      const data = await getCaseBillingData(idOrCode)
+      const data = await fetchBillingData(idOrCode, ensureBalanceInstallment)
       if ('case' in data && data.case?.id) {
         queryClient.setQueryData(queryKeys.billing(data.case.id), data)
       }
@@ -608,15 +610,12 @@ export function fetchBillingQuery(queryClient: ReturnType<typeof useQueryClient>
 export function fetchAttachmentsQuery(queryClient: ReturnType<typeof useQueryClient>, caseId: string) {
   return queryClient.fetchQuery({
     queryKey: queryKeys.attachments(caseId),
-    queryFn: async () => {
-      const { getAttachments } = await import('@/app/actions/attachments')
-      return getAttachments(caseId)
-    },
+    queryFn: () => fetchAttachments(caseId),
     staleTime: 0,
   })
 }
 
-type WorkflowData = Awaited<ReturnType<typeof import('@/app/actions/workflow')['getCaseWorkflow']>>
+type WorkflowData = Awaited<ReturnType<typeof fetchCaseWorkflow>>
 
 /** Cache for the progress panel's workflow bundle (steps + entries + queries). */
 export function useWorkflowCache(caseId: string) {
@@ -643,10 +642,7 @@ export function usePrefetchWorkflow() {
     (caseId: string) => {
       queryClient.prefetchQuery({
         queryKey: queryKeys.workflow(caseId),
-        queryFn: async () => {
-          const { getCaseWorkflow } = await import('@/app/actions/workflow')
-          return getCaseWorkflow(caseId)
-        },
+        queryFn: () => fetchCaseWorkflow(caseId),
         staleTime: 30 * 1000,
       })
     },
@@ -661,10 +657,7 @@ export function usePrefetchEntry() {
     (entryId: string) => {
       queryClient.prefetchQuery({
         queryKey: queryKeys.entry(entryId),
-        queryFn: async () => {
-          const { getCaseEntry } = await import('@/app/actions/workflow')
-          return getCaseEntry(entryId)
-        },
+        queryFn: () => fetchCaseEntry(entryId),
         staleTime: 5 * 60 * 1000,
       })
     },
@@ -801,17 +794,14 @@ export function useDeepPrefetchClients() {
 
     console.log('[DeepPrefetch] Clients: Prefetching details for', Math.min(cached.length, 20), 'clients')
 
-    // Import getClientPageData dynamically — same shape the client page caches
-    const { getClientPageData } = await import('@/app/actions/clients')
-
-    // Prefetch details for top 20 clients
+    // Prefetch details for top 20 clients — same shape the client page caches
     const topClients = cached.slice(0, 20)
     await Promise.all(
       topClients.map(client =>
         queryClient.prefetchQuery({
           queryKey: queryKeys.client(client.id),
           queryFn: async () => {
-            const result = await getClientPageData(client.id)
+            const result = await fetchClientPageData(client.id)
             if ('client' in result && result.client?.client_code) {
               queryClient.setQueryData(queryKeys.client(result.client.client_code), result)
             }
@@ -839,15 +829,13 @@ export function useDeepPrefetchCases() {
     if (!shouldBulkPrefetch()) return
     hasPrefetched.current = true
 
-    const { getCasePageData } = await import('@/app/actions/cases')
-
     const top = cases.slice(0, 10)
     await Promise.all(
       top.map(c =>
         queryClient.prefetchQuery({
           queryKey: queryKeys.case(c.id),
           queryFn: async () => {
-            const result = await getCasePageData(c.id)
+            const result = await fetchCasePageData(c.id)
             if ('case' in result && result.case?.case_code) {
               queryClient.setQueryData(queryKeys.case(result.case.case_code), result)
             }

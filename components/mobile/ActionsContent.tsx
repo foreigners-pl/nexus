@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query'
-import { getMyOpenActions, getCasesMissingActions, type MyAction, type MissingActionCase } from '@/app/actions/workflow'
+import type { MyAction, MissingActionCase } from '@/app/actions/workflow'
+import { fetchMyOpenActions, fetchCasesMissingActions } from '@/lib/data'
 import { MobileBackHeader } from '@/components/mobile/MobileBackHeader'
 import { usePaneLink } from '@/lib/panes'
 import { usePrefetchEntry, usePrefetchWorkflow } from '@/lib/query'
@@ -89,7 +90,7 @@ export function ActionsContent() {
   const { data } = useQuery({
     queryKey: queryKeys.myActions,
     queryFn: async () => {
-      const [actionsRes, missingRes] = await Promise.all([getMyOpenActions(), getCasesMissingActions()])
+      const [actionsRes, missingRes] = await Promise.all([fetchMyOpenActions(), fetchCasesMissingActions()])
       return { actions: actionsRes.actions, missing: missingRes.cases }
     },
     staleTime: 60 * 1000,
