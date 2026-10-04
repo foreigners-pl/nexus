@@ -9,10 +9,12 @@ import { deleteCase, getCasePageData } from '@/app/actions/cases'
 import { usePaneBack } from '@/lib/panes'
 import { useQueryClient } from '@tanstack/react-query'
 import { useCasePageCache, fetchCasePageQuery, queryKeys } from '@/lib/query'
+import { fetchComments } from '@/lib/data'
 import { CaseHeader } from './components/CaseHeader'
 import { AssignedPeople } from './components/AssignedPeople'
 import { CaseSubNav } from './components/CaseSubNav'
-import type { Case, Client, ContactNumber } from '@/types/database'
+import { CommentsSection } from './components/CommentsSection'
+import type { Case, Client, ContactNumber, Comment } from '@/types/database'
 
 interface CasePageProps {
   params: Promise<{ id: string }>
@@ -29,6 +31,8 @@ export default function CasePage({ params }: CasePageProps) {
   const [currentStepName, setCurrentStepName] = useState('')
   const [paidAmount, setPaidAmount] = useState(0)
   const [fileCount, setFileCount] = useState(0)
+  const [comments, setComments] = useState<Comment[]>([])
+  const [legacyOpen, setLegacyOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -82,6 +86,13 @@ export default function CasePage({ params }: CasePageProps) {
     }
 
     applyData(data)
+
+    // Load legacy comments in background so the Legacy nav row appears if any exist
+    fetchComments(data.case.id).then(commentsData => {
+      if (!isMounted.current) return
+      setComments(commentsData)
+    })
+
     setLoading(false)
   }
 
@@ -91,6 +102,12 @@ export default function CasePage({ params }: CasePageProps) {
     queryClient.invalidateQueries({ queryKey: queryKeys.case(urlId) })
     queryClient.invalidateQueries({ queryKey: queryKeys.case(caseData.id) })
     if (caseData.case_code) queryClient.invalidateQueries({ queryKey: queryKeys.case(caseData.case_code) })
+  }
+
+  const reloadComments = async () => {
+    if (!caseData) return
+    const commentsData = await fetchComments(caseData.id)
+    setComments(commentsData)
   }
 
   const handleCaseUpdate = async () => {
@@ -176,7 +193,13 @@ export default function CasePage({ params }: CasePageProps) {
         processInfo={currentStepName ? `Current: ${currentStepName}` : undefined}
         billingInfo={`${paidAmount.toFixed(2)} PLN paid`}
         filesInfo={fileCount === 0 ? 'No files' : `${fileCount} file${fileCount === 1 ? '' : 's'}`}
+        legacyInfo={comments.length > 0 ? `${comments.length} old note${comments.length === 1 ? '' : 's'}` : undefined}
+        onLegacyClick={() => setLegacyOpen(true)}
       />
+
+      <Modal isOpen={legacyOpen} onClose={() => setLegacyOpen(false)} title="Legacy notes">
+        <CommentsSection caseId={caseData.id} comments={comments} onUpdate={reloadComments} currentUserId={undefined} />
+      </Modal>
 
       {/* Mobile Delete Button - shows at bottom on mobile only */}
       <div className="sm:hidden pb-20">
