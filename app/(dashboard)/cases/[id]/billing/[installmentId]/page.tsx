@@ -432,7 +432,7 @@ export default function InstallmentPage({ params }: InstallmentPageProps) {
                       <Button size="md" variant="outline" className="w-full rounded-xl" onClick={() => openDoc('receipt')}>
                         <Download className="w-4 h-4 mr-1.5" /> Receipt
                       </Button>
-                      <Button size="md" className="bg-green-600 hover:bg-green-700 text-white w-full rounded-xl" onClick={() => handleSendDoc('receipt')} disabled={submitting}>
+                      <Button size="md" className="bg-green-600 hover:bg-green-700 text-white w-full rounded-xl shadow-[0_2px_12px_rgba(22,163,74,0.3)] hover:shadow-[0_4px_16px_rgba(22,163,74,0.4)]" onClick={() => handleSendDoc('receipt')} disabled={submitting}>
                         Send receipt
                       </Button>
                     </div>
@@ -447,7 +447,7 @@ export default function InstallmentPage({ params }: InstallmentPageProps) {
                         <Button size="md" className="flex-1 rounded-xl" onClick={() => setSendModalOpen(true)} disabled={paymentType !== 'manual' && !sendEmail}>Send Invoice</Button>
                       )}
                     </div>
-                    <Button size="md" className="bg-green-600 hover:bg-green-700 text-white w-full rounded-xl" onClick={() => { setPaidDate(new Date().toISOString().slice(0, 10)); setPaidModalOpen(true) }}>Mark as Paid</Button>
+                    <Button size="md" className="bg-green-600 hover:bg-green-700 text-white w-full rounded-xl shadow-[0_2px_12px_rgba(22,163,74,0.3)] hover:shadow-[0_4px_16px_rgba(22,163,74,0.4)]" onClick={() => { setPaidDate(new Date().toISOString().slice(0, 10)); setPaidModalOpen(true) }}>Mark as Paid</Button>
                   </>
                 )}
               </div>
@@ -545,7 +545,7 @@ export default function InstallmentPage({ params }: InstallmentPageProps) {
           </p>
           <div className="flex justify-end gap-3">
             <Button variant="ghost" onClick={() => setPaidModalOpen(false)} disabled={submitting}>Cancel</Button>
-            <Button onClick={handleMarkAsPaid} disabled={submitting} className="bg-green-600 hover:bg-green-700 text-white">
+            <Button onClick={handleMarkAsPaid} disabled={submitting} className="bg-green-600 hover:bg-green-700 text-white shadow-[0_2px_12px_rgba(22,163,74,0.3)] hover:shadow-[0_4px_16px_rgba(22,163,74,0.4)]">
               {submitting ? 'Saving...' : 'Confirm'}
             </Button>
           </div>

@@ -405,7 +405,7 @@ function ActionForm({ caseId, existing, submitLabel, skipLabel = 'Skip', onDone,
         {onComplete && (
           <Button
             onClick={onComplete}
-            className="bg-green-600 hover:bg-green-700 shadow-none"
+            className="bg-green-600 hover:bg-green-700 shadow-[0_2px_12px_rgba(22,163,74,0.3)] hover:shadow-[0_4px_16px_rgba(22,163,74,0.4)]"
           >
             Complete
           </Button>
