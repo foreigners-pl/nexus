@@ -499,6 +499,7 @@ export default function InstallmentPage({ params }: InstallmentPageProps) {
       {canDelete && (
         <DangerZone
           title="Danger zone"
+          description="Deleting this installment cannot be undone."
           buttonText="Delete Installment"
           onDelete={handleDelete}
           disabled={submitting}

@@ -170,6 +170,7 @@ export default function CasePage({ params }: CasePageProps) {
 
       <DangerZone
         title="Danger zone"
+        description="Deleting this case will permanently remove it and all related data. This cannot be undone."
         buttonText="Delete Case"
         onDelete={() => setIsDeleteModalOpen(true)}
         disabled={submitting}

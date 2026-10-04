@@ -245,6 +245,7 @@ export default function ClientPage({ params }: ClientPageProps) {
 
       <DangerZone
         title="Danger zone"
+        description="Deleting this client will permanently remove them and all associated data including notes, phone numbers, cases, and documents. This cannot be undone."
         buttonText="Delete Client"
         onDelete={() => setIsDeleteModalOpen(true)}
         disabled={submitting}
