@@ -202,13 +202,12 @@ export async function getCaseEntry(entryId: string): Promise<{
       .maybeSingle(),
   ])
 
-  // Case header context: service name as title, client · phone · code as subtitle
+  // Case header context: client name as title, service · phone as subtitle
   const caseRow = caseRes.data as any
   let caseTitle: string | null = null
   let caseSubtitle: string | null = null
   if (caseRow) {
-    const svc = caseRow.case_services?.[0]?.services?.name
-    caseTitle = svc || caseRow.case_code || null
+    const svc = caseRow.case_services?.[0]?.services?.name ?? null
     const cl = caseRow.clients
     const clientName = cl ? ([cl.first_name, cl.last_name].filter(Boolean).join(' ') || cl.contact_email) : null
     let phone: string | null = null
@@ -221,7 +220,8 @@ export async function getCaseEntry(entryId: string): Promise<{
         .maybeSingle()
       if (p) phone = `${p.country_code || ''} ${p.number}`.trim()
     }
-    caseSubtitle = [clientName, phone].filter(Boolean).join(' · ') || null
+    caseTitle = clientName || caseRow.case_code || null
+    caseSubtitle = [svc, phone].filter(Boolean).join(' · ') || null
   }
 
   const query = (queryRes.data || null) as CaseQuery | null

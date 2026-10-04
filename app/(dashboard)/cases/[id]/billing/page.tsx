@@ -91,11 +91,12 @@ export default function CaseBillingPage({ params }: BillingPageProps) {
   const clientName = client
     ? [client.first_name, client.last_name].filter(Boolean).join(' ') || client.contact_email
     : null
-  const subtitle = [clientName, clientPhone].filter(Boolean).join(' · ')
+  const serviceName = (caseServices[0] as any)?.services?.name || null
+  const subtitle = [serviceName, clientPhone].filter(Boolean).join(' · ')
 
   return (
     <div className="max-w-3xl mx-auto pb-20">
-      <SubPageHeader backHref={`/cases/${urlId}`} title="Billing" subtitle={subtitle} icon={<Receipt className="w-4 h-4 text-white" />} />
+      <SubPageHeader backHref={`/cases/${urlId}`} title={clientName || caseData.case_code || 'Case'} subtitle={subtitle} icon={<Receipt className="w-4 h-4 text-white" />} />
 
       <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-5 space-y-6">
         <div>

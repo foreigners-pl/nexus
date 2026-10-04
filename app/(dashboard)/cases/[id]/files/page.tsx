@@ -17,6 +17,7 @@ export default function CaseFilesPage({ params }: FilesPageProps) {
   const { id: urlId } = use(params)
   const [caseData, setCaseData] = useState<any>(null)
   const [clientName, setClientName] = useState<string | null>(null)
+  const [headerSub, setHeaderSub] = useState('')
   const [attachments, setAttachments] = useState<CaseAttachment[]>([])
   const [loading, setLoading] = useState(true)
   const isMounted = useRef(true)
@@ -25,14 +26,16 @@ export default function CaseFilesPage({ params }: FilesPageProps) {
   useEffect(() => {
     isMounted.current = true
     ;(async () => {
+      const select = 'id, case_code, client_id, case_services!fk_case_services_case(services(name))'
       const result = urlId.startsWith('C')
-        ? await supabase.from('cases').select('id, case_code, client_id').eq('case_code', urlId).single()
-        : await supabase.from('cases').select('id, case_code, client_id').eq('id', urlId).single()
+        ? await supabase.from('cases').select(select).eq('case_code', urlId).single()
+        : await supabase.from('cases').select(select).eq('id', urlId).single()
       if (!isMounted.current) return
       const caseRow = result.data
       if (!caseRow) { setLoading(false); return }
       setCaseData(caseRow)
 
+      const svc = (caseRow.case_services as any[])?.[0]?.services?.name || null
       if (caseRow.client_id) {
         const [clientRes, phoneRes] = await Promise.all([
           supabase.from('clients').select('first_name, last_name, contact_email').eq('id', caseRow.client_id).single(),
@@ -41,7 +44,10 @@ export default function CaseFilesPage({ params }: FilesPageProps) {
         const c = clientRes.data
         const name = c ? ([c.first_name, c.last_name].filter(Boolean).join(' ') || c.contact_email) : ''
         const phone = phoneRes.data ? `${phoneRes.data.country_code || ''} ${phoneRes.data.number}`.trim() : ''
-        setClientName([name, phone].filter(Boolean).join(' · '))
+        setClientName(name)
+        setHeaderSub([svc, phone].filter(Boolean).join(' · '))
+      } else {
+        setHeaderSub(svc || '')
       }
 
       const atts = await getAttachments(caseRow.id)
@@ -66,11 +72,9 @@ export default function CaseFilesPage({ params }: FilesPageProps) {
   }
   if (!caseData) return <div className="flex items-center justify-center min-h-screen"><p>Case not found</p></div>
 
-  const subtitle = [caseData.case_code, clientName].filter(Boolean).join(' · ')
-
   return (
     <div className="max-w-3xl mx-auto pb-20">
-      <SubPageHeader backHref={`/cases/${urlId}`} title="Files" subtitle={subtitle} icon={<FolderOpen className="w-4 h-4 text-white" />} />
+      <SubPageHeader backHref={`/cases/${urlId}`} title={clientName || caseData.case_code || 'Case'} subtitle={headerSub} icon={<FolderOpen className="w-4 h-4 text-white" />} />
 
       <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-5">
         <div className="flex items-center justify-between mb-4">

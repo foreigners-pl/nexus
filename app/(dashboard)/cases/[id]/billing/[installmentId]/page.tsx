@@ -27,6 +27,7 @@ export default function InstallmentPage({ params }: InstallmentPageProps) {
   const [invoice, setInvoice] = useState<Invoice | null>(null)
   const [caseData, setCaseData] = useState<any>(null)
   const [client, setClient] = useState<any>(null)
+  const [clientPhone, setClientPhone] = useState('')
   const [services, setServices] = useState<any[]>([])
   const [installments, setInstallments] = useState<Installment[]>([])
   const [loading, setLoading] = useState(true)
@@ -69,12 +70,13 @@ export default function InstallmentPage({ params }: InstallmentPageProps) {
     if (!caseRow) { setLoading(false); return }
     setCaseData(caseRow)
 
-    const [instRes, invoiceRes, clientRes, servicesRes, allInstRes] = await Promise.all([
+    const [instRes, invoiceRes, clientRes, servicesRes, allInstRes, phoneRes] = await Promise.all([
       supabase.from('installments').select('*').eq('id', installmentId).eq('case_id', caseRow.id).single(),
       supabase.from('invoices').select('*').eq('installment_id', installmentId).order('created_at', { ascending: false }),
       caseRow.client_id ? supabase.from('clients').select('*').eq('id', caseRow.client_id).single() : Promise.resolve({ data: null }),
       supabase.from('case_services').select('*, services(*)').eq('case_id', caseRow.id),
       supabase.from('installments').select('*').eq('case_id', caseRow.id),
+      caseRow.client_id ? supabase.from('contact_numbers').select('country_code, number').eq('client_id', caseRow.client_id).limit(1).maybeSingle() : Promise.resolve({ data: null }),
     ])
     if (!isMounted.current) return
 
@@ -91,6 +93,7 @@ export default function InstallmentPage({ params }: InstallmentPageProps) {
     setClient(clientRes.data)
     setSendEmail(clientRes.data?.contact_email || '')
     setServices(servicesRes.data || [])
+    if (phoneRes.data) setClientPhone(`${phoneRes.data.country_code || ''} ${phoneRes.data.number}`.trim())
     setInstallments(allInstRes.data || [])
     if (inst?.parent_installment_id) {
       setParentInstallment((allInstRes.data || []).find((i: any) => i.id === inst.parent_installment_id) || null)
@@ -271,8 +274,8 @@ export default function InstallmentPage({ params }: InstallmentPageProps) {
     <div className="max-w-3xl mx-auto pb-20">
       <SubPageHeader
         backHref={`/cases/${urlId}/billing`}
-        title={displayName}
-        subtitle={`${Math.abs(installment.amount || 0).toFixed(2)} PLN · ${statusLabel}`}
+        title={client ? ([client.first_name, client.last_name].filter(Boolean).join(' ') || client.contact_email) : (caseData?.case_code || 'Case')}
+        subtitle={[services[0]?.services?.name, clientPhone, displayName].filter(Boolean).join(' · ')}
         icon={<Receipt className="w-4 h-4 text-white" />}
         action={canDelete && (
           <button

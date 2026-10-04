@@ -56,11 +56,9 @@ export default function CaseProgressPage({ params, searchParams }: ProgressPageP
       if (caseRow) {
         setCaseId(caseRow.id)
 
-        // Title = the case's service name (fallback to case code)
-        const svc = (caseRow.case_services as any[])?.[0]?.services?.name
-        setTitle(svc || caseRow.case_code || 'Case')
+        const svc = (caseRow.case_services as any[])?.[0]?.services?.name || null
 
-        // Subtitle = client name · phone number
+        // Title = client name; subtitle = service · phone
         if (caseRow.client_id) {
           const [clientRes, phoneRes] = await Promise.all([
             supabase.from('clients').select('first_name, last_name, contact_email').eq('id', caseRow.client_id).single(),
@@ -70,7 +68,11 @@ export default function CaseProgressPage({ params, searchParams }: ProgressPageP
           const c = clientRes.data
           const name = c ? ([c.first_name, c.last_name].filter(Boolean).join(' ') || c.contact_email) : ''
           const phone = phoneRes.data ? `${phoneRes.data.country_code || ''} ${phoneRes.data.number}`.trim() : ''
-          setSubtitle([name, phone].filter(Boolean).join(' · '))
+          setTitle(name || caseRow.case_code || 'Case')
+          setSubtitle([svc, phone].filter(Boolean).join(' · '))
+        } else {
+          setTitle(caseRow.case_code || 'Case')
+          setSubtitle(svc || '')
         }
       }
       setLoading(false)
