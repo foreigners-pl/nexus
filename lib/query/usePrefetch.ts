@@ -3,6 +3,19 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useCallback, useRef } from 'react'
 import { queryKeys } from './queryKeys'
+import { isDesktopViewport } from '@/lib/viewport'
+
+// Bulk prefetching helps desktop but floods a phone's connection right when
+// the user is opening a page — skip it on mobile viewports and slow/saver links.
+function shouldBulkPrefetch() {
+  if (typeof navigator !== 'undefined') {
+    const conn = (navigator as any).connection
+    if (conn?.saveData || conn?.effectiveType === 'slow-2g' || conn?.effectiveType === '2g' || conn?.effectiveType === '3g') {
+      return false
+    }
+  }
+  return isDesktopViewport()
+}
 
 // Import server actions
 import { getConversations, getMessages } from '@/app/actions/chat'
@@ -51,6 +64,7 @@ export function usePrefetchOnMount() {
     // Start prefetching quickly but not blocking initial render
     // Use requestIdleCallback if available, otherwise short timeout
     const startPrefetch = () => {
+      if (!shouldBulkPrefetch()) return
       prefetchAllTabs(queryClient)
     }
 
@@ -778,6 +792,7 @@ export function useDeepPrefetchClients() {
 
   const prefetchClientDetails = useCallback(async () => {
     if (hasPrefetched.current) return
+    if (!shouldBulkPrefetch()) return
     hasPrefetched.current = true
 
     const cached = queryClient.getQueryData<ClientWithPhones[]>(queryKeys.clients)
@@ -821,6 +836,7 @@ export function useDeepPrefetchCases() {
 
   const prefetchCaseDetails = useCallback(async (cases: { id: string; case_code?: string | null }[]) => {
     if (hasPrefetched.current || !cases?.length) return
+    if (!shouldBulkPrefetch()) return
     hasPrefetched.current = true
 
     const { getCasePageData } = await import('@/app/actions/cases')

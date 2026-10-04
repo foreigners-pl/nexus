@@ -1,7 +1,29 @@
 ﻿import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+const protectedPaths = ['/home', '/clients', '/cases', '/board', '/wiki', '/chat', '/settings', '/leads', '/mobile', '/requests', '/actions', '/notifications', '/search']
+
 export async function middleware(request: NextRequest) {
+  const path = request.nextUrl.pathname
+
+  // Server actions (POST) and RSC prefetches skip auth entirely:
+  // - server actions enforce auth themselves via RLS + their own client
+  // - prefetches carry no sensitive payload; the real navigation re-checks
+  // This avoids a Supabase auth network roundtrip per request, which was
+  // serializing page loads and flooding slow connections during prefetch bursts.
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return NextResponse.next({ request })
+  }
+  if (request.headers.get('next-router-prefetch') || request.headers.get('purpose') === 'prefetch') {
+    return NextResponse.next({ request })
+  }
+
+  // Auth decision only needed for protected routes, /login and /
+  const isProtectedPath = protectedPaths.some(p => path.startsWith(p))
+  if (!isProtectedPath && path !== '/login' && path !== '/') {
+    return NextResponse.next({ request })
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -33,12 +55,6 @@ export async function middleware(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser()
-
-  // All dashboard routes are protected
-  const protectedPaths = ['/home', '/clients', '/cases', '/board', '/wiki', '/chat', '/settings', '/leads', '/mobile']
-  const isProtectedPath = protectedPaths.some(path =>
-    request.nextUrl.pathname.startsWith(path)
-  )
 
   // Redirect to login if accessing protected route without auth
   if (isProtectedPath && !user) {
