@@ -15,14 +15,14 @@ import {
   type CaseQuery,
 } from '@/app/actions/workflow'
 import { usePaneLink } from '@/lib/panes'
-import { useWorkflowCache } from '@/lib/query'
+import { useQueryClient } from '@tanstack/react-query'
+import { useWorkflowCache, fetchWorkflowQuery } from '@/lib/query'
 import { isDesktopViewport } from '@/lib/viewport'
 import {
   ChevronRight,
   ChevronLeft,
   StickyNote,
   Zap,
-  Loader2,
   AlertTriangle,
   MessageSquare,
 } from 'lucide-react'
@@ -46,7 +46,8 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
   const didInit = useRef(false)
   const touchStartX = useRef<number | null>(null)
   const slideRef = useRef<HTMLDivElement>(null)
-  const { getCached: getCachedWorkflow, setCached: setCachedWorkflow } = useWorkflowCache(caseId)
+  const queryClient = useQueryClient()
+  const { getCached: getCachedWorkflow } = useWorkflowCache(caseId)
 
   const applyData = useCallback((data: Awaited<ReturnType<typeof getCaseWorkflow>>) => {
     setSteps(data.steps)
@@ -62,11 +63,12 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
   }, [])
 
   const load = useCallback(async () => {
-    const data = await getCaseWorkflow(caseId)
+    // fetchQuery joins an in-flight row-hover prefetch; staleTime:0 still
+    // refetches after mutations since load() is also the mutation refresh.
+    const data = await fetchWorkflowQuery(queryClient, caseId)
     applyData(data)
-    setCachedWorkflow(data)
     setLoading(false)
-  }, [caseId, applyData, setCachedWorkflow])
+  }, [caseId, applyData, queryClient])
 
   useEffect(() => {
     const cached = getCachedWorkflow()
@@ -126,8 +128,16 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
 
   if (loading) {
     return (
-      <div className="py-8 flex justify-center text-[hsl(var(--color-text-secondary))]">
-        <Loader2 className="w-5 h-5 animate-spin" />
+      <div className="px-4 md:px-6 space-y-3 animate-pulse">
+        <div className="h-12 rounded-xl bg-[hsl(var(--color-surface-hover))]" />
+        <div className="flex gap-1.5 justify-center py-2">
+          {[0, 1, 2, 3, 4].map(i => (
+            <div key={i} className="w-2 h-2 rounded-full bg-[hsl(var(--color-surface-hover))]" />
+          ))}
+        </div>
+        <div className="h-24 rounded-xl bg-[hsl(var(--color-surface-hover))]" />
+        <div className="h-16 rounded-xl bg-[hsl(var(--color-surface-hover))]" />
+        <div className="h-16 rounded-xl bg-[hsl(var(--color-surface-hover))]" />
       </div>
     )
   }

@@ -9,7 +9,7 @@ import { createClient } from '@/lib/supabase/client'
 import { deleteClient, getClientPageData } from '@/app/actions/clients'
 import { addRecentClient } from '@/lib/recent-clients'
 import { useQueryClient } from '@tanstack/react-query'
-import { queryKeys } from '@/lib/query'
+import { queryKeys, fetchClientPageQuery } from '@/lib/query'
 import { usePaneNavigate } from '@/lib/panes'
 import { ClientHeader } from './components/ClientHeader'
 import { CasesSection } from './components/CasesSection'
@@ -117,13 +117,17 @@ export default function ClientPage({ params }: ClientPageProps) {
       .order('is_pinned', { ascending: false })
       .order('created_at', { ascending: false })
     if (notesData) setNotes(notesData)
+    // Keep the shared client cache fresh for the next mount
+    queryClient.invalidateQueries({ queryKey: queryKeys.client(urlId) })
+    if (client?.id) queryClient.invalidateQueries({ queryKey: queryKeys.client(client.id) })
   }
 
   async function fetchAllData(clientIdParam: string, showLoading = true) {
     if (!clientIdParam) return
     if (showLoading) setLoading(true)
 
-    const data = await getClientPageData(clientIdParam)
+    // fetchQuery joins an in-flight row-hover prefetch instead of duplicating it
+    const data = await fetchClientPageQuery(queryClient, clientIdParam)
     if (!isMounted.current) return
 
     if ('error' in data || !data.client) {
@@ -139,20 +143,6 @@ export default function ClientPage({ params }: ClientPageProps) {
     setCases((data.cases as CaseWithStatus[]) || [])
     setCountryName(data.countryName)
     setCityName(data.cityName)
-
-    // Update cache under both UUID and client_code so any URL variant hits it
-    const payload = {
-      client: data.client,
-      phoneNumbers: data.phoneNumbers || [],
-      notes: data.notes || [],
-      cases: data.cases || [],
-      countryName: data.countryName,
-      cityName: data.cityName,
-    }
-    queryClient.setQueryData(queryKeys.client(data.client.id), payload)
-    if (data.client.client_code) {
-      queryClient.setQueryData(queryKeys.client(data.client.client_code), payload)
-    }
 
     setLoading(false)
   }
@@ -178,8 +168,18 @@ export default function ClientPage({ params }: ClientPageProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-200px)]">
-        <p className="text-[hsl(var(--color-text-secondary))]">Loading client...</p>
+      <div className="space-y-6 animate-pulse">
+        <div className="h-24 rounded-xl bg-[hsl(var(--color-surface-hover))]" />
+        <div className="space-y-1.5">
+          <div className="h-6 w-48 rounded-lg bg-[hsl(var(--color-surface-hover))]" />
+          <div className="h-4 w-64 rounded-lg bg-[hsl(var(--color-surface-hover))]" />
+        </div>
+        <div className="h-14 rounded-xl bg-[hsl(var(--color-surface-hover))]" />
+        <div className="space-y-2">
+          {[0, 1, 2].map(i => (
+            <div key={i} className="h-16 rounded-xl bg-[hsl(var(--color-surface-hover))]" />
+          ))}
+        </div>
       </div>
     )
   }

@@ -3,10 +3,9 @@
 import { use, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useQueryClient } from '@tanstack/react-query'
-import { queryKeys } from '@/lib/query'
+import { queryKeys, fetchBillingQuery } from '@/lib/query'
 import { SubPageHeader } from '@/components/shared/SubPageHeader'
 import { PaymentPanel } from '../components/PaymentPanel'
-import { getCaseBillingData } from '@/app/actions/installments'
 import { Loader2, Receipt } from 'lucide-react'
 
 interface BillingPageProps {
@@ -47,12 +46,10 @@ export default function CaseBillingPage({ params }: BillingPageProps) {
   }
 
   const load = async () => {
-    const data = await getCaseBillingData(urlId)
+    const data = await fetchBillingQuery(queryClient, urlId)
     if (!isMounted.current) return
     if ('error' in data) { setLoading(false); return }
     applyData(data)
-    queryClient.setQueryData(queryKeys.billing(urlId), data)
-    if (data.case?.id) queryClient.setQueryData(queryKeys.billing(data.case.id), data)
     setLoading(false)
   }
 
@@ -75,6 +72,9 @@ export default function CaseBillingPage({ params }: BillingPageProps) {
     if (caseRes.data) setCaseData({ ...caseData, total_price: caseRes.data.total_price })
     setCaseServices(servicesRes.data || [])
     setInstallments(instRes.data || [])
+    // Mutations landed — mark cached bundle stale so the next mount refetches
+    queryClient.invalidateQueries({ queryKey: queryKeys.billing(urlId) })
+    queryClient.invalidateQueries({ queryKey: queryKeys.billing(caseData.id) })
   }
 
   if (loading) {

@@ -12,7 +12,7 @@ import {
 } from '@/app/actions/workflow'
 import { SubPageHeader } from '@/components/shared/SubPageHeader'
 import { useQueryClient } from '@tanstack/react-query'
-import { queryKeys } from '@/lib/query'
+import { queryKeys, fetchEntryQuery } from '@/lib/query'
 import {
   Loader2,
   StickyNote,
@@ -64,9 +64,10 @@ export default function EntryPage({ params }: { params: Promise<{ id: string; en
   }, [])
 
   const load = useCallback(async () => {
-    const d = await getCaseEntry(entryId)
+    // fetchQuery joins an in-flight row-hover prefetch; staleTime:0 keeps
+    // post-mutation refreshes (replies, closes) fetching fresh data.
+    const d = await fetchEntryQuery(queryClient, entryId)
     applyData(d)
-    queryClient.setQueryData(queryKeys.entry(entryId), d)
     setLoading(false)
   }, [entryId, applyData, queryClient])
 

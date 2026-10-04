@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { deleteCase, getCasePageData } from '@/app/actions/cases'
 import { usePaneBack } from '@/lib/panes'
-import { useCasePageCache } from '@/lib/query'
+import { useQueryClient } from '@tanstack/react-query'
+import { useCasePageCache, fetchCasePageQuery, queryKeys } from '@/lib/query'
 import { getComments } from '@/app/actions/comments'
 import { CaseHeader } from './components/CaseHeader'
 import { AssignedPeople } from './components/AssignedPeople'
@@ -39,7 +40,8 @@ export default function CasePage({ params }: CasePageProps) {
   const paneBack = usePaneBack()
   const supabase = createClient()
   const isMounted = useRef(true)
-  const { getCached: getCachedCase, setCached: setCachedCase } = useCasePageCache(urlId)
+  const queryClient = useQueryClient()
+  const { getCached: getCachedCase } = useCasePageCache(urlId)
 
   useEffect(() => {
     isMounted.current = true
@@ -75,7 +77,8 @@ export default function CasePage({ params }: CasePageProps) {
     if (!caseIdParam) return
     if (showLoading) setLoading(true)
 
-    const data = await getCasePageData(caseIdParam)
+    // fetchQuery joins an in-flight row-hover prefetch instead of duplicating it
+    const data = await fetchCasePageQuery(queryClient, caseIdParam)
     if (!isMounted.current) return
 
     if ('error' in data || !('case' in data) || !data.case) {
@@ -85,15 +88,22 @@ export default function CasePage({ params }: CasePageProps) {
     }
 
     applyData(data)
-    setCachedCase(data)
     setLoading(false)
   }
 
   // Optimistic update handlers - only refetch what changed
+  const invalidateCaseCache = () => {
+    if (!caseData) return
+    queryClient.invalidateQueries({ queryKey: queryKeys.case(urlId) })
+    queryClient.invalidateQueries({ queryKey: queryKeys.case(caseData.id) })
+    if (caseData.case_code) queryClient.invalidateQueries({ queryKey: queryKeys.case(caseData.case_code) })
+  }
+
   const handleCommentsUpdate = async () => {
     if (!caseData) return
     const commentsData = await getComments(caseData.id)
     setComments(commentsData)
+    invalidateCaseCache()
   }
 
   const handleCaseUpdate = async () => {
@@ -104,6 +114,7 @@ export default function CasePage({ params }: CasePageProps) {
       .eq('id', caseData.id)
       .single()
     if (updatedCase) setCaseData(updatedCase)
+    invalidateCaseCache()
   }
 
   const handleDelete = async () => {
@@ -123,7 +134,23 @@ export default function CasePage({ params }: CasePageProps) {
     }
   }
 
-  if (loading) return <div className="flex items-center justify-center min-h-screen"><p>Loading...</p></div>
+  if (loading) {
+    return (
+      <div className="space-y-6 animate-pulse">
+        <div className="h-24 rounded-xl bg-[hsl(var(--color-surface-hover))]" />
+        <div className="space-y-1.5">
+          <div className="h-6 w-48 rounded-lg bg-[hsl(var(--color-surface-hover))]" />
+          <div className="h-4 w-64 rounded-lg bg-[hsl(var(--color-surface-hover))]" />
+        </div>
+        <div className="space-y-2">
+          {[0, 1, 2].map(i => (
+            <div key={i} className="h-14 rounded-xl bg-[hsl(var(--color-surface-hover))]" />
+          ))}
+        </div>
+        <div className="h-40 rounded-xl bg-[hsl(var(--color-surface-hover))]" />
+      </div>
+    )
+  }
   if (!caseData) return <div className="flex items-center justify-center min-h-screen"><p>Case not found</p></div>
 
   return (

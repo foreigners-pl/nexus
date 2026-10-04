@@ -4,8 +4,7 @@ import { use, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query'
 import { getAttachments } from '@/app/actions/attachments'
-import { getCaseHeaderData } from '@/app/actions/cases'
-import { useCaseHeaderCache } from '@/lib/query'
+import { useCaseHeaderCache, fetchCaseHeaderQuery, fetchAttachmentsQuery } from '@/lib/query'
 import { SubPageHeader } from '@/components/shared/SubPageHeader'
 import { AttachmentsSection } from '../components/AttachmentsSection'
 import { Button } from '@/components/ui/Button'
@@ -25,7 +24,7 @@ export default function CaseFilesPage({ params }: FilesPageProps) {
   const [loading, setLoading] = useState(true)
   const isMounted = useRef(true)
   const queryClient = useQueryClient()
-  const { getCached: getCachedHeader, setCached: setCachedHeader } = useCaseHeaderCache(urlId)
+  const { getCached: getCachedHeader } = useCaseHeaderCache(urlId)
 
   useEffect(() => {
     isMounted.current = true
@@ -42,23 +41,21 @@ export default function CaseFilesPage({ params }: FilesPageProps) {
         }
       }
 
-      const header = await getCaseHeaderData(urlId)
+      const header = await fetchCaseHeaderQuery(queryClient, urlId)
       if (!isMounted.current) return
       if ('error' in header) { setLoading(false); return }
       setCaseData({ id: header.caseId, client_id: header.clientId, case_code: urlId.startsWith('C') ? urlId : undefined })
       setClientName(header.title)
       setHeaderSub(header.subtitle)
-      setCachedHeader(header)
 
       const cachedAtts = queryClient.getQueryData<CaseAttachment[]>(queryKeys.attachments(header.caseId))
       if (cachedAtts) {
         setAttachments(cachedAtts)
         setLoading(false)
       }
-      const atts = await getAttachments(header.caseId)
+      const atts = await fetchAttachmentsQuery(queryClient, header.caseId)
       if (!isMounted.current) return
       setAttachments(atts)
-      queryClient.setQueryData(queryKeys.attachments(header.caseId), atts)
       setLoading(false)
     })()
     return () => { isMounted.current = false }

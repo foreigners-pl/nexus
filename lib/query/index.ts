@@ -28,5 +28,13 @@ export {
   useCaseHeaderCache,
   usePrefetchWorkflow,
   usePrefetchEntry,
-  useDeepPrefetchCases
+  useDeepPrefetchCases,
+  // fetch-through-cache helpers (join in-flight prefetches)
+  fetchCasePageQuery,
+  fetchClientPageQuery,
+  fetchWorkflowQuery,
+  fetchEntryQuery,
+  fetchCaseHeaderQuery,
+  fetchBillingQuery,
+  fetchAttachmentsQuery
 } from './usePrefetch'

@@ -4,10 +4,10 @@ import { use, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { StepsPanel } from '../components/StepsPanel'
 import { getEntryIdForQuery } from '@/app/actions/workflow'
-import { getCaseHeaderData } from '@/app/actions/cases'
-import { useCaseHeaderCache } from '@/lib/query'
+import { useQueryClient } from '@tanstack/react-query'
+import { useCaseHeaderCache, fetchCaseHeaderQuery } from '@/lib/query'
 import { SubPageHeader } from '@/components/shared/SubPageHeader'
-import { Loader2, ListChecks } from 'lucide-react'
+import { ListChecks } from 'lucide-react'
 
 interface ProgressPageProps {
   params: Promise<{ id: string }>
@@ -25,7 +25,8 @@ export default function CaseProgressPage({ params, searchParams }: ProgressPageP
   const [loading, setLoading] = useState(true)
   const [redirecting, setRedirecting] = useState(!!(focusQueryId || focusEntryId))
   const isMounted = useRef(true)
-  const { getCached: getCachedHeader, setCached: setCachedHeader } = useCaseHeaderCache(urlId)
+  const queryClient = useQueryClient()
+  const { getCached: getCachedHeader } = useCaseHeaderCache(urlId)
 
   // Legacy deep links (?e=entry / ?q=query) → straight to the entry page
   useEffect(() => {
@@ -58,7 +59,7 @@ export default function CaseProgressPage({ params, searchParams }: ProgressPageP
     }
 
     ;(async () => {
-      const data = await getCaseHeaderData(urlId)
+      const data = await fetchCaseHeaderQuery(queryClient, urlId)
       if (!isMounted.current) return
       if ('error' in data) {
         setLoading(false)
@@ -68,7 +69,6 @@ export default function CaseProgressPage({ params, searchParams }: ProgressPageP
       setClientId(data.clientId)
       setTitle(data.title)
       setSubtitle(data.subtitle)
-      setCachedHeader(data)
       setLoading(false)
     })()
     return () => { isMounted.current = false }
@@ -76,8 +76,13 @@ export default function CaseProgressPage({ params, searchParams }: ProgressPageP
 
   if (redirecting || loading) {
     return (
-      <div className="flex justify-center py-16 text-[hsl(var(--color-text-secondary))]">
-        <Loader2 className="w-6 h-6 animate-spin" />
+      <div className="max-w-3xl mx-auto pb-20">
+        <div className="animate-pulse space-y-4">
+          <div className="h-10 w-56 rounded-lg bg-[hsl(var(--color-surface-hover))]" />
+          <div className="h-4 w-40 rounded-lg bg-[hsl(var(--color-surface-hover))]" />
+          <div className="h-24 rounded-xl bg-[hsl(var(--color-surface-hover))] mt-6" />
+          <div className="h-16 rounded-xl bg-[hsl(var(--color-surface-hover))]" />
+        </div>
       </div>
     )
   }

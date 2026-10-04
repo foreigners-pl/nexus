@@ -450,8 +450,8 @@ export default function CasesPage() {
               <div
                 key={caseItem.id}
                 onClick={() => goCase(`/cases/${caseItem.case_code || caseItem.id}`)}
-                onMouseEnter={() => prefetchCase(caseItem.id)}
-                onTouchStart={() => prefetchCase(caseItem.id)}
+                onMouseEnter={() => { prefetchCase(caseItem.id); router.prefetch(`/cases/${caseItem.case_code || caseItem.id}`) }}
+                onTouchStart={() => { prefetchCase(caseItem.id); router.prefetch(`/cases/${caseItem.case_code || caseItem.id}`) }}
                 className="p-4 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl hover:bg-[hsl(var(--color-surface-hover))] transition-colors active:scale-[0.98] cursor-pointer"
               >
                 <div className="flex items-center justify-between gap-3">

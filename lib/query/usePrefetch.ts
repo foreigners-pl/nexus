@@ -473,20 +473,37 @@ export function usePrefetchCasePage() {
     (idOrCode: string) => {
       queryClient.prefetchQuery({
         queryKey: queryKeys.case(idOrCode),
-        queryFn: async () => {
-          const { getCasePageData } = await import('@/app/actions/cases')
-          const data = await getCasePageData(idOrCode)
-          if ('case' in data && data.case?.id) {
-            queryClient.setQueryData(queryKeys.case(data.case.id), data)
-            if (data.case.case_code) queryClient.setQueryData(queryKeys.case(data.case.case_code), data)
-          }
-          return data
-        },
+        queryFn: () => casePageQueryFn(queryClient, idOrCode),
         staleTime: 5 * 60 * 1000,
       })
     },
     [queryClient]
   )
+}
+
+async function casePageQueryFn(queryClient: ReturnType<typeof useQueryClient>, idOrCode: string) {
+  const { getCasePageData } = await import('@/app/actions/cases')
+  const data = await getCasePageData(idOrCode)
+  if ('case' in data && data.case?.id) {
+    queryClient.setQueryData(queryKeys.case(data.case.id), data)
+    if (data.case.case_code) queryClient.setQueryData(queryKeys.case(data.case.case_code), data)
+  }
+  return data
+}
+
+/**
+ * Fetch the case page bundle through the query cache — joins an in-flight
+ * hover/touch prefetch instead of firing a duplicate request, and returns
+ * fresh cached data instantly on revisits.
+ */
+// Page-level fetches use a short 30s freshness: a just-completed hover prefetch
+// renders instantly with no duplicate request; older data revalidates on mount.
+export function fetchCasePageQuery(queryClient: ReturnType<typeof useQueryClient>, idOrCode: string) {
+  return queryClient.fetchQuery({
+    queryKey: queryKeys.case(idOrCode),
+    queryFn: () => casePageQueryFn(queryClient, idOrCode),
+    staleTime: 30 * 1000,
+  })
 }
 
 /** Prefetch a client detail bundle on hover/touch of a client row. */
@@ -496,20 +513,93 @@ export function usePrefetchClientPage() {
     (idOrCode: string) => {
       queryClient.prefetchQuery({
         queryKey: queryKeys.client(idOrCode),
-        queryFn: async () => {
-          const { getClientPageData } = await import('@/app/actions/clients')
-          const data = await getClientPageData(idOrCode)
-          if ('client' in data && data.client?.id) {
-            queryClient.setQueryData(queryKeys.client(data.client.id), data)
-            if (data.client.client_code) queryClient.setQueryData(queryKeys.client(data.client.client_code), data)
-          }
-          return data
-        },
+        queryFn: () => clientPageQueryFn(queryClient, idOrCode),
         staleTime: 5 * 60 * 1000,
       })
     },
     [queryClient]
   )
+}
+
+async function clientPageQueryFn(queryClient: ReturnType<typeof useQueryClient>, idOrCode: string) {
+  const { getClientPageData } = await import('@/app/actions/clients')
+  const data = await getClientPageData(idOrCode)
+  if ('client' in data && data.client?.id) {
+    queryClient.setQueryData(queryKeys.client(data.client.id), data)
+    if (data.client.client_code) queryClient.setQueryData(queryKeys.client(data.client.client_code), data)
+  }
+  return data
+}
+
+export function fetchClientPageQuery(queryClient: ReturnType<typeof useQueryClient>, idOrCode: string) {
+  return queryClient.fetchQuery({
+    queryKey: queryKeys.client(idOrCode),
+    queryFn: () => clientPageQueryFn(queryClient, idOrCode),
+    staleTime: 30 * 1000,
+  })
+}
+
+export function fetchWorkflowQuery(queryClient: ReturnType<typeof useQueryClient>, caseId: string) {
+  return queryClient.fetchQuery({
+    queryKey: queryKeys.workflow(caseId),
+    queryFn: async () => {
+      const { getCaseWorkflow } = await import('@/app/actions/workflow')
+      return getCaseWorkflow(caseId)
+    },
+    staleTime: 0,
+  })
+}
+
+export function fetchEntryQuery(queryClient: ReturnType<typeof useQueryClient>, entryId: string) {
+  return queryClient.fetchQuery({
+    queryKey: queryKeys.entry(entryId),
+    queryFn: async () => {
+      const { getCaseEntry } = await import('@/app/actions/workflow')
+      return getCaseEntry(entryId)
+    },
+    staleTime: 0,
+  })
+}
+
+export function fetchCaseHeaderQuery(queryClient: ReturnType<typeof useQueryClient>, idOrCode: string) {
+  return queryClient.fetchQuery({
+    queryKey: queryKeys.caseHeader(idOrCode),
+    queryFn: async () => {
+      const { getCaseHeaderData } = await import('@/app/actions/cases')
+      const data = await getCaseHeaderData(idOrCode)
+      if ('caseId' in data && data.caseId) {
+        queryClient.setQueryData(queryKeys.caseHeader(data.caseId), data)
+      }
+      return data
+    },
+    staleTime: 30 * 1000,
+  })
+}
+
+export function fetchBillingQuery(queryClient: ReturnType<typeof useQueryClient>, idOrCode: string) {
+  return queryClient.fetchQuery({
+    queryKey: queryKeys.billing(idOrCode),
+    queryFn: async () => {
+      const { getCaseBillingData } = await import('@/app/actions/installments')
+      const data = await getCaseBillingData(idOrCode)
+      if ('case' in data && data.case?.id) {
+        queryClient.setQueryData(queryKeys.billing(data.case.id), data)
+      }
+      return data
+    },
+    staleTime: 30 * 1000,
+  })
+}
+
+export function fetchAttachmentsQuery(queryClient: ReturnType<typeof useQueryClient>, caseId: string) {
+  return queryClient.fetchQuery({
+    queryKey: queryKeys.attachments(caseId),
+    queryFn: async () => {
+      const { getAttachments } = await import('@/app/actions/attachments')
+      return getAttachments(caseId)
+    },
+    staleTime: 0,
+  })
 }
 
 type WorkflowData = Awaited<ReturnType<typeof import('@/app/actions/workflow')['getCaseWorkflow']>>
@@ -543,7 +633,7 @@ export function usePrefetchWorkflow() {
           const { getCaseWorkflow } = await import('@/app/actions/workflow')
           return getCaseWorkflow(caseId)
         },
-        staleTime: 5 * 60 * 1000,
+        staleTime: 30 * 1000,
       })
     },
     [queryClient]
