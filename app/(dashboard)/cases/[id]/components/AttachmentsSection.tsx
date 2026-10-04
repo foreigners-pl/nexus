@@ -178,27 +178,29 @@ export function AttachmentsSection({ caseId, attachments, onUpdate, onAddClick }
             </div>
 
             <div className="space-y-2">
-              <button
+              <Button
                 onClick={() => { handleView(selected) }}
-                className="w-full h-11 rounded-xl bg-[hsl(var(--color-primary))] text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[hsl(var(--color-primary-hover))] active:bg-[hsl(var(--color-primary-hover))]"
+                className="w-full gap-2"
               >
                 <Eye className="w-4 h-4" />
                 Open
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="secondary"
                 onClick={() => { handleDownload(selected) }}
-                className="w-full h-11 rounded-xl bg-[hsl(var(--color-surface-active))] text-[hsl(var(--color-text-primary))] text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[hsl(var(--color-border))] active:bg-[hsl(var(--color-border))]"
+                className="w-full gap-2"
               >
                 <Download className="w-4 h-4" />
                 Download
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
                 onClick={() => { setSelected(null); handleDelete(selected) }}
-                className="w-full h-11 rounded-xl bg-red-500/15 text-red-400 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-red-500/25 active:bg-red-500/25"
+                className="w-full gap-2 text-red-400 hover:bg-red-500/10"
               >
                 <Trash2 className="w-4 h-4" />
                 Delete
-              </button>
+              </Button>
             </div>
           </div>
         )}

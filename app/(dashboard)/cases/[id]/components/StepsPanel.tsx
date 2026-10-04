@@ -201,12 +201,9 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
           )}
 
           {!isActive && (
-            <button
-              onClick={() => handleMove(s.id)}
-              className="w-full h-10 rounded-xl bg-[hsl(var(--color-primary))] text-white text-sm font-semibold active:bg-[hsl(var(--color-primary-hover))]"
-            >
+            <Button onClick={() => handleMove(s.id)} className="w-full">
               Move to this step
-            </button>
+            </Button>
           )}
 
           {isActive && <EntryComposer caseId={caseId} onAdded={load} />}
@@ -398,28 +395,25 @@ function ActionForm({ caseId, existing, submitLabel, skipLabel = 'Skip', onDone,
       </div>
       {error && <p className="text-xs text-red-400">{error}</p>}
       <div className="flex gap-2">
-        <button
+        <Button
           onClick={submit}
           disabled={saving || !body.trim() || !dueDate}
-          className="flex-1 h-9 rounded-xl bg-[hsl(var(--color-primary))] text-white text-sm font-semibold disabled:opacity-40 active:bg-[hsl(var(--color-primary-hover))]"
+          className="flex-1"
         >
           {saving ? 'Saving…' : submitLabel}
-        </button>
+        </Button>
         {onComplete && (
-          <button
+          <Button
             onClick={onComplete}
-            className="h-9 px-3 rounded-xl bg-green-600 text-white text-sm font-semibold active:bg-green-700"
+            className="bg-green-600 hover:bg-green-700 shadow-none"
           >
             Complete
-          </button>
+          </Button>
         )}
         {onSkip && (
-          <button
-            onClick={onSkip}
-            className="px-4 h-9 rounded-xl bg-[hsl(var(--color-surface-active))] text-sm text-[hsl(var(--color-text-secondary))]"
-          >
+          <Button variant="secondary" onClick={onSkip}>
             {skipLabel}
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -457,20 +451,21 @@ function EntryComposer({ caseId, onAdded }: { caseId: string; onAdded: () => voi
   return (
     <div className="py-1">
       <div className="flex gap-2">
-        <button
+        <Button
+          variant="secondary"
           onClick={() => open('note')}
-          className="flex-1 h-10 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 bg-[hsl(var(--color-surface-active))] text-[hsl(var(--color-text-secondary))] hover:bg-[hsl(var(--color-border))]"
+          className="flex-1 gap-2"
         >
           <StickyNote className="w-4 h-4" />
           Note
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={() => open('query')}
-          className="flex-1 h-10 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 bg-[hsl(var(--color-primary))] text-white hover:bg-[hsl(var(--color-primary-hover))]"
+          className="flex-1 gap-2"
         >
           <MessageSquare className="w-4 h-4" />
           Request
-        </button>
+        </Button>
       </div>
       <Modal isOpen={kind !== null} onClose={close} title={kind === 'note' ? 'Add note' : 'New request'}>
         <div className="space-y-4">
