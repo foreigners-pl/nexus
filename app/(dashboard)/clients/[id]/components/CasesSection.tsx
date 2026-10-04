@@ -10,6 +10,7 @@ import { addCase } from '@/app/actions/cases'
 import { getAllServices } from '@/app/actions/services'
 import { createClient } from '@/lib/supabase/client'
 import { usePaneNavigate } from '@/lib/panes'
+import { usePrefetchCasePage } from '@/lib/query'
 import type { Case, Status, User } from '@/types/database'
 
 interface CaseWithStatus extends Case {
@@ -31,6 +32,7 @@ interface CasesSectionProps {
 
 export function CasesSection({ clientId, cases, onCaseAdded }: CasesSectionProps) {
   const paneNav = usePaneNavigate()
+  const prefetchCase = usePrefetchCasePage()
   const [submitting, setSubmitting] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [services, setServices] = useState<{ id: string; name: string }[]>([])
@@ -160,6 +162,8 @@ export function CasesSection({ clientId, cases, onCaseAdded }: CasesSectionProps
                 key={caseItem.id}
                 href={href}
                 onClick={(e) => { if (paneNav(href)) e.preventDefault() }}
+                onMouseEnter={() => prefetchCase(caseItem.id)}
+                onTouchStart={() => prefetchCase(caseItem.id)}
                 className="flex items-center gap-3 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-4 py-3.5 hover:bg-[hsl(var(--color-surface-hover))] transition-colors"
               >
                 <div className="min-w-0 flex-1">

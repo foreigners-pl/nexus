@@ -1,8 +1,11 @@
 'use client'
 
 import { use, useEffect, useRef, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useQueryClient } from '@tanstack/react-query'
+import { queryKeys } from '@/lib/query'
 import { getAttachments } from '@/app/actions/attachments'
+import { getCaseHeaderData } from '@/app/actions/cases'
+import { useCaseHeaderCache } from '@/lib/query'
 import { SubPageHeader } from '@/components/shared/SubPageHeader'
 import { AttachmentsSection } from '../components/AttachmentsSection'
 import { Button } from '@/components/ui/Button'
@@ -21,38 +24,41 @@ export default function CaseFilesPage({ params }: FilesPageProps) {
   const [attachments, setAttachments] = useState<CaseAttachment[]>([])
   const [loading, setLoading] = useState(true)
   const isMounted = useRef(true)
-  const supabase = createClient()
+  const queryClient = useQueryClient()
+  const { getCached: getCachedHeader, setCached: setCachedHeader } = useCaseHeaderCache(urlId)
 
   useEffect(() => {
     isMounted.current = true
     ;(async () => {
-      const select = 'id, case_code, client_id, case_services!fk_case_services_case(services(name))'
-      const result = urlId.startsWith('C')
-        ? await supabase.from('cases').select(select).eq('case_code', urlId).single()
-        : await supabase.from('cases').select(select).eq('id', urlId).single()
-      if (!isMounted.current) return
-      const caseRow = result.data
-      if (!caseRow) { setLoading(false); return }
-      setCaseData(caseRow)
-
-      const svc = (caseRow.case_services as any[])?.[0]?.services?.name || null
-      if (caseRow.client_id) {
-        const [clientRes, phoneRes] = await Promise.all([
-          supabase.from('clients').select('first_name, last_name, contact_email').eq('id', caseRow.client_id).single(),
-          supabase.from('contact_numbers').select('country_code, number').eq('client_id', caseRow.client_id).limit(1).maybeSingle(),
-        ])
-        const c = clientRes.data
-        const name = c ? ([c.first_name, c.last_name].filter(Boolean).join(' ') || c.contact_email) : ''
-        const phone = phoneRes.data ? `${phoneRes.data.country_code || ''} ${phoneRes.data.number}`.trim() : ''
-        setClientName(name)
-        setHeaderSub([svc, phone].filter(Boolean).join(' · '))
-      } else {
-        setHeaderSub(svc || '')
+      const cachedHeader = getCachedHeader()
+      if (cachedHeader?.caseId) {
+        setCaseData({ id: cachedHeader.caseId, client_id: cachedHeader.clientId })
+        setClientName(cachedHeader.title)
+        setHeaderSub(cachedHeader.subtitle)
+        const cachedAtts = queryClient.getQueryData<CaseAttachment[]>(queryKeys.attachments(cachedHeader.caseId))
+        if (cachedAtts) {
+          setAttachments(cachedAtts)
+          setLoading(false)
+        }
       }
 
-      const atts = await getAttachments(caseRow.id)
+      const header = await getCaseHeaderData(urlId)
+      if (!isMounted.current) return
+      if ('error' in header) { setLoading(false); return }
+      setCaseData({ id: header.caseId, client_id: header.clientId, case_code: urlId.startsWith('C') ? urlId : undefined })
+      setClientName(header.title)
+      setHeaderSub(header.subtitle)
+      setCachedHeader(header)
+
+      const cachedAtts = queryClient.getQueryData<CaseAttachment[]>(queryKeys.attachments(header.caseId))
+      if (cachedAtts) {
+        setAttachments(cachedAtts)
+        setLoading(false)
+      }
+      const atts = await getAttachments(header.caseId)
       if (!isMounted.current) return
       setAttachments(atts)
+      queryClient.setQueryData(queryKeys.attachments(header.caseId), atts)
       setLoading(false)
     })()
     return () => { isMounted.current = false }
@@ -60,7 +66,9 @@ export default function CaseFilesPage({ params }: FilesPageProps) {
 
   const reloadAttachments = async () => {
     if (!caseData) return
-    setAttachments(await getAttachments(caseData.id))
+    const atts = await getAttachments(caseData.id)
+    setAttachments(atts)
+    queryClient.setQueryData(queryKeys.attachments(caseData.id), atts)
   }
 
   if (loading) {

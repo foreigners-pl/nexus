@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { usePrefetchClientPage } from '@/lib/query'
 import type { Client } from '@/types/database'
 import type { ClientFilters } from '../page'
 
@@ -44,13 +45,15 @@ function useDebounce<T>(value: T, delay: number): T {
 
 // Mobile Client Card Component
 function ClientCard({ client }: { client: ClientWithPhones }) {
+  const prefetchClient = usePrefetchClientPage()
   const primaryPhone = client.contact_numbers?.[0]
   const phoneDisplay = primaryPhone 
     ? (primaryPhone.country_code ? `${primaryPhone.country_code} ${primaryPhone.number}` : primaryPhone.number)
     : null
+  const href = `/clients/${client.client_code || client.id}`
 
   return (
-    <Link href={`/clients/${client.client_code || client.id}`}>
+    <Link href={href} onTouchStart={() => prefetchClient(client.id)}>
       <div className="p-4 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl hover:bg-[hsl(var(--color-surface-hover))] transition-colors active:scale-[0.98]">
         <div className="flex items-center justify-between gap-3">
           <div className="flex-1 min-w-0">
@@ -100,6 +103,7 @@ export function ClientsTable({ clients, loading, loadingMore, isSearching, onLoa
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const prefetchClient = usePrefetchClientPage()
   const [datePickerPosition, setDatePickerPosition] = useState({ top: 0, left: 0 })
   const tableRef = useRef<HTMLDivElement>(null)
   const datePickerRef = useRef<HTMLDivElement>(null)
@@ -472,6 +476,7 @@ export function ClientsTable({ clients, loading, loadingMore, isSearching, onLoa
               ) : sortedClients.map((client, index) => (
                 <tr
                   key={client.id}
+                  onMouseEnter={() => prefetchClient(client.id)}
                   className="hover:bg-[hsl(var(--color-surface-hover))] transition-all duration-200 group"
                   style={{ animationDelay: `${index * 20}ms` }}
                 >

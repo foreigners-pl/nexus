@@ -15,6 +15,7 @@ import {
   type CaseQuery,
 } from '@/app/actions/workflow'
 import { usePaneLink } from '@/lib/panes'
+import { useWorkflowCache } from '@/lib/query'
 import { isDesktopViewport } from '@/lib/viewport'
 import {
   ChevronRight,
@@ -45,23 +46,36 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
   const didInit = useRef(false)
   const touchStartX = useRef<number | null>(null)
   const slideRef = useRef<HTMLDivElement>(null)
+  const { getCached: getCachedWorkflow, setCached: setCachedWorkflow } = useWorkflowCache(caseId)
 
-  const load = useCallback(async () => {
-    const data = await getCaseWorkflow(caseId)
+  const applyData = useCallback((data: Awaited<ReturnType<typeof getCaseWorkflow>>) => {
     setSteps(data.steps)
     setEntries(data.entries)
     setQueries(data.queries)
     setCurrentStepId(data.currentStepId)
     setOpenAction(data.openAction)
-    setLoading(false)
     if (!didInit.current) {
       const idx = data.steps.findIndex(s => s.id === data.currentStepId)
       setViewIdx(idx >= 0 ? idx : 0)
       didInit.current = true
     }
-  }, [caseId])
+  }, [])
 
-  useEffect(() => { load() }, [load])
+  const load = useCallback(async () => {
+    const data = await getCaseWorkflow(caseId)
+    applyData(data)
+    setCachedWorkflow(data)
+    setLoading(false)
+  }, [caseId, applyData, setCachedWorkflow])
+
+  useEffect(() => {
+    const cached = getCachedWorkflow()
+    if (cached) {
+      applyData(cached)
+      setLoading(false)
+    }
+    load() // always refresh; silent when cache already rendered
+  }, [load])
 
   const handleMove = async (stepId: string) => {
     await moveToStep(caseId, stepId)

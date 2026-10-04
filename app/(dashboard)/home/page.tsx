@@ -8,6 +8,8 @@ import { getMyOpenTasks, getCurrentUser } from '@/app/actions/dashboard'
 import { getMyOpenActions, getMyQueries, getCasesMissingActions } from '@/app/actions/workflow'
 import { getRecentClients, type RecentClient } from '@/lib/recent-clients'
 import { usePaneNavigate } from '@/lib/panes'
+import { usePrefetchClientPage, queryKeys } from '@/lib/query'
+import { useQuery } from '@tanstack/react-query'
 import {
   Search,
   ListChecks,
@@ -25,6 +27,7 @@ type DeadlineRange = typeof DEADLINE_RANGES[number]
 export default function MobileHomePage() {
   const router = useRouter()
   const paneNav = usePaneNavigate()
+  const prefetchClient = usePrefetchClientPage()
 
   /** On desktop opens href as a pane; otherwise navigates normally. */
   const go = (href: string) => {
@@ -38,43 +41,56 @@ export default function MobileHomePage() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [userName, setUserName] = useState<string | null>(null)
-  const [newTasks, setNewTasks] = useState<number | null>(null)
-  const [lateTasks, setLateTasks] = useState<number | null>(null)
   const [deadlineRange, setDeadlineRange] = useState<DeadlineRange>(7)
-  const [deadlineCounts, setDeadlineCounts] = useState<Record<DeadlineRange, number> | null>(null)
-  const [overdueCount, setOverdueCount] = useState(0)
-  const [neglectedCount, setNeglectedCount] = useState<number | null>(null)
   const [recentClients, setRecentClients] = useState<RecentClient[]>([])
 
-  // Load counts + user name once
+  // Same query keys as the /requests and /actions pages — counts share their
+  // cache, so navigating between them is instant and only fetches once.
+  const { data: requestsData } = useQuery({
+    queryKey: queryKeys.requests,
+    queryFn: async () => {
+      const [tasksRes, queriesRes] = await Promise.all([getMyOpenTasks(), getMyQueries()])
+      return { tasks: tasksRes.tasks, queries: queriesRes.queries }
+    },
+    staleTime: 60 * 1000,
+  })
+  const { data: actionsData } = useQuery({
+    queryKey: queryKeys.myActions,
+    queryFn: async () => {
+      const [actionsRes, missingRes] = await Promise.all([getMyOpenActions(), getCasesMissingActions()])
+      return { actions: actionsRes.actions, missing: missingRes.cases }
+    },
+    staleTime: 60 * 1000,
+  })
+
+  const newTasks = requestsData == null ? null : (() => {
+    const cutoff = Date.now() - DAY_MS
+    const all = [...requestsData.tasks.map(t => t.created_at), ...requestsData.queries.map(q => q.created_at)]
+    return all.filter(d => new Date(d).getTime() >= cutoff).length
+  })()
+  const lateTasks = requestsData == null ? null : (() => {
+    const cutoff = Date.now() - DAY_MS
+    const all = [...requestsData.tasks.map(t => t.created_at), ...requestsData.queries.map(q => q.created_at)]
+    return all.filter(d => new Date(d).getTime() < cutoff).length
+  })()
+  const neglectedCount = actionsData == null ? null : actionsData.missing.length
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const todayMs = today.getTime()
+  const withDates = (actionsData?.actions || []).filter(a => a.due_date)
+  const overdueCount = withDates.filter(a => new Date(a.due_date!).getTime() < todayMs).length
+  const deadlineCounts: Record<DeadlineRange, number> | null = actionsData == null ? null : {
+    7: withDates.filter(a => { const d = new Date(a.due_date!).getTime(); return d >= todayMs && d <= todayMs + 7 * DAY_MS }).length,
+    30: withDates.filter(a => { const d = new Date(a.due_date!).getTime(); return d >= todayMs && d <= todayMs + 30 * DAY_MS }).length,
+    90: withDates.filter(a => { const d = new Date(a.due_date!).getTime(); return d >= todayMs && d <= todayMs + 90 * DAY_MS }).length,
+  }
+
+  // Load user name + recents once
   useEffect(() => {
     setRecentClients(getRecentClients())
 
     getCurrentUser().then(({ user }) => {
       setUserName(user?.display_name || user?.email || null)
-    })
-
-    Promise.all([getMyOpenTasks(), getMyQueries()]).then(([{ tasks }, { queries }]) => {
-      const cutoff = Date.now() - DAY_MS
-      const all = [...tasks.map(t => t.created_at), ...queries.map(q => q.created_at)]
-      setNewTasks(all.filter(d => new Date(d).getTime() >= cutoff).length)
-      setLateTasks(all.filter(d => new Date(d).getTime() < cutoff).length)
-    })
-
-    getCasesMissingActions().then(({ cases }) => setNeglectedCount(cases.length))
-
-    getMyOpenActions().then(({ actions }) => {
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const todayMs = today.getTime()
-
-      const withDates = actions.filter(a => a.due_date)
-      setOverdueCount(withDates.filter(a => new Date(a.due_date!).getTime() < todayMs).length)
-      setDeadlineCounts({
-        7: withDates.filter(a => { const d = new Date(a.due_date!).getTime(); return d >= todayMs && d <= todayMs + 7 * DAY_MS }).length,
-        30: withDates.filter(a => { const d = new Date(a.due_date!).getTime(); return d >= todayMs && d <= todayMs + 30 * DAY_MS }).length,
-        90: withDates.filter(a => { const d = new Date(a.due_date!).getTime(); return d >= todayMs && d <= todayMs + 90 * DAY_MS }).length,
-      })
     })
   }, [])
 
@@ -160,6 +176,8 @@ export default function MobileHomePage() {
                     <li key={c.id}>
                       <Link
                         href={`/clients/${c.id}`}
+                        onMouseEnter={() => prefetchClient(c.id)}
+                        onTouchStart={() => prefetchClient(c.id)}
                         className="flex items-center gap-3 px-4 py-3 active:bg-[hsl(var(--color-surface-hover))]"
                       >
                         <div className="w-9 h-9 rounded-full bg-[hsl(var(--color-surface-active))] flex items-center justify-center text-sm font-semibold text-[hsl(var(--color-text-primary))] shrink-0">
@@ -294,6 +312,8 @@ export default function MobileHomePage() {
               <Link
                 key={c.id}
                 href={`/clients/${c.id}`}
+                onMouseEnter={() => prefetchClient(c.id)}
+                onTouchStart={() => prefetchClient(c.id)}
                 className="flex flex-col items-center active:opacity-70"
               >
                 <div className="w-12 h-12 rounded-full bg-[hsl(var(--color-surface-active))] border border-[hsl(var(--color-border))] flex items-center justify-center text-base font-semibold text-[hsl(var(--color-text-primary))]">

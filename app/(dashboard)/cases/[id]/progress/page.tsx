@@ -2,9 +2,10 @@
 
 import { use, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { StepsPanel } from '../components/StepsPanel'
 import { getEntryIdForQuery } from '@/app/actions/workflow'
+import { getCaseHeaderData } from '@/app/actions/cases'
+import { useCaseHeaderCache } from '@/lib/query'
 import { SubPageHeader } from '@/components/shared/SubPageHeader'
 import { Loader2, ListChecks } from 'lucide-react'
 
@@ -24,6 +25,7 @@ export default function CaseProgressPage({ params, searchParams }: ProgressPageP
   const [loading, setLoading] = useState(true)
   const [redirecting, setRedirecting] = useState(!!(focusQueryId || focusEntryId))
   const isMounted = useRef(true)
+  const { getCached: getCachedHeader, setCached: setCachedHeader } = useCaseHeaderCache(urlId)
 
   // Legacy deep links (?e=entry / ?q=query) → straight to the entry page
   useEffect(() => {
@@ -45,38 +47,28 @@ export default function CaseProgressPage({ params, searchParams }: ProgressPageP
   useEffect(() => {
     if (redirecting) return
     isMounted.current = true
+
+    const cached = getCachedHeader()
+    if (cached?.caseId) {
+      setCaseId(cached.caseId)
+      setClientId(cached.clientId ?? null)
+      setTitle(cached.title)
+      setSubtitle(cached.subtitle)
+      setLoading(false)
+    }
+
     ;(async () => {
-      const supabase = createClient()
-      const select = 'id, case_code, client_id, case_services!fk_case_services_case(services(name))'
-      const result = urlId.startsWith('C')
-        ? await supabase.from('cases').select(select).eq('case_code', urlId).single()
-        : await supabase.from('cases').select(select).eq('id', urlId).single()
-
+      const data = await getCaseHeaderData(urlId)
       if (!isMounted.current) return
-      const caseRow = result.data
-      if (caseRow) {
-        setCaseId(caseRow.id)
-        setClientId(caseRow.client_id ?? null)
-
-        const svc = (caseRow.case_services as any[])?.[0]?.services?.name || null
-
-        // Title = client name; subtitle = service · phone
-        if (caseRow.client_id) {
-          const [clientRes, phoneRes] = await Promise.all([
-            supabase.from('clients').select('first_name, last_name, contact_email').eq('id', caseRow.client_id).single(),
-            supabase.from('contact_numbers').select('country_code, number').eq('client_id', caseRow.client_id).limit(1).maybeSingle(),
-          ])
-          if (!isMounted.current) return
-          const c = clientRes.data
-          const name = c ? ([c.first_name, c.last_name].filter(Boolean).join(' ') || c.contact_email) : ''
-          const phone = phoneRes.data ? `${phoneRes.data.country_code || ''} ${phoneRes.data.number}`.trim() : ''
-          setTitle(name || caseRow.case_code || 'Case')
-          setSubtitle([svc, phone].filter(Boolean).join(' · '))
-        } else {
-          setTitle(caseRow.case_code || 'Case')
-          setSubtitle(svc || '')
-        }
+      if ('error' in data) {
+        setLoading(false)
+        return
       }
+      setCaseId(data.caseId)
+      setClientId(data.clientId)
+      setTitle(data.title)
+      setSubtitle(data.subtitle)
+      setCachedHeader(data)
       setLoading(false)
     })()
     return () => { isMounted.current = false }

@@ -6,7 +6,7 @@ import { Modal } from '@/components/ui'
 import { User, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
-import { deleteClient, getClient } from '@/app/actions/clients'
+import { deleteClient, getClientPageData } from '@/app/actions/clients'
 import { addRecentClient } from '@/lib/recent-clients'
 import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query'
@@ -50,28 +50,21 @@ export default function ClientPage({ params }: ClientPageProps) {
     isMounted.current = true
     
     async function loadClientData() {
-      // Check if urlId is a client_code (starts with CL) or a UUID
-      const isClientCode = urlId.startsWith('CL')
-      
-      // Try cache first for UUIDs only (client_codes aren't cached by ID)
-      if (!isClientCode) {
-        const cached = queryClient.getQueryData<any>(queryKeys.client(urlId))
-        if (cached?.client && isMounted.current) {
-          console.log('[ClientPage] Using cached client data for', urlId)
-          setClient(cached.client)
-          setPhoneNumbers(cached.phoneNumbers || [])
-          setNotes(cached.notes || [])
-          setCases(cached.cases || [])
-          setCountryName(cached.countryName)
-          setCityName(cached.cityName)
-          setResolvedClientId(urlId)
-          setLoading(false)
-          // Background refresh
-          fetchAllData(urlId, false)
-          return
-        }
+      const cached = queryClient.getQueryData<any>(queryKeys.client(urlId))
+      if (cached?.client && isMounted.current) {
+        setClient(cached.client)
+        setPhoneNumbers(cached.phoneNumbers || [])
+        setNotes(cached.notes || [])
+        setCases(cached.cases || [])
+        setCountryName(cached.countryName)
+        setCityName(cached.cityName)
+        setResolvedClientId(cached.client.id)
+        setLoading(false)
+        // Background refresh
+        fetchAllData(urlId, false)
+        return
       }
-      
+
       // No cache hit - fetch fresh data
       await fetchAllData(urlId, true)
     }
@@ -130,118 +123,36 @@ export default function ClientPage({ params }: ClientPageProps) {
     if (!clientIdParam) return
     if (showLoading) setLoading(true)
 
-    let clientData, clientError
-    
-    if (clientIdParam.startsWith('CL')) {
-      const result = await supabase
-        .from('clients')
-        .select('*')
-        .eq('client_code', clientIdParam)
-        .single()
-      
-      clientData = result.data
-      clientError = result.error
-    } else {
-      const result = await supabase
-        .from('clients')
-        .select('*')
-        .eq('id', clientIdParam)
-        .single()
-      
-      clientData = result.data
-      clientError = result.error
-    }
-
+    const data = await getClientPageData(clientIdParam)
     if (!isMounted.current) return
-    
-    if (clientError || !clientData) {
-      console.error('Error fetching client:', clientError)
+
+    if ('error' in data || !data.client) {
+      console.error('Error fetching client')
       setLoading(false)
       return
     }
 
-    setClient(clientData)
-    setResolvedClientId(clientData.id)
-    const dbClientId = clientData.id
+    setClient(data.client as Client)
+    setResolvedClientId(data.client.id)
+    setPhoneNumbers((data.phoneNumbers as ContactNumber[]) || [])
+    setNotes((data.notes as ClientNote[]) || [])
+    setCases((data.cases as CaseWithStatus[]) || [])
+    setCountryName(data.countryName)
+    setCityName(data.cityName)
 
-    const { data: phonesData } = await supabase
-      .from('contact_numbers')
-      .select('*')
-      .eq('client_id', dbClientId)
-      .order('number')
-
-    if (!isMounted.current) return
-    if (phonesData) setPhoneNumbers(phonesData)
-
-    const { data: notesData } = await supabase
-      .from('client_notes')
-      .select('*')
-      .eq('client_id', dbClientId)
-      .order('is_pinned', { ascending: false })
-      .order('created_at', { ascending: false })
-
-    if (!isMounted.current) return
-    if (notesData) setNotes(notesData)
-
-    // Fetch cases with services
-    const { data: casesData, error: casesError } = await supabase
-      .from('cases')
-      .select(`
-        *,
-        status(name),
-        csr:users!cases_csr_id_fkey(id, display_name, email),
-        legal:users!cases_assigned_to_fkey(id, display_name, email),
-        case_services:case_services!case_id(
-          services(name)
-        )
-      `)
-      .eq('client_id', dbClientId)
-      .order('created_at', { ascending: false })
-
-    if (!isMounted.current) return
-    if (casesError) console.error('Error fetching cases:', casesError)
-    if (casesData) setCases(casesData)
-
-    let resolvedCountryName: string | null = null
-    let resolvedCityName: string | null = null
-
-    if (clientData.country_of_origin) {
-      const { data: countryData } = await supabase
-        .from('countries')
-        .select('country')
-        .eq('id', clientData.country_of_origin)
-        .single()
-      
-      if (!isMounted.current) return
-      if (countryData) {
-        resolvedCountryName = countryData.country
-        setCountryName(countryData.country)
-      }
+    // Update cache under both UUID and client_code so any URL variant hits it
+    const payload = {
+      client: data.client,
+      phoneNumbers: data.phoneNumbers || [],
+      notes: data.notes || [],
+      cases: data.cases || [],
+      countryName: data.countryName,
+      cityName: data.cityName,
     }
-
-    if (clientData.city_in_poland) {
-      const { data: cityData } = await supabase
-        .from('cities')
-        .select('city')
-        .eq('id', clientData.city_in_poland)
-        .single()
-      
-      if (!isMounted.current) return
-      if (cityData) {
-        resolvedCityName = cityData.city
-        setCityName(cityData.city)
-      }
+    queryClient.setQueryData(queryKeys.client(data.client.id), payload)
+    if (data.client.client_code) {
+      queryClient.setQueryData(queryKeys.client(data.client.client_code), payload)
     }
-
-    // Update cache for future visits
-    queryClient.setQueryData(queryKeys.client(dbClientId), {
-      client: clientData,
-      phoneNumbers: phonesData || [],
-      notes: notesData || [],
-      cases: casesData || [],
-      countryName: resolvedCountryName,
-      cityName: resolvedCityName
-    })
 
     setLoading(false)
   }

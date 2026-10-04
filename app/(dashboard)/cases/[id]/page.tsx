@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, Modal } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
-import { deleteCase } from '@/app/actions/cases'
+import { deleteCase, getCasePageData } from '@/app/actions/cases'
 import { usePaneBack } from '@/lib/panes'
+import { useCasePageCache } from '@/lib/query'
 import { getComments } from '@/app/actions/comments'
 import { CaseHeader } from './components/CaseHeader'
 import { AssignedPeople } from './components/AssignedPeople'
@@ -38,83 +39,53 @@ export default function CasePage({ params }: CasePageProps) {
   const paneBack = usePaneBack()
   const supabase = createClient()
   const isMounted = useRef(true)
+  const { getCached: getCachedCase, setCached: setCachedCase } = useCasePageCache(urlId)
 
   useEffect(() => {
     isMounted.current = true
-    fetchCaseData(urlId)
-    
+
+    const cached = getCachedCase()
+    if (cached?.case) {
+      applyData(cached)
+      setLoading(false)
+      fetchCaseData(urlId, false) // background refresh
+    } else {
+      fetchCaseData(urlId, true)
+    }
+
     return () => {
       isMounted.current = false
     }
   }, [urlId])
 
-  async function fetchCaseData(caseIdParam: string) {
+  function applyData(data: NonNullable<Awaited<ReturnType<typeof getCasePageData>>>) {
+    if (!('case' in data) || !data.case) return
+    setCaseData(data.case as Case)
+    setClient((data.client as Client | null) || null)
+    setClientPhoneNumbers((data.phones as ContactNumber[]) || [])
+    setServiceName(data.serviceName || '')
+    setCurrentStepName(data.currentStepName || '')
+    setPaidAmount(data.paidAmount || 0)
+    setFileCount(data.fileCount || 0)
+    setComments((data.comments as Comment[]) || [])
+    setCurrentUserId(data.currentUserId)
+  }
+
+  async function fetchCaseData(caseIdParam: string, showLoading = true) {
     if (!caseIdParam) return
-    setLoading(true)
+    if (showLoading) setLoading(true)
 
-    // Get current user (local session - no network call)
-    const { data: { session } } = await supabase.auth.getSession()
+    const data = await getCasePageData(caseIdParam)
     if (!isMounted.current) return
-    if (session?.user) setCurrentUserId(session.user.id)
 
-    let caseResult, caseError
-    
-    if (caseIdParam.startsWith('C')) {
-      const result = await supabase.from('cases').select('*').eq('case_code', caseIdParam).single()
-      caseResult = result.data
-      caseError = result.error
-    } else {
-      const result = await supabase.from('cases').select('*').eq('id', caseIdParam).single()
-      caseResult = result.data
-      caseError = result.error
-    }
-
-    if (!isMounted.current) return
-    
-    if (caseError || !caseResult) {
-      console.error('Error fetching case:', caseError)
+    if ('error' in data || !('case' in data) || !data.case) {
+      console.error('Error fetching case')
       setLoading(false)
       return
     }
 
-    setCaseData(caseResult)
-
-    if (caseResult.client_id) {
-      const { data: clientData } = await supabase.from('clients').select('*').eq('id', caseResult.client_id).single()
-      if (!isMounted.current) return
-      if (clientData) setClient(clientData)
-      
-      // Fetch client phone numbers
-      const { data: phonesData } = await supabase
-        .from('contact_numbers')
-        .select('*')
-        .eq('client_id', caseResult.client_id)
-        .order('number')
-      if (!isMounted.current) return
-      if (phonesData) setClientPhoneNumbers(phonesData)
-    }
-
-    // Summaries for the header + Process / Billing / Files buttons
-    const [serviceRes, stepRes, installmentsRes, attachmentsRes] = await Promise.all([
-      supabase.from('case_services').select('services(name)').eq('case_id', caseResult.id).limit(1).maybeSingle(),
-      caseResult.current_step_id
-        ? supabase.from('case_steps').select('name').eq('id', caseResult.current_step_id).maybeSingle()
-        : Promise.resolve({ data: null }),
-      supabase.from('installments').select('amount, paid, parent_installment_id').eq('case_id', caseResult.id),
-      supabase.from('case_attachments').select('id', { count: 'exact', head: true }).eq('case_id', caseResult.id),
-    ])
-    if (!isMounted.current) return
-    const svc = (serviceRes.data?.services as { name?: string } | null)?.name
-    if (svc) setServiceName(svc)
-    if (stepRes.data) setCurrentStepName((stepRes.data as { name: string }).name)
-    const inst = (installmentsRes.data || []) as { amount: number; paid: boolean; parent_installment_id?: string }[]
-    setPaidAmount(inst.filter(i => i.paid && !i.parent_installment_id).reduce((sum, i) => sum + (i.amount || 0), 0))
-    setFileCount(attachmentsRes.count || 0)
-
-    const commentsData = await getComments(caseResult.id)
-    if (!isMounted.current) return
-    setComments(commentsData)
-
+    applyData(data)
+    setCachedCase(data)
     setLoading(false)
   }
 

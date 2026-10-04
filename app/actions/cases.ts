@@ -3,7 +3,88 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { logActivity, logActivityForUsers } from './dashboard'
+import { getComments } from './comments'
 import { ensureSystemSteps, setInitialStep, generateStepsForService } from './workflow'
+
+// Everything the case detail page needs in one round trip — the sub-queries
+// run in parallel server-side instead of as a client waterfall.
+export async function getCasePageData(idOrCode: string) {
+  const supabase = await createClient()
+
+  const [{ data: { user } }, caseRes] = await Promise.all([
+    supabase.auth.getUser(),
+    idOrCode.startsWith('C')
+      ? supabase.from('cases').select('*').eq('case_code', idOrCode).single()
+      : supabase.from('cases').select('*').eq('id', idOrCode).single(),
+  ])
+
+  const caseData = caseRes.data
+  if (!caseData) return { error: 'Case not found' as const }
+
+  const [clientRes, phonesRes, serviceRes, stepRes, installmentsRes, attachmentsRes, comments] = await Promise.all([
+    caseData.client_id
+      ? supabase.from('clients').select('*').eq('id', caseData.client_id).single()
+      : Promise.resolve({ data: null }),
+    caseData.client_id
+      ? supabase.from('contact_numbers').select('*').eq('client_id', caseData.client_id).order('number')
+      : Promise.resolve({ data: null }),
+    supabase.from('case_services').select('services(name)').eq('case_id', caseData.id).limit(1).maybeSingle(),
+    caseData.current_step_id
+      ? supabase.from('case_steps').select('name').eq('id', caseData.current_step_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase.from('installments').select('amount, paid, parent_installment_id').eq('case_id', caseData.id),
+    supabase.from('case_attachments').select('id', { count: 'exact', head: true }).eq('case_id', caseData.id),
+    getComments(caseData.id),
+  ])
+
+  const svc = (serviceRes.data?.services as { name?: string } | null)?.name || ''
+  const inst = (installmentsRes.data || []) as { amount: number; paid: boolean; parent_installment_id?: string }[]
+
+  return {
+    currentUserId: user?.id,
+    case: caseData,
+    client: clientRes.data,
+    phones: phonesRes.data || [],
+    serviceName: svc,
+    currentStepName: (stepRes.data as { name?: string } | null)?.name || '',
+    paidAmount: inst.filter(i => i.paid && !i.parent_installment_id).reduce((sum, i) => sum + (i.amount || 0), 0),
+    fileCount: attachmentsRes.count || 0,
+    comments,
+  }
+}
+
+// Lighter bundle for the progress/billing/files headers — case + client basics.
+export async function getCaseHeaderData(idOrCode: string) {
+  const supabase = await createClient()
+
+  const select = 'id, case_code, client_id, case_services!fk_case_services_case(services(name))'
+  const { data: caseRow } = idOrCode.startsWith('C')
+    ? await supabase.from('cases').select(select).eq('case_code', idOrCode).single()
+    : await supabase.from('cases').select(select).eq('id', idOrCode).single()
+
+  if (!caseRow) return { error: 'Case not found' as const }
+
+  const svc = (caseRow.case_services as { services?: { name?: string } }[] | null)?.[0]?.services?.name || null
+  let clientName = ''
+  let phone = ''
+  if (caseRow.client_id) {
+    const [clientRes, phoneRes] = await Promise.all([
+      supabase.from('clients').select('first_name, last_name, contact_email').eq('id', caseRow.client_id).single(),
+      supabase.from('contact_numbers').select('country_code, number').eq('client_id', caseRow.client_id).limit(1).maybeSingle(),
+    ])
+    const c = clientRes.data
+    clientName = c ? ([c.first_name, c.last_name].filter(Boolean).join(' ') || c.contact_email || '') : ''
+    phone = phoneRes.data ? `${phoneRes.data.country_code || ''} ${phoneRes.data.number}`.trim() : ''
+  }
+
+  return {
+    caseId: caseRow.id as string,
+    clientId: (caseRow.client_id as string | null) ?? null,
+    title: clientName || (caseRow.case_code as string) || 'Case',
+    subtitle: [svc, phone].filter(Boolean).join(' · '),
+    serviceName: svc || '',
+  }
+}
 
 export async function addCase(formData: FormData) {
   const supabase = await createClient()

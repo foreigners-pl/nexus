@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useQuery } from '@tanstack/react-query'
+import { queryKeys } from '@/lib/query'
 import { getMyOpenTasks } from '@/app/actions/dashboard'
 import { getMyQueries, type MyQuery } from '@/app/actions/workflow'
 import { MobileBackHeader } from '@/components/mobile/MobileBackHeader'
 import { usePaneLink } from '@/lib/panes'
+import { usePrefetchEntry } from '@/lib/query'
 import { ChevronRight, MessageSquare, Loader2 } from 'lucide-react'
 
 const DAY_MS = 86400000
@@ -72,6 +74,7 @@ function TaskRow({ task }: { task: Task }) {
 }
 
 function QueryRow({ query }: { query: MyQuery }) {
+  const prefetchEntry = usePrefetchEntry()
   const paneLink = usePaneLink(
     query.entry_id
       ? `/cases/${query.case_id}/progress/${query.entry_id}`
@@ -81,6 +84,8 @@ function QueryRow({ query }: { query: MyQuery }) {
     <li>
       <Link
         {...paneLink}
+        onMouseEnter={() => query.entry_id && prefetchEntry(query.entry_id)}
+        onTouchStart={() => query.entry_id && prefetchEntry(query.entry_id)}
         className="flex items-center gap-3 px-4 py-3.5 active:bg-[hsl(var(--color-surface-hover))]"
       >
         <MessageSquare className={`w-4 h-4 shrink-0 ${query.needs_me === 'respond' ? 'text-blue-400' : 'text-amber-400'}`} />
@@ -121,15 +126,17 @@ function TaskGroup({ title, tasks, accent }: { title: string; tasks: Task[]; acc
 }
 
 export function RequestsContent() {
-  const [tasks, setTasks] = useState<Task[] | null>(null)
-  const [queries, setQueries] = useState<MyQuery[]>([])
+  const { data } = useQuery({
+    queryKey: queryKeys.requests,
+    queryFn: async () => {
+      const [tasksRes, queriesRes] = await Promise.all([getMyOpenTasks(), getMyQueries()])
+      return { tasks: tasksRes.tasks, queries: queriesRes.queries }
+    },
+    staleTime: 60 * 1000,
+  })
 
-  useEffect(() => {
-    Promise.all([getMyOpenTasks(), getMyQueries()]).then(([{ tasks }, { queries }]) => {
-      setTasks(tasks)
-      setQueries(queries)
-    })
-  }, [])
+  const tasks = data?.tasks ?? null
+  const queries = data?.queries ?? []
 
   if (!tasks) {
     return (

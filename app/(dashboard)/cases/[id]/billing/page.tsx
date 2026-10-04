@@ -2,9 +2,11 @@
 
 import { use, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useQueryClient } from '@tanstack/react-query'
+import { queryKeys } from '@/lib/query'
 import { SubPageHeader } from '@/components/shared/SubPageHeader'
 import { PaymentPanel } from '../components/PaymentPanel'
-import { ensureBalanceInstallment } from '@/app/actions/installments'
+import { getCaseBillingData } from '@/app/actions/installments'
 import { Loader2, Receipt } from 'lucide-react'
 
 interface BillingPageProps {
@@ -21,12 +23,38 @@ export default function CaseBillingPage({ params }: BillingPageProps) {
   const [loading, setLoading] = useState(true)
   const isMounted = useRef(true)
   const supabase = createClient()
+  const queryClient = useQueryClient()
 
   useEffect(() => {
     isMounted.current = true
-    load()
+    const cached = queryClient.getQueryData<any>(queryKeys.billing(urlId))
+    if (cached?.case) {
+      applyData(cached)
+      setLoading(false)
+      load() // background refresh
+    } else {
+      load()
+    }
     return () => { isMounted.current = false }
   }, [urlId])
+
+  const applyData = (data: any) => {
+    setCaseData(data.case)
+    setClient(data.client)
+    setClientPhone(data.clientPhone || '')
+    setCaseServices(data.caseServices || [])
+    setInstallments(data.installments || [])
+  }
+
+  const load = async () => {
+    const data = await getCaseBillingData(urlId)
+    if (!isMounted.current) return
+    if ('error' in data) { setLoading(false); return }
+    applyData(data)
+    queryClient.setQueryData(queryKeys.billing(urlId), data)
+    if (data.case?.id) queryClient.setQueryData(queryKeys.billing(data.case.id), data)
+    setLoading(false)
+  }
 
   // Refetch when an installment pane/page mutates this case's data
   useEffect(() => {
@@ -36,36 +64,6 @@ export default function CaseBillingPage({ params }: BillingPageProps) {
     window.addEventListener('nexus:case-data-changed', handler)
     return () => window.removeEventListener('nexus:case-data-changed', handler)
   }, [caseData?.id])
-
-  const load = async () => {
-    const result = urlId.startsWith('C')
-      ? await supabase.from('cases').select('*').eq('case_code', urlId).single()
-      : await supabase.from('cases').select('*').eq('id', urlId).single()
-    if (!isMounted.current) return
-    const caseRow = result.data
-    if (!caseRow) { setLoading(false); return }
-    setCaseData(caseRow)
-
-    // Make sure the auto "Final payment" balance installment exists and matches the total
-    await ensureBalanceInstallment(caseRow.id)
-
-    const [clientRes, phoneRes, servicesRes, instRes] = await Promise.all([
-      caseRow.client_id
-        ? supabase.from('clients').select('*').eq('id', caseRow.client_id).single()
-        : Promise.resolve({ data: null }),
-      caseRow.client_id
-        ? supabase.from('contact_numbers').select('country_code, number').eq('client_id', caseRow.client_id).limit(1).maybeSingle()
-        : Promise.resolve({ data: null }),
-      supabase.from('case_services').select('*, services(*)').eq('case_id', caseRow.id),
-      supabase.from('installments').select('*').eq('case_id', caseRow.id).order('position', { ascending: true }),
-    ])
-    if (!isMounted.current) return
-    setClient(clientRes.data)
-    if (phoneRes.data) setClientPhone(`${phoneRes.data.country_code || ''} ${phoneRes.data.number}`.trim())
-    setCaseServices(servicesRes.data || [])
-    setInstallments(instRes.data || [])
-    setLoading(false)
-  }
 
   const reload = async () => {
     if (!caseData) return

@@ -113,6 +113,59 @@ export async function deleteClient(id: string) {
 /**
  * Get full client details for prefetching
  */
+// Everything the client detail page needs in one round trip — replaces the
+// page's sequential client → phones → notes → cases → country → city waterfall.
+export async function getClientPageData(idOrCode: string) {
+  const supabase = await createClient()
+
+  const { data: clientData, error } = idOrCode.startsWith('CL')
+    ? await supabase.from('clients').select('*').eq('client_code', idOrCode).single()
+    : await supabase.from('clients').select('*').eq('id', idOrCode).single()
+
+  if (error || !clientData) return { error: 'Client not found' as const }
+  const id = clientData.id
+
+  const [phonesRes, notesRes, casesRes, countryRes, cityRes] = await Promise.all([
+    supabase
+      .from('contact_numbers')
+      .select('*')
+      .eq('client_id', id)
+      .order('number'),
+    supabase
+      .from('client_notes')
+      .select('*')
+      .eq('client_id', id)
+      .order('is_pinned', { ascending: false })
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('cases')
+      .select(`
+        *,
+        status(name),
+        csr:users!cases_csr_id_fkey(id, display_name, email),
+        legal:users!cases_assigned_to_fkey(id, display_name, email),
+        case_services:case_services!case_id(services(name))
+      `)
+      .eq('client_id', id)
+      .order('created_at', { ascending: false }),
+    clientData.country_of_origin
+      ? supabase.from('countries').select('country').eq('id', clientData.country_of_origin).single()
+      : Promise.resolve({ data: null }),
+    clientData.city_in_poland
+      ? supabase.from('cities').select('city').eq('id', clientData.city_in_poland).single()
+      : Promise.resolve({ data: null }),
+  ])
+
+  return {
+    client: clientData,
+    phoneNumbers: phonesRes.data || [],
+    notes: notesRes.data || [],
+    cases: casesRes.data || [],
+    countryName: (countryRes.data as { country?: string } | null)?.country || null,
+    cityName: (cityRes.data as { city?: string } | null)?.city || null,
+  }
+}
+
 export async function getClient(id: string) {
   const supabase = await createClient()
   

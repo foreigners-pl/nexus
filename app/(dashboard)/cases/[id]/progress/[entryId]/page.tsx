@@ -11,6 +11,8 @@ import {
   type QueryMessage,
 } from '@/app/actions/workflow'
 import { SubPageHeader } from '@/components/shared/SubPageHeader'
+import { useQueryClient } from '@tanstack/react-query'
+import { queryKeys } from '@/lib/query'
 import {
   Loader2,
   StickyNote,
@@ -48,9 +50,9 @@ export default function EntryPage({ params }: { params: Promise<{ id: string; en
   const [clientId, setClientId] = useState<string | null>(null)
   const [meId, setMeId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
 
-  const load = useCallback(async () => {
-    const d = await getCaseEntry(entryId)
+  const applyData = useCallback((d: Awaited<ReturnType<typeof getCaseEntry>>) => {
     setEntry(d.entry)
     setStepName(d.stepName)
     setCaseTitle(d.caseTitle)
@@ -59,10 +61,23 @@ export default function EntryPage({ params }: { params: Promise<{ id: string; en
     setCompletedByName(d.completedByName)
     setClientId(d.clientId)
     setMeId(d.meId)
-    setLoading(false)
-  }, [entryId])
+  }, [])
 
-  useEffect(() => { load() }, [load])
+  const load = useCallback(async () => {
+    const d = await getCaseEntry(entryId)
+    applyData(d)
+    queryClient.setQueryData(queryKeys.entry(entryId), d)
+    setLoading(false)
+  }, [entryId, applyData, queryClient])
+
+  useEffect(() => {
+    const cached = queryClient.getQueryData<Awaited<ReturnType<typeof getCaseEntry>>>(queryKeys.entry(entryId))
+    if (cached?.entry) {
+      applyData(cached)
+      setLoading(false)
+    }
+    load()
+  }, [load])
 
   if (loading) {
     return (

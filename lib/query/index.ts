@@ -19,5 +19,14 @@ export {
   useDeepPrefetchClients,
   // Individual item caches
   useClientCache,
-  useBoardCardsCache
+  useBoardCardsCache,
+  // Case/workflow/my-work caches + intent prefetch
+  useCasePageCache,
+  usePrefetchCasePage,
+  usePrefetchClientPage,
+  useWorkflowCache,
+  useCaseHeaderCache,
+  usePrefetchWorkflow,
+  usePrefetchEntry,
+  useDeepPrefetchCases
 } from './usePrefetch'

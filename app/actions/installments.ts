@@ -53,6 +53,39 @@ async function resyncBalanceInstallment(supabase: SupabaseClient, caseId: string
 }
 
 /** Ensure the balance installment exists and matches the current total (idempotent). */
+// Everything the billing page needs in one round trip — case + balance check
+// + client/phone/services/installments in parallel instead of a waterfall.
+export async function getCaseBillingData(idOrCode: string) {
+  const supabase = await createClient()
+
+  const { data: caseRow } = idOrCode.startsWith('C')
+    ? await supabase.from('cases').select('*').eq('case_code', idOrCode).single()
+    : await supabase.from('cases').select('*').eq('id', idOrCode).single()
+
+  if (!caseRow) return { error: 'Case not found' as const }
+
+  await ensureBalanceInstallment(caseRow.id)
+
+  const [clientRes, phoneRes, servicesRes, instRes] = await Promise.all([
+    caseRow.client_id
+      ? supabase.from('clients').select('*').eq('id', caseRow.client_id).single()
+      : Promise.resolve({ data: null }),
+    caseRow.client_id
+      ? supabase.from('contact_numbers').select('country_code, number').eq('client_id', caseRow.client_id).limit(1).maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase.from('case_services').select('*, services(*)').eq('case_id', caseRow.id),
+    supabase.from('installments').select('*').eq('case_id', caseRow.id).order('position', { ascending: true }),
+  ])
+
+  return {
+    case: caseRow,
+    client: clientRes.data,
+    clientPhone: phoneRes.data ? `${phoneRes.data.country_code || ''} ${phoneRes.data.number}`.trim() : '',
+    caseServices: servicesRes.data || [],
+    installments: instRes.data || [],
+  }
+}
+
 export async function ensureBalanceInstallment(caseId: string) {
   const supabase = await createClient()
   await resyncBalanceInstallment(supabase, caseId)

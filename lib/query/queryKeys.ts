@@ -15,6 +15,15 @@ export const queryKeys = {
   // Cases  
   cases: ['cases'] as const,
   case: (id: string) => ['cases', id] as const,
+  caseHeader: (id: string) => ['caseHeader', id] as const,
+  workflow: (caseId: string) => ['workflow', caseId] as const,
+  billing: (id: string) => ['billing', id] as const,
+  attachments: (caseId: string) => ['attachments', caseId] as const,
+  entry: (entryId: string) => ['entry', entryId] as const,
+
+  // Requests / Actions
+  requests: ['requests'] as const,
+  myActions: ['myActions'] as const,
   
   // Board
   boards: ['boards'] as const,

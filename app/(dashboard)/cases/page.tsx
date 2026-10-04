@@ -10,6 +10,8 @@ import { Select } from '@/components/ui/Select'
 import { createClient } from '@/lib/supabase/client'
 import { addCase } from '@/app/actions/cases'
 import { getAllServices } from '@/app/actions/services'
+import { useQueryClient } from '@tanstack/react-query'
+import { queryKeys, useDeepPrefetchCases, usePrefetchCasePage } from '@/lib/query'
 import { PageHeader } from '@/components/shared/PageHeader'
 import type { Case, Client, Status, User } from '@/types/database'
 
@@ -49,9 +51,22 @@ export default function CasesPage() {
   const tableRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const goCase = (href: string) => router.push(href)
+  const queryClient = useQueryClient()
+  const prefetchCaseDetails = useDeepPrefetchCases()
+  const prefetchCase = usePrefetchCasePage()
 
   useEffect(() => {
-    fetchCases()
+    const cached = queryClient.getQueryData<CaseWithRelations[]>(queryKeys.cases)
+    if (cached && cached.length > 0) {
+      setCases(cached)
+      setHasMore(cached.length >= CASES_PER_PAGE)
+      setLoading(false)
+      fetchStepNames(cached)
+      fetchCases(true) // background refresh
+      prefetchCaseDetails(cached)
+    } else {
+      fetchCases()
+    }
   }, [])
 
   useEffect(() => {
@@ -110,8 +125,8 @@ export default function CasesPage() {
     })
   }
 
-  const fetchCases = async () => {
-    setLoading(true)
+  const fetchCases = async (background = false) => {
+    if (!background) setLoading(true)
     const { data, error } = await supabase
       .from('cases')
       .select(`
@@ -149,9 +164,12 @@ export default function CasesPage() {
     if (error) {
       console.error('Error fetching cases:', error)
     } else {
-      setCases(data || [])
-      setHasMore((data?.length || 0) === CASES_PER_PAGE)
-      fetchStepNames(data || [])
+      const list = data || []
+      setCases(list)
+      queryClient.setQueryData(queryKeys.cases, list)
+      setHasMore(list.length === CASES_PER_PAGE)
+      fetchStepNames(list)
+      if (!background) prefetchCaseDetails(list)
     }
     setLoading(false)
   }
@@ -432,6 +450,8 @@ export default function CasesPage() {
               <div
                 key={caseItem.id}
                 onClick={() => goCase(`/cases/${caseItem.case_code || caseItem.id}`)}
+                onMouseEnter={() => prefetchCase(caseItem.id)}
+                onTouchStart={() => prefetchCase(caseItem.id)}
                 className="p-4 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl hover:bg-[hsl(var(--color-surface-hover))] transition-colors active:scale-[0.98] cursor-pointer"
               >
                 <div className="flex items-center justify-between gap-3">

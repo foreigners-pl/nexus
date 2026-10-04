@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useQuery } from '@tanstack/react-query'
+import { queryKeys } from '@/lib/query'
 import { getMyOpenActions, getCasesMissingActions, type MyAction, type MissingActionCase } from '@/app/actions/workflow'
 import { MobileBackHeader } from '@/components/mobile/MobileBackHeader'
 import { usePaneLink } from '@/lib/panes'
+import { usePrefetchEntry, usePrefetchWorkflow } from '@/lib/query'
 import { ChevronRight, AlertTriangle, Loader2 } from 'lucide-react'
 
 function formatDeadline(dateStr: string) {
@@ -23,11 +25,14 @@ function formatDeadline(dateStr: string) {
 }
 
 function MissingActionRow({ item }: { item: MissingActionCase }) {
+  const prefetchWorkflow = usePrefetchWorkflow()
   const paneLink = usePaneLink(`/cases/${item.case_id}/progress`)
   return (
     <li>
       <Link
         {...paneLink}
+        onMouseEnter={() => prefetchWorkflow(item.case_id)}
+        onTouchStart={() => prefetchWorkflow(item.case_id)}
         className="flex items-center gap-3 px-4 py-3.5 active:bg-[hsl(var(--color-surface-hover))]"
       >
         <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
@@ -50,12 +55,15 @@ function MissingActionRow({ item }: { item: MissingActionCase }) {
 }
 
 function ActionRow({ action }: { action: MyAction }) {
+  const prefetchEntry = usePrefetchEntry()
   const paneLink = usePaneLink(`/cases/${action.case_id}/progress/${action.id}`)
   const deadline = formatDeadline(action.due_date!)
   return (
     <li>
       <Link
         {...paneLink}
+        onMouseEnter={() => prefetchEntry(action.id)}
+        onTouchStart={() => prefetchEntry(action.id)}
         className="flex items-center gap-3 px-4 py-3.5 active:bg-[hsl(var(--color-surface-hover))]"
       >
         <div className="flex-1 min-w-0">
@@ -78,15 +86,17 @@ function ActionRow({ action }: { action: MyAction }) {
 }
 
 export function ActionsContent() {
-  const [actions, setActions] = useState<MyAction[] | null>(null)
-  const [missing, setMissing] = useState<MissingActionCase[]>([])
+  const { data } = useQuery({
+    queryKey: queryKeys.myActions,
+    queryFn: async () => {
+      const [actionsRes, missingRes] = await Promise.all([getMyOpenActions(), getCasesMissingActions()])
+      return { actions: actionsRes.actions, missing: missingRes.cases }
+    },
+    staleTime: 60 * 1000,
+  })
 
-  useEffect(() => {
-    Promise.all([getMyOpenActions(), getCasesMissingActions()]).then(([{ actions }, { cases }]) => {
-      setActions(actions)
-      setMissing(cases)
-    })
-  }, [])
+  const actions = data?.actions ?? null
+  const missing = data?.missing ?? []
 
   const withDates = (actions || []).filter(a => a.due_date)
   const empty = withDates.length === 0 && missing.length === 0

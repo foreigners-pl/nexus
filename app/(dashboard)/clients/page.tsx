@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useClientsCache } from '@/lib/query'
+import { useClientsCache, useDeepPrefetchClients } from '@/lib/query'
 import { ClientsHeader } from './components/ClientsHeader'
 import { AddClientModal } from './components/AddClientModal'
 import { ClientsTable } from './components/ClientsTable'
@@ -25,6 +25,7 @@ const CLIENTS_PER_PAGE = 20
 
 export default function ClientsPage() {
   const { getCached: getCachedClients, setCached: setCachedClients } = useClientsCache()
+  const prefetchClientDetails = useDeepPrefetchClients()
   const [clients, setClients] = useState<ClientWithPhones[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -51,6 +52,7 @@ export default function ClientsPage() {
       setLoading(false)
       // Still refresh in background (but only update cache, not state)
       fetchClientsBackground(true)
+      prefetchClientDetails()
     } else {
       fetchClients()
     }
@@ -92,6 +94,7 @@ export default function ClientsPage() {
       setClients(data || [])
       setCachedClients(data || [])
       setHasMore((data?.length || 0) === CLIENTS_PER_PAGE)
+      prefetchClientDetails()
     }
     setLoading(false)
   }
