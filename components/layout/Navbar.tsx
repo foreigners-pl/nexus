@@ -224,7 +224,7 @@ export function Navbar() {
           onClick={toggleCollapse}
           title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           className={cn(
-            "flex items-center rounded-lg w-full cursor-pointer",
+            "flex items-center rounded-xl w-full cursor-pointer",
             "text-sm font-medium transition-all duration-200",
             "text-[hsl(var(--color-text-secondary))] hover:bg-[hsl(var(--color-surface-hover))] hover:text-[hsl(var(--color-text-primary))]",
             isCollapsed ? "px-3 py-3 justify-center" : "px-4 py-3 gap-3"

@@ -342,7 +342,7 @@ export default function InstallmentPage({ params }: InstallmentPageProps) {
               </div>
               {!installment.paid && (
                 <div className="flex justify-end">
-                  <Button size="md" onClick={handleSaveDetails} disabled={submitting} className="rounded-md">{submitting ? 'Saving...' : 'Save'}</Button>
+                  <Button size="md" onClick={handleSaveDetails} disabled={submitting} className="rounded-xl">{submitting ? 'Saving...' : 'Save'}</Button>
                 </div>
               )}
             </div>
@@ -388,21 +388,21 @@ export default function InstallmentPage({ params }: InstallmentPageProps) {
                     <div className="grid grid-cols-3 gap-2">
                       <button
                         onClick={() => setPaymentType('online')}
-                        className={`p-3 rounded-lg border-2 transition-colors text-left ${paymentType === 'online' ? 'border-[hsl(var(--color-primary))] bg-[hsl(var(--color-primary))]/10' : 'border-[hsl(var(--color-border))] hover:border-[hsl(var(--color-border-hover))]'}`}
+                        className={`p-3 rounded-xl border-2 transition-colors text-left ${paymentType === 'online' ? 'border-[hsl(var(--color-primary))] bg-[hsl(var(--color-primary))]/10' : 'border-[hsl(var(--color-border))] hover:border-[hsl(var(--color-border-hover))]'}`}
                       >
                         <div className="font-medium text-sm">Online</div>
                         <div className="text-xs text-[hsl(var(--color-text-secondary))]">Stripe link</div>
                       </button>
                       <button
                         onClick={() => setPaymentType('bank_transfer')}
-                        className={`p-3 rounded-lg border-2 transition-colors text-left ${paymentType === 'bank_transfer' ? 'border-[hsl(var(--color-primary))] bg-[hsl(var(--color-primary))]/10' : 'border-[hsl(var(--color-border))] hover:border-[hsl(var(--color-border-hover))]'}`}
+                        className={`p-3 rounded-xl border-2 transition-colors text-left ${paymentType === 'bank_transfer' ? 'border-[hsl(var(--color-primary))] bg-[hsl(var(--color-primary))]/10' : 'border-[hsl(var(--color-border))] hover:border-[hsl(var(--color-border-hover))]'}`}
                       >
                         <div className="font-medium text-sm">Bank transfer</div>
                         <div className="text-xs text-[hsl(var(--color-text-secondary))]">Bank details</div>
                       </button>
                       <button
                         onClick={() => setPaymentType('manual')}
-                        className={`p-3 rounded-lg border-2 transition-colors text-left ${paymentType === 'manual' ? 'border-[hsl(var(--color-primary))] bg-[hsl(var(--color-primary))]/10' : 'border-[hsl(var(--color-border))] hover:border-[hsl(var(--color-border-hover))]'}`}
+                        className={`p-3 rounded-xl border-2 transition-colors text-left ${paymentType === 'manual' ? 'border-[hsl(var(--color-primary))] bg-[hsl(var(--color-primary))]/10' : 'border-[hsl(var(--color-border))] hover:border-[hsl(var(--color-border-hover))]'}`}
                       >
                         <div className="font-medium text-sm">Manual</div>
                         <div className="text-xs text-[hsl(var(--color-text-secondary))]">Cash, etc.</div>
@@ -421,18 +421,18 @@ export default function InstallmentPage({ params }: InstallmentPageProps) {
                 {installment.paid ? (
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-2">
-                      <Button size="md" variant="outline" className="w-full rounded-md" onClick={() => openDoc('invoice')}>
+                      <Button size="md" variant="outline" className="w-full rounded-xl" onClick={() => openDoc('invoice')}>
                         <Download className="w-4 h-4 mr-1.5" /> Invoice
                       </Button>
-                      <Button size="md" className="w-full rounded-md" onClick={() => handleSendDoc('invoice')} disabled={submitting}>
+                      <Button size="md" className="w-full rounded-xl" onClick={() => handleSendDoc('invoice')} disabled={submitting}>
                         Send invoice
                       </Button>
                     </div>
                     <div className="space-y-2">
-                      <Button size="md" variant="outline" className="w-full rounded-md" onClick={() => openDoc('receipt')}>
+                      <Button size="md" variant="outline" className="w-full rounded-xl" onClick={() => openDoc('receipt')}>
                         <Download className="w-4 h-4 mr-1.5" /> Receipt
                       </Button>
-                      <Button size="md" className="bg-green-600 hover:bg-green-700 text-white w-full rounded-md" onClick={() => handleSendDoc('receipt')} disabled={submitting}>
+                      <Button size="md" className="bg-green-600 hover:bg-green-700 text-white w-full rounded-xl" onClick={() => handleSendDoc('receipt')} disabled={submitting}>
                         Send receipt
                       </Button>
                     </div>
@@ -440,14 +440,14 @@ export default function InstallmentPage({ params }: InstallmentPageProps) {
                 ) : (
                   <>
                     <div className="flex items-center gap-2">
-                      <Button size="md" variant="outline" className="rounded-md" onClick={() => openDoc('invoice')}>
+                      <Button size="md" variant="outline" className="rounded-xl" onClick={() => openDoc('invoice')}>
                         <Download className="w-4 h-4 mr-1.5" /> Invoice
                       </Button>
                       {invoice?.status !== 'sent' && (
-                        <Button size="md" className="flex-1 rounded-md" onClick={() => setSendModalOpen(true)} disabled={paymentType !== 'manual' && !sendEmail}>Send Invoice</Button>
+                        <Button size="md" className="flex-1 rounded-xl" onClick={() => setSendModalOpen(true)} disabled={paymentType !== 'manual' && !sendEmail}>Send Invoice</Button>
                       )}
                     </div>
-                    <Button size="md" className="bg-green-600 hover:bg-green-700 text-white w-full rounded-md" onClick={() => { setPaidDate(new Date().toISOString().slice(0, 10)); setPaidModalOpen(true) }}>Mark as Paid</Button>
+                    <Button size="md" className="bg-green-600 hover:bg-green-700 text-white w-full rounded-xl" onClick={() => { setPaidDate(new Date().toISOString().slice(0, 10)); setPaidModalOpen(true) }}>Mark as Paid</Button>
                   </>
                 )}
               </div>
@@ -465,7 +465,7 @@ export default function InstallmentPage({ params }: InstallmentPageProps) {
                 <>
                   {!refundOpen ? (
                     <div>
-                      <Button size="md" variant="outline" className="w-full rounded-md text-orange-500" onClick={() => setRefundOpen(true)}>Refund</Button>
+                      <Button size="md" variant="outline" className="w-full rounded-xl text-orange-500" onClick={() => setRefundOpen(true)}>Refund</Button>
                     </div>
                   ) : (
                     <div className="space-y-3 p-3 rounded-lg border border-orange-500/30 bg-orange-500/5">

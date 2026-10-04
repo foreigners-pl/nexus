@@ -481,7 +481,7 @@ export function CustomKanbanBoard({
           ) : (
             <button
               onClick={() => setIsAddingStatus(true)}
-              className="w-full h-full min-h-[200px] border-2 border-dashed border-[hsl(var(--color-border))] rounded-lg hover:border-[hsl(var(--color-primary))] hover:bg-[hsl(var(--color-surface))] transition-colors flex items-center justify-center text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-primary))]"
+              className="w-full h-full min-h-[200px] border-2 border-dashed border-[hsl(var(--color-border))] rounded-xl hover:border-[hsl(var(--color-primary))] hover:bg-[hsl(var(--color-surface))] transition-colors flex items-center justify-center text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-primary))]"
             >
               <div className="text-center">
                 <svg className="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

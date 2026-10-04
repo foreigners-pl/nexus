@@ -78,7 +78,7 @@ export function ClientHeader({ client, phoneNumbers, onDelete, onMergeComplete }
                 setSelectedConflict(conflicts[0])
                 setShowMergeModal(true)
               }}
-              className="flex items-center gap-2 px-2.5 py-1.5 text-xs text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 rounded-lg transition-colors shrink-0"
+              className="flex items-center gap-2 px-2.5 py-1.5 text-xs text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 rounded-xl transition-colors shrink-0"
               title={conflicts.map(c => `${c.client.client_code}: ${c.conflictReasons.join(', ')}`).join('\n')}
             >
               <AlertTriangle className="w-4 h-4" />

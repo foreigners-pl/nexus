@@ -218,7 +218,7 @@ export function ShareBoardModal({ isOpen, onClose, boardId, boardName, boardOwne
                 <div className="flex gap-2">
                   <button
                     onClick={() => setAccessLevel('editor')}
-                    className={`flex-1 px-3 py-2 rounded-lg border transition-colors ${
+                    className={`flex-1 px-3 py-2 rounded-xl border transition-colors ${
                       accessLevel === 'editor'
                         ? 'bg-[hsl(var(--color-primary))] text-white border-[hsl(var(--color-primary))]'
                         : 'bg-[hsl(var(--color-surface))] border-[hsl(var(--color-border))] text-[hsl(var(--color-text-primary))] hover:border-[hsl(var(--color-primary))]'
@@ -229,7 +229,7 @@ export function ShareBoardModal({ isOpen, onClose, boardId, boardName, boardOwne
                   </button>
                   <button
                     onClick={() => setAccessLevel('viewer')}
-                    className={`flex-1 px-3 py-2 rounded-lg border transition-colors ${
+                    className={`flex-1 px-3 py-2 rounded-xl border transition-colors ${
                       accessLevel === 'viewer'
                         ? 'bg-[hsl(var(--color-primary))] text-white border-[hsl(var(--color-primary))]'
                         : 'bg-[hsl(var(--color-surface))] border-[hsl(var(--color-border))] text-[hsl(var(--color-text-primary))] hover:border-[hsl(var(--color-primary))]'

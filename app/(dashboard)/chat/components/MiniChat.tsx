@@ -391,7 +391,7 @@ export default function MiniChat() {
               openMiniChat(activeBuzz.conversationId)
               dismissBuzz()
             }}
-            className="px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors"
+            className="px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-xl text-sm font-medium transition-colors"
           >
             Reply
           </button>
@@ -549,7 +549,7 @@ export default function MiniChat() {
             <>
               <button
                 onClick={() => setSelectedConversation(null)}
-                className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+                className="p-1.5 hover:bg-white/10 rounded-xl transition-colors"
               >
                 <svg className="w-5 h-5 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -564,7 +564,7 @@ export default function MiniChat() {
           )}
           <button
             onClick={closeMiniChat}
-            className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+            className="p-1.5 hover:bg-white/10 rounded-xl transition-colors"
           >
             <svg className="w-5 h-5 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -646,7 +646,7 @@ export default function MiniChat() {
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
-                  className="p-2 rounded-lg hover:bg-white/10 transition-colors text-white/50 hover:text-white/80 disabled:opacity-50"
+                  className="p-2 rounded-xl hover:bg-white/10 transition-colors text-white/50 hover:text-white/80 disabled:opacity-50"
                 >
                   {uploading ? (
                     <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -679,7 +679,7 @@ export default function MiniChat() {
                       setShowEmojiPicker(true)
                     }
                   }}
-                  className="p-2 rounded-lg hover:bg-white/10 transition-colors text-white/50 hover:text-white/80"
+                  className="p-2 rounded-xl hover:bg-white/10 transition-colors text-white/50 hover:text-white/80"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -689,7 +689,7 @@ export default function MiniChat() {
                 {/* Buzz button */}
                 <button
                   onClick={() => setShowBuzzConfirm(true)}
-                  className="p-2 rounded-lg hover:bg-yellow-500/20 transition-colors text-yellow-500/70 hover:text-yellow-400"
+                  className="p-2 rounded-xl hover:bg-yellow-500/20 transition-colors text-yellow-500/70 hover:text-yellow-400"
                   title="Send a buzz"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -711,7 +711,7 @@ export default function MiniChat() {
                 <button
                   onClick={handleSend}
                   disabled={(!messageText.trim() && !attachment) || sending}
-                  className="p-2 bg-primary hover:bg-primary/90 disabled:bg-white/10 disabled:cursor-not-allowed rounded-lg transition-colors"
+                  className="p-2 bg-primary hover:bg-primary/90 disabled:bg-white/10 disabled:cursor-not-allowed rounded-xl transition-colors"
                 >
                   <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
@@ -796,7 +796,7 @@ export default function MiniChat() {
             <button
               key={emoji}
               onClick={() => handleAddReaction(showReactionPicker, emoji)}
-              className="w-8 h-8 flex items-center justify-center text-lg hover:bg-white/10 rounded-lg transition-colors hover:scale-110"
+              className="w-8 h-8 flex items-center justify-center text-lg hover:bg-white/10 rounded-xl transition-colors hover:scale-110"
             >
               {emoji}
             </button>
@@ -822,14 +822,14 @@ export default function MiniChat() {
               <button
                 onClick={() => setShowBuzzConfirm(false)}
                 disabled={buzzing}
-                className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 text-sm transition-colors disabled:opacity-50"
+                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 text-sm transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleBuzz}
                 disabled={buzzing}
-                className="px-4 py-2 rounded-lg bg-yellow-500 hover:bg-yellow-600 text-black font-semibold text-sm transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                className="px-4 py-2 rounded-xl bg-yellow-500 hover:bg-yellow-600 text-black font-semibold text-sm transition-colors disabled:opacity-50 flex items-center gap-1.5"
               >
                 {buzzing ? (
                   <>

@@ -238,7 +238,7 @@ export function PaymentPanel({ caseId, caseUrlId, installments, totalPrice, onUp
             return (
               <Fragment key={installment.id}>
                 {installment.is_balance && (
-                  <button onClick={() => setAddModalOpen(true)} className="w-full p-3 rounded-lg border-2 border-dashed border-[hsl(var(--color-border))] text-[hsl(var(--color-text-secondary))] hover:border-[hsl(var(--color-primary))] hover:text-[hsl(var(--color-primary))] transition-colors text-sm">
+                  <button onClick={() => setAddModalOpen(true)} className="w-full p-3 rounded-xl border-2 border-dashed border-[hsl(var(--color-border))] text-[hsl(var(--color-text-secondary))] hover:border-[hsl(var(--color-primary))] hover:text-[hsl(var(--color-primary))] transition-colors text-sm">
                     + Add Installment
                   </button>
                 )}
@@ -255,7 +255,7 @@ export function PaymentPanel({ caseId, caseUrlId, installments, totalPrice, onUp
 
           {/* No balance row exists — plain add button at the bottom */}
           {!orderedInstallments.some(i => i.is_balance) && (
-            <button onClick={() => setAddModalOpen(true)} className="w-full p-3 rounded-lg border-2 border-dashed border-[hsl(var(--color-border))] text-[hsl(var(--color-text-secondary))] hover:border-[hsl(var(--color-primary))] hover:text-[hsl(var(--color-primary))] transition-colors text-sm">
+            <button onClick={() => setAddModalOpen(true)} className="w-full p-3 rounded-xl border-2 border-dashed border-[hsl(var(--color-border))] text-[hsl(var(--color-text-secondary))] hover:border-[hsl(var(--color-primary))] hover:text-[hsl(var(--color-primary))] transition-colors text-sm">
               + Add Installment
             </button>
           )}

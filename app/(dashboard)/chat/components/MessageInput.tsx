@@ -240,7 +240,7 @@ export default function MessageInput({ onSend, disabled, conversationId }: Messa
             </div>
           )}
           <span className="flex-1 text-sm truncate text-white/80">{attachment.name}</span>
-          <button onClick={removeAttachment} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
+          <button onClick={removeAttachment} className="p-1.5 hover:bg-white/10 rounded-xl transition-colors">
             <svg className="w-4 h-4 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>

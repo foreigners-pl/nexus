@@ -68,7 +68,7 @@ export default function EmojiPicker({ onSelect }: EmojiPickerProps) {
           <button
             key={index}
             onClick={() => onSelect(emoji)}
-            className="w-8 h-8 flex items-center justify-center text-xl hover:bg-white/10 rounded-lg transition-all duration-150 hover:scale-110 active:scale-95"
+            className="w-8 h-8 flex items-center justify-center text-xl hover:bg-white/10 rounded-xl transition-all duration-150 hover:scale-110 active:scale-95"
           >
             {emoji}
           </button>
@@ -83,7 +83,7 @@ export default function EmojiPicker({ onSelect }: EmojiPickerProps) {
               <button
                 key={index}
                 onClick={() => onSelect(emoji)}
-                className="w-8 h-8 flex items-center justify-center text-xl hover:bg-white/10 rounded-lg transition-all duration-150 hover:scale-110 active:scale-95"
+                className="w-8 h-8 flex items-center justify-center text-xl hover:bg-white/10 rounded-xl transition-all duration-150 hover:scale-110 active:scale-95"
               >
                 {emoji}
               </button>

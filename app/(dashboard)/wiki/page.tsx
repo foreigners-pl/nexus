@@ -429,7 +429,7 @@ export default function WikiPage() {
                   setSelectedFolder(null)
                 }
               }}
-              className="p-2 -ml-2 hover:bg-[hsl(var(--color-surface-hover))] rounded-lg"
+              className="p-2 -ml-2 hover:bg-[hsl(var(--color-surface-hover))] rounded-xl"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -446,7 +446,7 @@ export default function WikiPage() {
               <button
                 onClick={() => setActiveTab('shared')}
                 className={cn(
-                  "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+                  "px-3 py-1.5 text-sm font-medium rounded-xl transition-colors",
                   activeTab === 'shared' ? "bg-[hsl(var(--color-surface))] shadow-sm" : ""
                 )}
               >
@@ -455,7 +455,7 @@ export default function WikiPage() {
               <button
                 onClick={() => setActiveTab('private')}
                 className={cn(
-                  "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+                  "px-3 py-1.5 text-sm font-medium rounded-xl transition-colors",
                   activeTab === 'private' ? "bg-[hsl(var(--color-surface))] shadow-sm" : ""
                 )}
               >
@@ -553,7 +553,7 @@ export default function WikiPage() {
           <div className="flex items-center justify-center p-4 border-b border-[hsl(var(--color-border))]">
             <button
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              className="p-2 hover:bg-[hsl(var(--color-surface-hover))] rounded-lg transition-colors"
+              className="p-2 hover:bg-[hsl(var(--color-surface-hover))] rounded-xl transition-colors"
               title="Expand sidebar"
             >
               <svg
@@ -787,7 +787,7 @@ export default function WikiPage() {
             <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => setNewDocType('rich-text')}
-                className={`p-3 rounded-lg border transition-colors ${
+                className={`p-3 rounded-xl border transition-colors ${
                   newDocType === 'rich-text'
                     ? 'bg-[hsl(var(--color-primary))] border-[hsl(var(--color-primary))] text-white'
                     : 'border-[hsl(var(--color-border))] hover:border-[hsl(var(--color-primary))]'
@@ -800,7 +800,7 @@ export default function WikiPage() {
               </button>
               <button
                 onClick={() => setNewDocType('table')}
-                className={`p-3 rounded-lg border transition-colors ${
+                className={`p-3 rounded-xl border transition-colors ${
                   newDocType === 'table'
                     ? 'bg-[hsl(var(--color-primary))] border-[hsl(var(--color-primary))] text-white'
                     : 'border-[hsl(var(--color-border))] hover:border-[hsl(var(--color-primary))]'
@@ -813,7 +813,7 @@ export default function WikiPage() {
               </button>
               <button
                 onClick={() => setNewDocType('whiteboard')}
-                className={`p-3 rounded-lg border transition-colors ${
+                className={`p-3 rounded-xl border transition-colors ${
                   newDocType === 'whiteboard'
                     ? 'bg-[hsl(var(--color-primary))] border-[hsl(var(--color-primary))] text-white'
                     : 'border-[hsl(var(--color-border))] hover:border-[hsl(var(--color-primary))]'
@@ -1125,7 +1125,7 @@ function SortableFolderItem({
                 setShowMenu(true)
               }
             }}
-            className="p-1 rounded-lg hover:bg-[hsl(var(--color-surface-hover))] opacity-0 group-hover:opacity-100 transition-opacity"
+            className="p-1 rounded-xl hover:bg-[hsl(var(--color-surface-hover))] opacity-0 group-hover:opacity-100 transition-opacity"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
@@ -1299,7 +1299,7 @@ function SortableDocumentItem({ document, isSelected, onSelect, onRename, onMove
                 setShowMenu(true)
               }
             }}
-            className="p-1 rounded-lg hover:bg-[hsl(var(--color-surface-hover))] opacity-0 group-hover:opacity-100 transition-opacity"
+            className="p-1 rounded-xl hover:bg-[hsl(var(--color-surface-hover))] opacity-0 group-hover:opacity-100 transition-opacity"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />

@@ -302,7 +302,7 @@ export function CustomKanbanColumn({
           {!isViewOnly && (
             <button 
               onClick={() => onAddCard && onAddCard()}
-              className="w-full text-center px-3 py-2 text-xs text-[hsl(var(--color-text-secondary))] hover:bg-[hsl(var(--color-surface-hover))] rounded-lg transition-colors border border-dashed border-[hsl(var(--color-border))] mb-3"
+              className="w-full text-center px-3 py-2 text-xs text-[hsl(var(--color-text-secondary))] hover:bg-[hsl(var(--color-surface-hover))] rounded-xl transition-colors border border-dashed border-[hsl(var(--color-border))] mb-3"
             >
               + Add Task
             </button>

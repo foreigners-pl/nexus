@@ -189,7 +189,7 @@ export function WeeklyTimeline() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors",
+                "flex-1 px-4 py-2 text-sm font-medium rounded-xl transition-colors",
                 activeTab === tab.id
                   ? "bg-[hsl(var(--color-background))] text-[hsl(var(--color-text-primary))] shadow-sm"
                   : "text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))]"

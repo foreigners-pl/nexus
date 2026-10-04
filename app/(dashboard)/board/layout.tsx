@@ -154,7 +154,7 @@ export default function BoardLayout({ children }: { children: ReactNode }) {
                 <h1 className="font-semibold text-lg flex-1">Boards</h1>
                 <button
                   onClick={() => setIsCreateModalOpen(true)}
-                  className="p-2 hover:bg-[hsl(var(--color-surface-hover))] rounded-lg transition-colors"
+                  className="p-2 hover:bg-[hsl(var(--color-surface-hover))] rounded-xl transition-colors"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -239,7 +239,7 @@ export default function BoardLayout({ children }: { children: ReactNode }) {
               <div className="flex items-center gap-3 p-4 border-b border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))]">
                 <button
                   onClick={() => setMobileView('picker')}
-                  className="p-2 -ml-2 hover:bg-[hsl(var(--color-surface-hover))] rounded-lg"
+                  className="p-2 -ml-2 hover:bg-[hsl(var(--color-surface-hover))] rounded-xl"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />

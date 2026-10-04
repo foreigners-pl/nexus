@@ -152,7 +152,7 @@ export default function NewChatModal({ isOpen, onClose, onCreated }: NewChatModa
               setMode('direct')
               setSelectedUsers([])
             }}
-            className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all duration-200 ${
+            className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-medium transition-all duration-200 ${
               mode === 'direct' 
                 ? 'bg-primary text-white shadow-lg shadow-primary/20' 
                 : 'text-white/60 hover:text-white hover:bg-white/5'
@@ -162,7 +162,7 @@ export default function NewChatModal({ isOpen, onClose, onCreated }: NewChatModa
           </button>
           <button
             onClick={() => setMode('group')}
-            className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all duration-200 ${
+            className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-medium transition-all duration-200 ${
               mode === 'group' 
                 ? 'bg-primary text-white shadow-lg shadow-primary/20' 
                 : 'text-white/60 hover:text-white hover:bg-white/5'

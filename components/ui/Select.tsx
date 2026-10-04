@@ -128,7 +128,7 @@ export function Select({
                   key={option.id}
                   type="button"
                   onClick={() => handleSelect(option.id)}
-                  className={`w-full px-4 py-2.5 text-left text-sm rounded-lg transition-all duration-150 ${
+                  className={`w-full px-4 py-2.5 text-left text-sm rounded-xl transition-all duration-150 ${
                     option.id === value 
                       ? 'bg-[hsl(var(--color-surface-hover))] text-[hsl(var(--color-text-primary))] font-medium' 
                       : 'text-[hsl(var(--color-text-primary))] hover:bg-[hsl(var(--color-surface-hover))]'

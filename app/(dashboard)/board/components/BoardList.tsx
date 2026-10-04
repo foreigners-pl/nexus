@@ -79,7 +79,7 @@ export function BoardList({ boards, currentUserId, currentBoardId, onCreateBoard
       <div className="flex flex-col items-center py-4">
         <button
           onClick={onToggleCollapse}
-          className="p-2 hover:bg-[hsl(var(--color-surface-hover))] rounded-lg transition-colors"
+          className="p-2 hover:bg-[hsl(var(--color-surface-hover))] rounded-xl transition-colors"
           title="Expand sidebar"
         >
           <svg className="w-5 h-5 text-[hsl(var(--color-text-secondary))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">

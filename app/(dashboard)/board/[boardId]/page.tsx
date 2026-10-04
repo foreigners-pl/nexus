@@ -304,7 +304,7 @@ export default function IndividualBoardPage() {
             <p className="text-red-500">{error}</p>
             <button
               onClick={fetchBoardData}
-              className="px-4 py-2 bg-[hsl(var(--color-primary))] text-white rounded-lg hover:opacity-90"
+              className="px-4 py-2 bg-[hsl(var(--color-primary))] text-white rounded-xl hover:opacity-90"
             >
               Try Again
             </button>
@@ -328,7 +328,7 @@ export default function IndividualBoardPage() {
                 {isCasesBoard && (
                   <button
                     onClick={() => setShowOnlyMyTasks(!showOnlyMyTasks)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors ${
                       showOnlyMyTasks
                         ? 'bg-[hsl(var(--color-primary))] text-white'
                         : 'bg-[hsl(var(--color-surface-hover))] text-[hsl(var(--color-text-secondary))] hover:bg-[hsl(var(--color-surface-hover))]/80'

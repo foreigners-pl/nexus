@@ -217,7 +217,7 @@ export function ShareWikiModal({
                 <div className="flex gap-2">
                   <button
                     onClick={() => setAccessLevel('editor')}
-                    className={`flex-1 px-3 py-2 rounded-lg border transition-colors ${
+                    className={`flex-1 px-3 py-2 rounded-xl border transition-colors ${
                       accessLevel === 'editor'
                         ? 'bg-red-700 text-white border-red-700'
                         : 'bg-neutral-800 border-neutral-700 text-white hover:border-red-700'
@@ -228,7 +228,7 @@ export function ShareWikiModal({
                   </button>
                   <button
                     onClick={() => setAccessLevel('viewer')}
-                    className={`flex-1 px-3 py-2 rounded-lg border transition-colors ${
+                    className={`flex-1 px-3 py-2 rounded-xl border transition-colors ${
                       accessLevel === 'viewer'
                         ? 'bg-red-700 text-white border-red-700'
                         : 'bg-neutral-800 border-neutral-700 text-white hover:border-red-700'

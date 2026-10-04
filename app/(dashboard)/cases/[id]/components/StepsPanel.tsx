@@ -146,7 +146,7 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
           <button
             onClick={() => navTo(i - 1)}
             disabled={i === 0}
-            className="w-9 h-9 rounded-lg bg-[hsl(var(--color-surface-active))] flex items-center justify-center text-[hsl(var(--color-text-secondary))] disabled:opacity-30 shrink-0"
+            className="w-9 h-9 rounded-xl bg-[hsl(var(--color-surface-active))] flex items-center justify-center text-[hsl(var(--color-text-secondary))] disabled:opacity-30 shrink-0"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
@@ -171,7 +171,7 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
           <button
             onClick={() => navTo(i + 1)}
             disabled={i === steps.length - 1}
-            className="w-9 h-9 rounded-lg bg-[hsl(var(--color-surface-active))] flex items-center justify-center text-[hsl(var(--color-text-secondary))] disabled:opacity-30 shrink-0"
+            className="w-9 h-9 rounded-xl bg-[hsl(var(--color-surface-active))] flex items-center justify-center text-[hsl(var(--color-text-secondary))] disabled:opacity-30 shrink-0"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
@@ -401,14 +401,14 @@ function ActionForm({ caseId, existing, submitLabel, skipLabel = 'Skip', onDone,
         <button
           onClick={submit}
           disabled={saving || !body.trim() || !dueDate}
-          className="flex-1 h-9 rounded-lg bg-[hsl(var(--color-primary))] text-white text-sm font-semibold disabled:opacity-40 active:bg-[hsl(var(--color-primary-hover))]"
+          className="flex-1 h-9 rounded-xl bg-[hsl(var(--color-primary))] text-white text-sm font-semibold disabled:opacity-40 active:bg-[hsl(var(--color-primary-hover))]"
         >
           {saving ? 'Saving…' : submitLabel}
         </button>
         {onComplete && (
           <button
             onClick={onComplete}
-            className="h-9 px-3 rounded-lg bg-green-600 text-white text-sm font-semibold active:bg-green-700"
+            className="h-9 px-3 rounded-xl bg-green-600 text-white text-sm font-semibold active:bg-green-700"
           >
             Complete
           </button>
@@ -416,7 +416,7 @@ function ActionForm({ caseId, existing, submitLabel, skipLabel = 'Skip', onDone,
         {onSkip && (
           <button
             onClick={onSkip}
-            className="px-4 h-9 rounded-lg bg-[hsl(var(--color-surface-active))] text-sm text-[hsl(var(--color-text-secondary))]"
+            className="px-4 h-9 rounded-xl bg-[hsl(var(--color-surface-active))] text-sm text-[hsl(var(--color-text-secondary))]"
           >
             {skipLabel}
           </button>

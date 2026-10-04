@@ -118,13 +118,13 @@ function PaymentsSkeleton() {
     <div className="h-full flex flex-col">
       {/* Real filter buttons - functional UI */}
       <div className="flex gap-1 mb-3 bg-[hsl(var(--color-surface))] p-1 rounded-xl border border-[hsl(var(--color-border))] w-fit">
-        <button className="px-3 py-1.5 text-sm font-medium rounded-lg bg-green-500 text-white shadow-[0_2px_8px_rgb(34_197_94/0.3)]">
+        <button className="px-3 py-1.5 text-sm font-medium rounded-xl bg-green-500 text-white shadow-[0_2px_8px_rgb(34_197_94/0.3)]">
           This Month
         </button>
-        <button className="px-3 py-1.5 text-sm font-medium rounded-lg text-[hsl(var(--color-text-secondary))]">
+        <button className="px-3 py-1.5 text-sm font-medium rounded-xl text-[hsl(var(--color-text-secondary))]">
           Last Month
         </button>
-        <button className="px-3 py-1.5 text-sm font-medium rounded-lg text-[hsl(var(--color-text-secondary))]">
+        <button className="px-3 py-1.5 text-sm font-medium rounded-xl text-[hsl(var(--color-text-secondary))]">
           Custom
         </button>
       </div>
@@ -571,7 +571,7 @@ function TimelineTab({ todayCounts }: { todayCounts: { cases: number; tasks: num
               key={f.id}
               onClick={() => setTimelineFilter(f.id)}
               className={cn(
-                "flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-300 cursor-pointer",
+                "flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-xl transition-all duration-300 cursor-pointer",
                 timelineFilter === f.id
                   ? `${filterColors[f.id].active} text-white`
                   : "text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))] hover:bg-[hsl(var(--color-surface-hover))]"
@@ -1036,7 +1036,7 @@ function PendingPaymentsTab({ cases }: { cases: any[] }) {
             key={btn.id}
             onClick={() => setDateFilter(btn.id)}
             className={cn(
-              "px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer",
+              "px-3 py-1.5 text-sm font-medium rounded-xl transition-all duration-200 cursor-pointer",
               dateFilter === btn.id
                 ? "bg-green-500 text-white shadow-[0_2px_8px_rgb(34_197_94/0.3)]"
                 : "text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))] hover:bg-[hsl(var(--color-surface-hover))]"
@@ -1210,7 +1210,7 @@ function OverdueTab({ items }: { items: { cases: any[]; tasks: any[]; payments: 
             key={s.id}
             onClick={() => setActiveSection(s.id)}
             className={cn(
-              "flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-300 cursor-pointer",
+              "flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-xl transition-all duration-300 cursor-pointer",
               activeSection === s.id
                 ? `${sectionColors[s.id].active} text-white`
                 : "text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))] hover:bg-[hsl(var(--color-surface-hover))]"

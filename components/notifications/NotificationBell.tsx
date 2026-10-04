@@ -75,7 +75,7 @@ export function NotificationsNavLink({ collapsed }: { collapsed?: boolean }) {
     <button
       onClick={() => { if (!openPane('/notifications')) router.push('/notifications') }}
       title={collapsed ? 'Notifications' : undefined}
-      className={`flex items-center rounded-lg w-full cursor-pointer text-sm font-medium transition-all duration-200 ${
+      className={`flex items-center rounded-xl w-full cursor-pointer text-sm font-medium transition-all duration-200 ${
         isActive
           ? 'bg-[hsl(var(--color-surface-hover))] text-[hsl(var(--color-text-primary))]'
           : 'text-[hsl(var(--color-text-secondary))] hover:bg-[hsl(var(--color-surface-hover))] hover:text-[hsl(var(--color-text-primary))]'

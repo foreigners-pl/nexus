@@ -489,7 +489,7 @@ export function SettingsContent({ initialProfile, initialPreferences, initialCom
                       // Auto-play when selecting
                       setTimeout(testSound, 50)
                     }}
-                    className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                    className={`px-3 py-1.5 text-sm rounded-xl transition-colors ${
                       soundType === type
                         ? 'bg-[hsl(var(--color-primary))] text-white'
                         : 'bg-[hsl(var(--color-surface-hover))] text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))] hover:bg-[hsl(var(--color-surface-active))]'
@@ -501,7 +501,7 @@ export function SettingsContent({ initialProfile, initialPreferences, initialCom
               </div>
               <button
                 onClick={testSound}
-                className="text-xs px-3 py-1.5 rounded-lg bg-[hsl(var(--color-surface-hover))] text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))] hover:bg-[hsl(var(--color-surface-active))] transition-colors"
+                className="text-xs px-3 py-1.5 rounded-xl bg-[hsl(var(--color-surface-hover))] text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))] hover:bg-[hsl(var(--color-surface-active))] transition-colors"
               >
                 Test
               </button>
