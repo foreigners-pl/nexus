@@ -168,13 +168,17 @@ export async function getCaseEntry(entryId: string): Promise<{
   query: CaseQuery | null
   caseTitle: string | null
   caseSubtitle: string | null
+  caseCode: string | null
+  clientName: string | null
+  serviceName: string | null
+  phone: string | null
   clientId: string | null
   openerName: string | null
   assigneeName: string | null
   completedByName: string | null
   meId: string | null
 }> {
-  const empty = { entry: null, stepName: null, query: null, caseTitle: null, caseSubtitle: null, clientId: null, openerName: null, assigneeName: null, completedByName: null, meId: null }
+  const empty = { entry: null, stepName: null, query: null, caseTitle: null, caseSubtitle: null, caseCode: null, clientName: null, serviceName: null, phone: null, clientId: null, openerName: null, assigneeName: null, completedByName: null, meId: null }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return empty
@@ -203,15 +207,20 @@ export async function getCaseEntry(entryId: string): Promise<{
       .maybeSingle(),
   ])
 
-  // Case header context: client name as title, service · phone as subtitle
+  // Case header context: case code as title, client · service · phone as subtitle
   const caseRow = caseRes.data as any
   let caseTitle: string | null = null
   let caseSubtitle: string | null = null
+  let caseCode: string | null = null
+  let clientName: string | null = null
+  let serviceName: string | null = null
+  let phone: string | null = null
   if (caseRow) {
     const svc = caseRow.case_services?.[0]?.services?.name ?? null
+    serviceName = svc
     const cl = caseRow.clients
-    const clientName = cl ? ([cl.first_name, cl.last_name].filter(Boolean).join(' ') || cl.contact_email) : null
-    let phone: string | null = null
+    clientName = cl ? ([cl.first_name, cl.last_name].filter(Boolean).join(' ') || cl.contact_email) : null
+    caseCode = caseRow.case_code || null
     if (caseRow.client_id) {
       const { data: p } = await supabase
         .from('contact_numbers')
@@ -247,6 +256,10 @@ export async function getCaseEntry(entryId: string): Promise<{
     query,
     caseTitle,
     caseSubtitle,
+    caseCode,
+    clientName,
+    serviceName,
+    phone,
     clientId: (caseRow?.client_id as string | undefined) ?? null,
     openerName,
     assigneeName,

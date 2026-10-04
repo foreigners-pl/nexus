@@ -15,7 +15,10 @@ interface LegacyPageProps {
 export default function CaseLegacyPage({ params }: LegacyPageProps) {
   const { id: urlId } = use(params)
   const [caseData, setCaseData] = useState<{ id: string; client_id?: string | null; case_code?: string } | null>(null)
+  const [caseCode, setCaseCode] = useState<string | null>(null)
   const [clientName, setClientName] = useState<string | null>(null)
+  const [serviceName, setServiceName] = useState<string | null>(null)
+  const [phone, setPhone] = useState<string | null>(null)
   const [headerSub, setHeaderSub] = useState('')
   const [comments, setComments] = useState<Comment[]>([])
   const [loading, setLoading] = useState(true)
@@ -34,7 +37,10 @@ export default function CaseLegacyPage({ params }: LegacyPageProps) {
     const cachedHeader = getCachedHeader()
     if (cachedHeader?.caseId) {
       setCaseData({ id: cachedHeader.caseId, client_id: cachedHeader.clientId })
-      setClientName(cachedHeader.title)
+      setCaseCode(cachedHeader.caseCode)
+      setClientName(cachedHeader.clientName || cachedHeader.title)
+      setServiceName(cachedHeader.serviceName || null)
+      setPhone(cachedHeader.phone || null)
       setHeaderSub(cachedHeader.subtitle)
     }
     if (cachedComments) {
@@ -52,8 +58,11 @@ export default function CaseLegacyPage({ params }: LegacyPageProps) {
     const header = await fetchCaseHeaderQuery(queryClient, urlId)
     if (!isMounted.current) return
     if ('error' in header) { setLoading(false); return }
-    setCaseData({ id: header.caseId, client_id: header.clientId, case_code: urlId.startsWith('C') ? urlId : undefined })
-    setClientName(header.title)
+    setCaseData({ id: header.caseId, client_id: header.clientId, case_code: header.caseCode })
+    setCaseCode(header.caseCode)
+    setClientName(header.clientName || header.title)
+    setServiceName(header.serviceName || null)
+    setPhone(header.phone || null)
     setHeaderSub(header.subtitle)
 
     const commentsData = await fetchCommentsQuery(queryClient, header.caseId)
@@ -82,8 +91,9 @@ export default function CaseLegacyPage({ params }: LegacyPageProps) {
     <div className="max-w-3xl mx-auto pb-20">
       <SubPageHeader
         backHref={`/cases/${urlId}`}
-        title={clientName || caseData.case_code || 'Case'}
-        subtitle={headerSub}
+        label="Case"
+        title={caseCode || caseData.case_code || 'Case'}
+        subtitle={[clientName, serviceName, phone].filter(Boolean).join(' · ')}
         icon={<MessageSquareText className="w-4 h-4 text-white" />}
         titleHref={caseData.client_id ? `/clients/${caseData.client_id}` : undefined}
       />

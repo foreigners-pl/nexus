@@ -16,6 +16,7 @@ export default function CaseBillingPage({ params }: BillingPageProps) {
   const { id: urlId } = use(params)
   const [caseData, setCaseData] = useState<any>(null)
   const [client, setClient] = useState<any>(null)
+  const [caseCode, setCaseCode] = useState<string | null>(null)
   const [clientPhone, setClientPhone] = useState('')
   const [caseServices, setCaseServices] = useState<any[]>([])
   const [installments, setInstallments] = useState<any[]>([])
@@ -39,6 +40,7 @@ export default function CaseBillingPage({ params }: BillingPageProps) {
 
   const applyData = (data: any) => {
     setCaseData(data.case)
+    setCaseCode(data.case?.case_code || null)
     setClient(data.client)
     setClientPhone(data.clientPhone || '')
     setCaseServices(data.caseServices || [])
@@ -94,7 +96,7 @@ export default function CaseBillingPage({ params }: BillingPageProps) {
 
   return (
     <div className="max-w-3xl mx-auto pb-20">
-      <SubPageHeader backHref={`/cases/${urlId}`} title={clientName || caseData.case_code || 'Case'} subtitle={subtitle} icon={<Receipt className="w-4 h-4 text-white" />} titleHref={caseData.client_id ? `/clients/${caseData.client_id}` : undefined} />
+      <SubPageHeader backHref={`/cases/${urlId}`} label="Case" title={caseCode || caseData.case_code || 'Case'} subtitle={[clientName, subtitle].filter(Boolean).join(' · ')} icon={<Receipt className="w-4 h-4 text-white" />} titleHref={caseData.client_id ? `/clients/${caseData.client_id}` : undefined} />
 
       <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-5 space-y-6">
         <div>

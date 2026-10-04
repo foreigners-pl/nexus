@@ -79,9 +79,12 @@ export async function getCaseHeaderData(idOrCode: string) {
   return {
     caseId: caseRow.id as string,
     clientId: (caseRow.client_id as string | null) ?? null,
+    caseCode: (caseRow.case_code as string) || 'Case',
+    clientName: clientName || '',
     title: clientName || (caseRow.case_code as string) || 'Case',
     subtitle: [svc, phone].filter(Boolean).join(' · '),
     serviceName: svc || '',
+    phone,
   }
 }
 

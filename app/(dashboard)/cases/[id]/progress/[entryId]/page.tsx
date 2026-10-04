@@ -45,6 +45,10 @@ export default function EntryPage({ params }: { params: Promise<{ id: string; en
   const [stepName, setStepName] = useState<string | null>(null)
   const [caseTitle, setCaseTitle] = useState<string | null>(null)
   const [caseSubtitle, setCaseSubtitle] = useState<string | null>(null)
+  const [caseCode, setCaseCode] = useState<string | null>(null)
+  const [clientName, setClientName] = useState<string | null>(null)
+  const [serviceName, setServiceName] = useState<string | null>(null)
+  const [phone, setPhone] = useState<string | null>(null)
   const [query, setQuery] = useState<CaseQuery | null>(null)
   const [completedByName, setCompletedByName] = useState<string | null>(null)
   const [clientId, setClientId] = useState<string | null>(null)
@@ -57,6 +61,10 @@ export default function EntryPage({ params }: { params: Promise<{ id: string; en
     setStepName(d.stepName)
     setCaseTitle(d.caseTitle)
     setCaseSubtitle(d.caseSubtitle)
+    setCaseCode(d.caseCode)
+    setClientName(d.clientName)
+    setServiceName(d.serviceName)
+    setPhone(d.phone)
     setQuery(d.query)
     setCompletedByName(d.completedByName)
     setClientId(d.clientId)
@@ -104,8 +112,9 @@ export default function EntryPage({ params }: { params: Promise<{ id: string; en
     <div className="pb-20">
       <SubPageHeader
         backHref={`/cases/${urlId}/progress`}
-        title={caseTitle || meta.label}
-        subtitle={caseSubtitle || (stepName ? `Step · ${stepName}` : undefined)}
+        label="Case"
+        title={caseCode || caseTitle || meta.label}
+        subtitle={[clientName, serviceName, phone, stepName].filter(Boolean).join(' · ')}
         icon={<Icon className="w-4 h-4 text-white" />}
         titleHref={clientId ? `/clients/${clientId}` : undefined}
       />

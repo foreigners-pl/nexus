@@ -10,8 +10,9 @@ import { Input } from '@/components/ui/Input'
 import { updateInstallment, deleteInstallment } from '@/app/actions/installments'
 import { createInvoice, recordManualPayment, recordRefund } from '@/app/actions/invoices'
 import { createStripeInvoice, voidStripeInvoice, markStripeInvoicePaid, sendInvoiceReceipt, resendStripeInvoiceEmail, syncInvoiceStatus } from '@/app/actions/stripe'
-import { Loader2, Receipt, Download, FileCheck, Trash2 } from 'lucide-react'
+import { Loader2, Receipt, Download, FileCheck } from 'lucide-react'
 import { usePaneBack } from '@/lib/panes'
+import { DangerZone } from '@/components/shared/DangerZone'
 import type { Installment, Invoice } from '@/types/database'
 
 interface InstallmentPageProps {
@@ -274,20 +275,11 @@ export default function InstallmentPage({ params }: InstallmentPageProps) {
     <div className="max-w-3xl mx-auto pb-20">
       <SubPageHeader
         backHref={`/cases/${urlId}/billing`}
-        title={client ? ([client.first_name, client.last_name].filter(Boolean).join(' ') || client.contact_email) : (caseData?.case_code || 'Case')}
-        subtitle={[services[0]?.services?.name, clientPhone, displayName].filter(Boolean).join(' · ')}
+        label="Case"
+        title={caseData?.case_code || 'Case'}
+        subtitle={[client ? ([client.first_name, client.last_name].filter(Boolean).join(' ') || client.contact_email) : null, services[0]?.services?.name, clientPhone, displayName].filter(Boolean).join(' · ')}
         icon={<Receipt className="w-4 h-4 text-white" />}
         titleHref={caseData?.client_id ? `/clients/${caseData.client_id}` : undefined}
-        action={canDelete && (
-          <button
-            onClick={handleDelete}
-            disabled={submitting}
-            className="w-9 h-9 rounded-full flex items-center justify-center text-red-400 hover:bg-red-500/10 shrink-0 transition-colors"
-            aria-label="Delete installment"
-          >
-            <Trash2 className="w-5 h-5" />
-          </button>
-        )}
       />
 
       <div className="space-y-4">
@@ -504,6 +496,16 @@ export default function InstallmentPage({ params }: InstallmentPageProps) {
           </>
         )}
       </div>
+
+      {canDelete && (
+        <DangerZone
+          title="Danger zone"
+          description="Deleting this installment cannot be undone."
+          buttonText="Delete Installment"
+          onDelete={handleDelete}
+          disabled={submitting}
+        />
+      )}
 
       {/* Send Invoice confirmation */}
       <Modal isOpen={sendModalOpen} onClose={() => setSendModalOpen(false)} title="Send Invoice">

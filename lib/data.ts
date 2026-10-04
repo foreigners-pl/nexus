@@ -105,9 +105,12 @@ export async function fetchCaseHeaderData(idOrCode: string) {
   return {
     caseId: caseRow.id as string,
     clientId: (caseRow.client_id as string | null) ?? null,
+    caseCode: (caseRow.case_code as string) || 'Case',
+    clientName: clientName || '',
     title: clientName || (caseRow.case_code as string) || 'Case',
     subtitle: [svc, phone].filter(Boolean).join(' · '),
     serviceName: svc || '',
+    phone,
   }
 }
 
@@ -193,7 +196,7 @@ export async function fetchCaseWorkflow(caseId: string) {
 }
 
 export async function fetchCaseEntry(entryId: string) {
-  const empty = { entry: null, stepName: null, query: null, caseTitle: null, caseSubtitle: null, clientId: null, openerName: null, assigneeName: null, completedByName: null, meId: null }
+  const empty = { entry: null, stepName: null, query: null, caseTitle: null, caseSubtitle: null, caseCode: null, clientName: null, serviceName: null, phone: null, clientId: null, openerName: null, assigneeName: null, completedByName: null, meId: null }
   const me = await meId()
 
   const { data: entry } = await supabase
@@ -223,11 +226,16 @@ export async function fetchCaseEntry(entryId: string) {
   const caseRow = caseRes.data as any
   let caseTitle: string | null = null
   let caseSubtitle: string | null = null
+  let caseCode: string | null = null
+  let clientName: string | null = null
+  let serviceName: string | null = null
+  let phone: string | null = null
   if (caseRow) {
     const svc = caseRow.case_services?.[0]?.services?.name ?? null
+    serviceName = svc
     const cl = caseRow.clients
-    const clientName = cl ? ([cl.first_name, cl.last_name].filter(Boolean).join(' ') || cl.contact_email) : null
-    let phone: string | null = null
+    clientName = cl ? ([cl.first_name, cl.last_name].filter(Boolean).join(' ') || cl.contact_email) : null
+    caseCode = caseRow.case_code || null
     if (caseRow.client_id) {
       const { data: p } = await supabase
         .from('contact_numbers')
@@ -263,6 +271,10 @@ export async function fetchCaseEntry(entryId: string) {
     query,
     caseTitle,
     caseSubtitle,
+    caseCode,
+    clientName,
+    serviceName,
+    phone,
     clientId: (caseRow?.client_id as string | undefined) ?? null,
     openerName,
     assigneeName,

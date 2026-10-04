@@ -12,6 +12,7 @@ import { useCasePageCache, fetchCasePageQuery, queryKeys } from '@/lib/query'
 import { CaseHeader } from './components/CaseHeader'
 import { AssignedPeople } from './components/AssignedPeople'
 import { CaseSubNav } from './components/CaseSubNav'
+import { DangerZone } from '@/components/shared/DangerZone'
 import type { Case, Client, ContactNumber } from '@/types/database'
 
 interface CasePageProps {
@@ -144,21 +145,7 @@ export default function CasePage({ params }: CasePageProps) {
 
   return (
     <div className="space-y-6">
-      <CaseHeader caseData={caseData} client={client} clientPhoneNumbers={clientPhoneNumbers} serviceName={serviceName} onDelete={() => setIsDeleteModalOpen(true)} />
-
-      {/* Page title */}
-      <div>
-        <h2 className="text-xl font-bold text-[hsl(var(--color-text-primary))]">
-          {serviceName || caseData.case_code || 'Case'}
-        </h2>
-        <p className="text-sm text-[hsl(var(--color-text-secondary))] mt-0.5">
-          {[
-            client ? [client.first_name, client.last_name].filter(Boolean).join(' ') || client.contact_email : null,
-            clientPhoneNumbers.length > 0 ? `${clientPhoneNumbers[0].country_code || ''} ${clientPhoneNumbers[0].number}`.trim() : null,
-            caseData.case_code,
-          ].filter(Boolean).join(' · ') || '—'}
-        </p>
-      </div>
+      <CaseHeader caseData={caseData} client={client} clientPhoneNumbers={clientPhoneNumbers} serviceName={serviceName} />
 
       <Modal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} title="Delete Case">
         <div className="space-y-4">
@@ -181,19 +168,13 @@ export default function CasePage({ params }: CasePageProps) {
         legacyInfo={commentsCount > 0 ? `${commentsCount} old note${commentsCount === 1 ? '' : 's'}` : undefined}
       />
 
-      {/* Mobile Delete Button - shows at bottom on mobile only */}
-      <div className="sm:hidden pb-20">
-        <Button 
-          variant="ghost"
-          onClick={() => setIsDeleteModalOpen(true)}
-          className="w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/20"
-        >
-          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-          Delete Case
-        </Button>
-      </div>
+      <DangerZone
+        title="Danger zone"
+        description="Deleting this case will permanently remove it and all related data. This cannot be undone."
+        buttonText="Delete Case"
+        onDelete={() => setIsDeleteModalOpen(true)}
+        disabled={submitting}
+      />
     </div>
   )
 }

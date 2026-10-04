@@ -10,10 +10,11 @@ import { usePaneBack } from '@/lib/panes'
  * Negative margins bleed it edge-to-edge over the dashboard padding;
  * the negative `top` matches the negative margin so it sticks flush to the top.
  */
-export function SubPageHeader({ backHref, title, subtitle, icon, action, titleHref }: {
+export function SubPageHeader({ backHref, title, subtitle, label, icon, action, titleHref }: {
   backHref: string
   title: string
   subtitle?: string
+  label?: string
   icon?: ReactNode
   action?: ReactNode
   /** When set, the title/subtitle block links here (real navigation). */
@@ -23,6 +24,11 @@ export function SubPageHeader({ backHref, title, subtitle, icon, action, titleHr
 
   const titleBlock = (
     <>
+      {label && (
+        <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--color-text-muted))] truncate leading-tight">
+          {label}
+        </p>
+      )}
       <h1 className="text-base font-semibold text-[hsl(var(--color-text-primary))] truncate leading-tight">
         {title}
       </h1>

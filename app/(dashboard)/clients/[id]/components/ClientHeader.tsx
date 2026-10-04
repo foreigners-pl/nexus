@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Button } from '@/components/ui/Button'
 import { findConflictingClients } from '@/app/actions/clients'
 import { MergeClientsModal } from './MergeClientsModal'
 import { AlertTriangle, ChevronLeft } from 'lucide-react'
@@ -18,11 +17,10 @@ interface ConflictingClient {
 interface ClientHeaderProps {
   client: Client
   phoneNumbers: ContactNumber[]
-  onDelete: () => void
   onMergeComplete: () => void
 }
 
-export function ClientHeader({ client, phoneNumbers, onDelete, onMergeComplete }: ClientHeaderProps) {
+export function ClientHeader({ client, phoneNumbers, onMergeComplete }: ClientHeaderProps) {
   const paneBack = usePaneBack()
   const [conflicts, setConflicts] = useState<ConflictingClient[]>([])
   const [selectedConflict, setSelectedConflict] = useState<ConflictingClient | null>(null)
@@ -90,16 +88,6 @@ export function ClientHeader({ client, phoneNumbers, onDelete, onMergeComplete }
               </span>
             </button>
           )}
-
-          {/* Delete button - hidden on mobile, shown at bottom of page instead */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onDelete}
-            className="hidden sm:flex text-red-400 hover:text-red-300 hover:bg-red-500/10 shrink-0"
-          >
-            Delete Client
-          </Button>
         </div>
       </header>
 

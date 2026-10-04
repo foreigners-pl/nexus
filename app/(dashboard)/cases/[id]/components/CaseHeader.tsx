@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { Button } from '@/components/ui/Button'
 import { ChevronLeft } from 'lucide-react'
 import { usePaneBack } from '@/lib/panes'
 import type { Case, Client, ContactNumber } from '@/types/database'
@@ -11,10 +10,9 @@ interface CaseHeaderProps {
   client: Client | null
   clientPhoneNumbers: ContactNumber[]
   serviceName?: string
-  onDelete: () => void
 }
 
-export function CaseHeader({ caseData, client, clientPhoneNumbers, serviceName, onDelete }: CaseHeaderProps) {
+export function CaseHeader({ caseData, client, clientPhoneNumbers, serviceName }: CaseHeaderProps) {
   const clientName = !client
     ? 'Unknown Client'
     : [client.first_name, client.last_name].filter(Boolean).join(' ') || client.contact_email || 'Unnamed Client'
@@ -23,7 +21,7 @@ export function CaseHeader({ caseData, client, clientPhoneNumbers, serviceName, 
   const paneBack = usePaneBack()
 
   const phones = clientPhoneNumbers.map(p => `${p.country_code || ''} ${p.number}`.trim()).filter(Boolean).join(' · ')
-  const subtitle = [serviceName, phones].filter(Boolean).join(' · ')
+  const subtitle = [clientName, serviceName, phones].filter(Boolean).join(' · ')
 
   return (
     <header className="sticky -top-4 md:-top-6 z-40 -mx-4 md:-mx-6 -mt-4 md:-mt-6 mb-6 bg-[hsl(var(--color-surface))]/90 backdrop-blur border-b border-[hsl(var(--color-border))]">
@@ -48,8 +46,11 @@ export function CaseHeader({ caseData, client, clientPhoneNumbers, serviceName, 
             href={backHref}
             className="min-w-0 flex-1 rounded-lg -mx-1 px-1 hover:bg-[hsl(var(--color-surface-hover))] active:bg-[hsl(var(--color-surface-hover))] transition-colors"
           >
+            <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--color-text-muted))] truncate leading-tight">
+              Case
+            </p>
             <h1 className="text-base font-semibold text-[hsl(var(--color-text-primary))] truncate leading-tight">
-              {clientName}
+              {caseData.case_code || 'Case'}
             </h1>
             <p className="text-xs text-[hsl(var(--color-text-secondary))] truncate leading-tight">
               {subtitle}
@@ -57,6 +58,9 @@ export function CaseHeader({ caseData, client, clientPhoneNumbers, serviceName, 
           </Link>
         ) : (
           <div className="min-w-0 flex-1">
+            <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--color-text-muted))] truncate leading-tight">
+              Case
+            </p>
             <h1 className="text-base font-semibold text-[hsl(var(--color-text-primary))] truncate leading-tight">
               {caseData.case_code || 'Case'}
             </h1>
@@ -65,14 +69,6 @@ export function CaseHeader({ caseData, client, clientPhoneNumbers, serviceName, 
             </p>
           </div>
         )}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onDelete}
-          className="hidden sm:flex text-red-400 hover:text-red-300 hover:bg-red-500/10 shrink-0"
-        >
-          Delete Case
-        </Button>
       </div>
     </header>
   )

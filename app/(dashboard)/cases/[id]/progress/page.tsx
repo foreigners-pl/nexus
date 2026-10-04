@@ -20,8 +20,10 @@ export default function CaseProgressPage({ params, searchParams }: ProgressPageP
   const router = useRouter()
   const [caseId, setCaseId] = useState<string | null>(null)
   const [clientId, setClientId] = useState<string | null>(null)
-  const [title, setTitle] = useState('')
-  const [subtitle, setSubtitle] = useState('')
+  const [caseCode, setCaseCode] = useState<string | null>(null)
+  const [clientName, setClientName] = useState<string | null>(null)
+  const [serviceName, setServiceName] = useState<string | null>(null)
+  const [phone, setPhone] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [redirecting, setRedirecting] = useState(!!(focusQueryId || focusEntryId))
   const isMounted = useRef(true)
@@ -53,8 +55,10 @@ export default function CaseProgressPage({ params, searchParams }: ProgressPageP
     if (cached?.caseId) {
       setCaseId(cached.caseId)
       setClientId(cached.clientId ?? null)
-      setTitle(cached.title)
-      setSubtitle(cached.subtitle)
+      setCaseCode(cached.caseCode)
+      setClientName(cached.clientName || cached.title)
+      setServiceName(cached.serviceName || null)
+      setPhone(cached.phone || null)
       setLoading(false)
     }
 
@@ -67,8 +71,10 @@ export default function CaseProgressPage({ params, searchParams }: ProgressPageP
       }
       setCaseId(data.caseId)
       setClientId(data.clientId)
-      setTitle(data.title)
-      setSubtitle(data.subtitle)
+      setCaseCode(data.caseCode)
+      setClientName(data.clientName || data.title)
+      setServiceName(data.serviceName || null)
+      setPhone(data.phone || null)
       setLoading(false)
     })()
     return () => { isMounted.current = false }
@@ -93,7 +99,7 @@ export default function CaseProgressPage({ params, searchParams }: ProgressPageP
 
   return (
     <div className="max-w-3xl mx-auto pb-20">
-      <SubPageHeader backHref={`/cases/${urlId}`} title={title} subtitle={subtitle} icon={<ListChecks className="w-4 h-4 text-white" />} titleHref={clientId ? `/clients/${clientId}` : undefined} />
+      <SubPageHeader backHref={`/cases/${urlId}`} label="Case" title={caseCode || 'Case'} subtitle={[clientName, serviceName, phone].filter(Boolean).join(' · ')} icon={<ListChecks className="w-4 h-4 text-white" />} titleHref={clientId ? `/clients/${clientId}` : undefined} />
       <StepsPanel caseId={caseId} />
     </div>
   )
