@@ -9,12 +9,10 @@ import { deleteCase, getCasePageData } from '@/app/actions/cases'
 import { usePaneBack } from '@/lib/panes'
 import { useQueryClient } from '@tanstack/react-query'
 import { useCasePageCache, fetchCasePageQuery, queryKeys } from '@/lib/query'
-import { fetchComments } from '@/lib/data'
 import { CaseHeader } from './components/CaseHeader'
 import { AssignedPeople } from './components/AssignedPeople'
 import { CaseSubNav } from './components/CaseSubNav'
-import { CommentsSection } from './components/CommentsSection'
-import type { Case, Client, Comment, ContactNumber } from '@/types/database'
+import type { Case, Client, ContactNumber } from '@/types/database'
 
 interface CasePageProps {
   params: Promise<{ id: string }>
@@ -27,12 +25,10 @@ export default function CasePage({ params }: CasePageProps) {
   const [caseData, setCaseData] = useState<Case | null>(null)
   const [client, setClient] = useState<Client | null>(null)
   const [clientPhoneNumbers, setClientPhoneNumbers] = useState<ContactNumber[]>([])
-  const [comments, setComments] = useState<Comment[]>([])
   const [serviceName, setServiceName] = useState('')
   const [currentStepName, setCurrentStepName] = useState('')
   const [paidAmount, setPaidAmount] = useState(0)
   const [fileCount, setFileCount] = useState(0)
-  const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined)
   const [loading, setLoading] = useState(true)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -69,8 +65,6 @@ export default function CasePage({ params }: CasePageProps) {
     setCurrentStepName(data.currentStepName || '')
     setPaidAmount(data.paidAmount || 0)
     setFileCount(data.fileCount || 0)
-    setComments((data.comments as Comment[]) || [])
-    setCurrentUserId(data.currentUserId)
   }
 
   async function fetchCaseData(caseIdParam: string, showLoading = true) {
@@ -97,13 +91,6 @@ export default function CasePage({ params }: CasePageProps) {
     queryClient.invalidateQueries({ queryKey: queryKeys.case(urlId) })
     queryClient.invalidateQueries({ queryKey: queryKeys.case(caseData.id) })
     if (caseData.case_code) queryClient.invalidateQueries({ queryKey: queryKeys.case(caseData.case_code) })
-  }
-
-  const handleCommentsUpdate = async () => {
-    if (!caseData) return
-    const commentsData = await fetchComments(caseData.id)
-    setComments(commentsData)
-    invalidateCaseCache()
   }
 
   const handleCaseUpdate = async () => {
@@ -190,21 +177,6 @@ export default function CasePage({ params }: CasePageProps) {
         billingInfo={`${paidAmount.toFixed(2)} PLN paid`}
         filesInfo={fileCount === 0 ? 'No files' : `${fileCount} file${fileCount === 1 ? '' : 's'}`}
       />
-
-      {/* Comments */}
-      <Card className="backdrop-blur-xl bg-[hsl(var(--color-surface))]/80 border-[hsl(var(--color-border))] shadow-[0_8px_32px_rgb(0_0_0/0.25)]">
-        <CardHeader>
-          <CardTitle>Comments</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <CommentsSection 
-            caseId={caseData.id} 
-            comments={comments} 
-            onUpdate={handleCommentsUpdate}
-            currentUserId={currentUserId}
-          />
-        </CardContent>
-      </Card>
 
       {/* Mobile Delete Button - shows at bottom on mobile only */}
       <div className="sm:hidden pb-20">
