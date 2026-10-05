@@ -15,7 +15,7 @@ import {
   type CaseStep,
   type ServiceStepTemplate,
 } from '@/app/actions/workflow'
-import { ChevronUp, ChevronDown, Trash2, Plus, GripVertical, ListChecks, X } from 'lucide-react'
+import { ChevronUp, ChevronDown, Trash2, Plus, ListChecks } from 'lucide-react'
 
 interface WorkflowEditPageProps {
   params: Promise<{ id: string }>
@@ -52,6 +52,7 @@ export default function WorkflowEditPage({ params }: WorkflowEditPageProps) {
   const [error, setError] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [customName, setCustomName] = useState('')
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
   const isMounted = useRef(true)
 
   useEffect(() => {
@@ -219,9 +220,39 @@ export default function WorkflowEditPage({ params }: WorkflowEditPageProps) {
             <div className="divide-y divide-[hsl(var(--color-border))]">
               {steps.map((step, idx) => {
                 const locked = !canRemove(step)
+                const isDragging = draggingIndex === idx
                 return (
-                  <div key={step.key} className="flex items-center gap-2 px-4 py-3">
-                    <GripVertical className="w-4 h-4 text-[hsl(var(--color-text-muted))]" />
+                  <div
+                    key={step.key}
+                    draggable
+                    onDragStart={(e) => {
+                      setDraggingIndex(idx)
+                      e.dataTransfer.setData('text/plain', String(idx))
+                      e.dataTransfer.effectAllowed = 'move'
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      const from = parseInt(e.dataTransfer.getData('text/plain'), 10)
+                      if (!Number.isNaN(from) && from !== idx) {
+                        const copy = [...steps]
+                        const [moved] = copy.splice(from, 1)
+                        copy.splice(idx, 0, moved)
+                        setSteps(copy)
+                      }
+                      setDraggingIndex(null)
+                    }}
+                    onDragEnd={() => setDraggingIndex(null)}
+                    className={[
+                      'flex items-center gap-3 px-4 py-3 cursor-grab active:cursor-grabbing',
+                      isDragging ? 'opacity-50' : '',
+                    ].join(' ')}
+                  >
+                    <span className="w-6 text-sm font-semibold text-[hsl(var(--color-text-muted))] text-center select-none">
+                      {idx + 1}
+                    </span>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-[hsl(var(--color-text-primary))]">{step.name}</p>
                       <div className="flex items-center gap-2 mt-0.5">
@@ -234,9 +265,10 @@ export default function WorkflowEditPage({ params }: WorkflowEditPageProps) {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1" onPointerDown={(e) => e.stopPropagation()}>
                       <button
                         type="button"
+                        draggable={false}
                         onClick={() => move(idx, -1)}
                         disabled={idx === 0}
                         className="p-1.5 rounded-lg text-[hsl(var(--color-text-secondary))] hover:bg-[hsl(var(--color-surface-hover))] disabled:opacity-30"
@@ -246,6 +278,7 @@ export default function WorkflowEditPage({ params }: WorkflowEditPageProps) {
                       </button>
                       <button
                         type="button"
+                        draggable={false}
                         onClick={() => move(idx, 1)}
                         disabled={idx === steps.length - 1}
                         className="p-1.5 rounded-lg text-[hsl(var(--color-text-secondary))] hover:bg-[hsl(var(--color-surface-hover))] disabled:opacity-30"
@@ -255,6 +288,7 @@ export default function WorkflowEditPage({ params }: WorkflowEditPageProps) {
                       </button>
                       <button
                         type="button"
+                        draggable={false}
                         onClick={() => remove(idx)}
                         disabled={locked}
                         className="p-1.5 rounded-lg text-red-400 hover:bg-red-500/10 disabled:opacity-30 disabled:hover:bg-transparent"
