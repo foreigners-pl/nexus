@@ -23,11 +23,10 @@ export function DangerZone({
           <p className="text-sm text-[hsl(var(--color-text-secondary))]">{description}</p>
         )}
         <Button
-          variant="ghost"
-          size="sm"
+          variant="outline"
           onClick={onDelete}
           disabled={disabled}
-          className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+          className="text-red-400 hover:text-red-300 border-red-500/30 hover:bg-red-500/10"
         >
           {buttonText}
         </Button>
