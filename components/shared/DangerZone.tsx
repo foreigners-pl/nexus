@@ -18,13 +18,16 @@ export function DangerZone({
   return (
     <div className="pt-6 border-t border-[hsl(var(--color-border))]">
       <div className="space-y-3">
+        <h3 className="text-sm font-semibold text-red-400">{title}</h3>
         {description && (
           <p className="text-sm text-[hsl(var(--color-text-secondary))]">{description}</p>
         )}
         <Button
+          variant="ghost"
+          size="sm"
           onClick={onDelete}
           disabled={disabled}
-          className="bg-red-600 hover:bg-red-700 text-white"
+          className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
         >
           {buttonText}
         </Button>
