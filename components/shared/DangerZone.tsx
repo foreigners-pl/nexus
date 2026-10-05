@@ -16,7 +16,7 @@ export function DangerZone({
   disabled,
 }: DangerZoneProps) {
   return (
-    <div className="pt-6 border-t border-[hsl(var(--color-border))]">
+    <div className="mt-8 pt-6 border-t border-[hsl(var(--color-border))]">
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-red-400">{title}</h3>
         {description && (
