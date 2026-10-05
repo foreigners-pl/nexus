@@ -268,6 +268,163 @@ export async function getCaseEntry(entryId: string): Promise<{
   }
 }
 
+// ============================================================
+// Workflow editor
+// ============================================================
+
+export interface ServiceStepTemplate {
+  id: string
+  service_id: string
+  name: string
+  is_required: boolean
+}
+
+export async function getWorkflowEditorData(caseId: string): Promise<{
+  steps: CaseStep[]
+  available: ServiceStepTemplate[]
+  hasLogs: Record<string, boolean>
+  currentStepId: string | null
+  error?: string
+}> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { steps: [], available: [], hasLogs: {}, currentStepId: null, error: 'Not authenticated' }
+
+  const [caseRes, stepsRes, servicesRes, entriesRes] = await Promise.all([
+    supabase.from('cases').select('current_step_id').eq('id', caseId).single(),
+    supabase.from('case_steps').select('*').eq('case_id', caseId).order('position'),
+    supabase.from('case_services').select('service_id').eq('case_id', caseId),
+    supabase.from('case_entries').select('step_id').eq('case_id', caseId),
+  ])
+
+  const steps = (stepsRes.data || []) as CaseStep[]
+  const serviceIds = (servicesRes.data || []).map((s: any) => s.service_id).filter(Boolean) as string[]
+
+  let available: ServiceStepTemplate[] = []
+  if (serviceIds.length) {
+    const { data: svcSteps } = await supabase
+      .from('service_steps')
+      .select('id, service_id, name, is_required')
+      .in('service_id', serviceIds)
+      .order('position')
+    const existing = new Set(
+      steps.filter(s => s.service_id).map(s => `${s.service_id}:${s.name}`)
+    )
+    available = ((svcSteps || []) as ServiceStepTemplate[]).filter(
+      s => !existing.has(`${s.service_id}:${s.name}`)
+    )
+  }
+
+  const hasLogs: Record<string, boolean> = {}
+  for (const e of entriesRes.data || []) {
+    if (e.step_id) hasLogs[e.step_id] = true
+  }
+
+  return {
+    steps,
+    available,
+    hasLogs,
+    currentStepId: caseRes.data?.current_step_id ?? null,
+  }
+}
+
+export interface SaveWorkflowItem {
+  id?: string
+  service_step_id?: string
+  custom_name?: string
+}
+
+export async function saveWorkflowChanges(
+  caseId: string,
+  items: SaveWorkflowItem[]
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const trimmed = items.map(i => ({
+    ...i,
+    custom_name: i.custom_name?.trim(),
+  }))
+
+  const existingIds = trimmed.map(i => i.id).filter(Boolean) as string[]
+
+  const [allStepsRes, entriesRes] = await Promise.all([
+    supabase.from('case_steps').select('id, is_required, step_type').eq('case_id', caseId),
+    supabase.from('case_entries').select('step_id').eq('case_id', caseId),
+  ])
+
+  const allSteps = (allStepsRes.data || []) as { id: string; is_required: boolean; step_type: string }[]
+  const allStepIds = new Set(allSteps.map(s => s.id))
+  const removedIds = allSteps.filter(s => !existingIds.includes(s.id)).map(s => s.id)
+
+  const entriesByStep = new Set(
+    (entriesRes.data || []).map((e: any) => e.step_id).filter(Boolean) as string[]
+  )
+
+  for (const rid of removedIds) {
+    const step = allSteps.find(s => s.id === rid)
+    if (!step) continue
+    if (step.is_required) return { error: 'Cannot remove required steps' }
+    if (entriesByStep.has(rid)) return { error: 'Cannot remove steps that already have logs' }
+  }
+
+  const serviceStepIds = trimmed
+    .map(i => i.service_step_id)
+    .filter(Boolean) as string[]
+  const { data: templates } = serviceStepIds.length
+    ? await supabase
+        .from('service_steps')
+        .select('id, name, is_required, service_id')
+        .in('id', serviceStepIds)
+    : { data: [] }
+  const templateMap = new Map(
+    (templates || []).map((t: any) => [t.id, t] as [string, any])
+  )
+
+  if (removedIds.length) {
+    const { error } = await supabase.from('case_steps').delete().in('id', removedIds)
+    if (error) return { error: error.message }
+  }
+
+  for (const [idx, item] of trimmed.entries()) {
+    const position = idx * 1000
+    if (item.id) {
+      await supabase.from('case_steps').update({ position }).eq('id', item.id).eq('case_id', caseId)
+    } else if (item.service_step_id) {
+      const t = templateMap.get(item.service_step_id)
+      if (!t) continue
+      const { error } = await supabase.from('case_steps').insert({
+        case_id: caseId,
+        name: t.name,
+        is_required: t.is_required,
+        step_type: 'service',
+        service_id: t.service_id,
+        position,
+      })
+      if (error) return { error: error.message }
+    } else if (item.custom_name) {
+      const { error } = await supabase.from('case_steps').insert({
+        case_id: caseId,
+        name: item.custom_name,
+        is_required: false,
+        step_type: 'custom',
+        position,
+      })
+      if (error) return { error: error.message }
+    }
+  }
+
+  const { data: caseRow } = await supabase.from('cases').select('current_step_id').eq('id', caseId).single()
+  if (caseRow?.current_step_id && removedIds.includes(caseRow.current_step_id)) {
+    const remainingId = trimmed.find(i => i.id && !removedIds.includes(i.id))?.id || null
+    await supabase.from('cases').update({ current_step_id: remainingId }).eq('id', caseId)
+  }
+
+  revalidatePath(`/cases/${caseId}/progress`)
+  return {}
+}
+
 /** The board entry that carries a given query (for deep links). */
 export async function getEntryIdForQuery(queryId: string): Promise<string | null> {
   const supabase = await createClient()

@@ -7,7 +7,9 @@ import { getEntryIdForQuery } from '@/app/actions/workflow'
 import { useQueryClient } from '@tanstack/react-query'
 import { useCaseHeaderCache, fetchCaseHeaderQuery } from '@/lib/query'
 import { SubPageHeader } from '@/components/shared/SubPageHeader'
-import { ListChecks } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
+import { usePaneNavigate } from '@/lib/panes'
+import { ListChecks, Pencil } from 'lucide-react'
 
 interface ProgressPageProps {
   params: Promise<{ id: string }>
@@ -28,6 +30,7 @@ export default function CaseProgressPage({ params, searchParams }: ProgressPageP
   const [redirecting, setRedirecting] = useState(!!(focusQueryId || focusEntryId))
   const isMounted = useRef(true)
   const queryClient = useQueryClient()
+  const paneNav = usePaneNavigate()
   const { getCached: getCachedHeader } = useCaseHeaderCache(urlId)
 
   // Legacy deep links (?e=entry / ?q=query) → straight to the entry page
@@ -97,9 +100,26 @@ export default function CaseProgressPage({ params, searchParams }: ProgressPageP
     return <div className="flex items-center justify-center min-h-screen"><p>Case not found</p></div>
   }
 
+  const editHref = `/cases/${urlId}/progress/edit`
+  const openEdit = () => {
+    if (!paneNav(editHref)) router.push(editHref)
+  }
+
   return (
     <div className="max-w-3xl mx-auto pb-20">
-      <SubPageHeader backHref={`/cases/${urlId}`} title={caseCode || 'Case'} subtitle={[clientName, serviceName, phone].filter(Boolean).join(' · ')} icon={<ListChecks className="w-4 h-4 text-white" />} titleHref={clientId ? `/clients/${clientId}` : undefined} />
+      <SubPageHeader
+        backHref={`/cases/${urlId}`}
+        title={caseCode || 'Case'}
+        subtitle={[clientName, serviceName, phone].filter(Boolean).join(' · ')}
+        icon={<ListChecks className="w-4 h-4 text-white" />}
+        titleHref={clientId ? `/clients/${clientId}` : undefined}
+        action={
+          <Button variant="ghost" size="sm" onClick={openEdit} className="text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))]">
+            <Pencil className="w-4 h-4 mr-1.5" />
+            Edit
+          </Button>
+        }
+      />
       <StepsPanel caseId={caseId} />
     </div>
   )

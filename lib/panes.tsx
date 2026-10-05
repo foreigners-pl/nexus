@@ -10,6 +10,7 @@ import CaseBillingPage from '@/app/(dashboard)/cases/[id]/billing/page'
 import InstallmentPage from '@/app/(dashboard)/cases/[id]/billing/[installmentId]/page'
 import CaseFilesPage from '@/app/(dashboard)/cases/[id]/files/page'
 import CaseLegacyPage from '@/app/(dashboard)/cases/[id]/legacy/page'
+import WorkflowEditPage from '@/app/(dashboard)/cases/[id]/progress/edit/page'
 import ClientPage from '@/app/(dashboard)/clients/[id]/page'
 import ClientInfoPage from '@/app/(dashboard)/clients/[id]/info/page'
 import { RequestsContent } from '@/components/mobile/RequestsContent'
@@ -35,6 +36,8 @@ function renderPaneRoute(href: string): React.ReactNode | null {
 
   if ((m = path.match(/^\/cases\/([^/]+)\/billing\/([^/]+)$/)))
     return <InstallmentPage params={Promise.resolve({ id: m[1], installmentId: m[2] })} />
+  if ((m = path.match(/^\/cases\/([^/]+)\/progress\/edit$/)))
+    return <WorkflowEditPage params={Promise.resolve({ id: m[1] })} />
   if ((m = path.match(/^\/cases\/([^/]+)\/progress\/([^/]+)$/)))
     return <CaseEntryPage params={Promise.resolve({ id: m[1], entryId: m[2] })} />
   if ((m = path.match(/^\/cases\/([^/]+)\/progress$/)))
