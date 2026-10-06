@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { searchClientsQuery, type ClientSearchResult } from '@/lib/data'
-import { fetchCurrentUser, fetchMyOpenTasks, fetchMyOpenActions, fetchMyQueries, fetchCasesMissingActions } from '@/lib/data'
+import { fetchCurrentUser, fetchMyOpenTasks, fetchMyOpenActions, fetchCasesMissingActions } from '@/lib/data'
+import { getMyQueries } from '@/app/actions/workflow'
 import { getRecentClients, type RecentClient } from '@/lib/recent-clients'
 import { usePaneNavigate } from '@/lib/panes'
 import { usePrefetchClientPage, queryKeys } from '@/lib/query'
@@ -48,7 +49,7 @@ export default function MobileHomePage() {
   const { data: requestsData } = useQuery({
     queryKey: queryKeys.requests,
     queryFn: async () => {
-      const [tasksRes, queriesRes] = await Promise.all([fetchMyOpenTasks(), fetchMyQueries()])
+      const [tasksRes, queriesRes] = await Promise.all([fetchMyOpenTasks(), getMyQueries()])
       return { tasks: tasksRes.tasks, queries: queriesRes.queries }
     },
     staleTime: 60 * 1000,

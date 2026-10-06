@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query'
 import type { MyQuery } from '@/app/actions/workflow'
-import { fetchMyOpenTasks, fetchMyQueries } from '@/lib/data'
+import { fetchMyOpenTasks } from '@/lib/data'
+import { getMyQueries } from '@/app/actions/workflow'
 import { MobileBackHeader } from '@/components/mobile/MobileBackHeader'
 import { usePaneLink } from '@/lib/panes'
 import { usePrefetchEntry } from '@/lib/query'
@@ -129,7 +130,7 @@ export function RequestsContent() {
   const { data } = useQuery({
     queryKey: queryKeys.requests,
     queryFn: async () => {
-      const [tasksRes, queriesRes] = await Promise.all([fetchMyOpenTasks(), fetchMyQueries()])
+      const [tasksRes, queriesRes] = await Promise.all([fetchMyOpenTasks(), getMyQueries()])
       return { tasks: tasksRes.tasks, queries: queriesRes.queries }
     },
     staleTime: 60 * 1000,
