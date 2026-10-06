@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { logActivity, logActivityForUsers } from './dashboard'
 import { ensureSystemSteps, setInitialStep, generateStepsForService } from './workflow'
+import { notifyUsers } from './notifications'
 
 // Everything the case detail page needs in one round trip — the sub-queries
 // run in parallel server-side instead of as a client waterfall.
@@ -183,7 +184,7 @@ export async function updateCase(formData: FormData) {
 
   const { data: caseData } = await supabase
     .from('cases')
-    .select('case_code, due_date, clients(first_name, last_name)')
+    .select('case_code, due_date, assigned_to, csr_id, clients(first_name, last_name)')
     .eq('id', caseId)
     .single()
 
@@ -225,6 +226,21 @@ export async function updateCase(formData: FormData) {
 
   revalidatePath('/cases')
   revalidatePath(`/cases/${caseId}`)
+
+  const caseLabel = clientName !== 'Unknown' ? clientName : caseData?.case_code || 'a case'
+  const newlyAssigned = [
+    assignedTo !== null && assignedTo && assignedTo !== caseData?.assigned_to ? assignedTo : null,
+    csrId !== null && csrId && csrId !== caseData?.csr_id ? csrId : null,
+  ].filter(Boolean) as string[]
+  if (newlyAssigned.length) {
+    await notifyUsers(newlyAssigned, {
+      kind: 'task',
+      title: `Assigned to ${caseLabel}`,
+      body: `You were assigned to case ${caseData?.case_code || ''}`.trim(),
+      link: `/cases/${caseId}`,
+      caseId,
+    })
+  }
 
   // Log due date change if it actually changed
   if (caseData && dueDate !== undefined) {

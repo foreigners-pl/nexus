@@ -474,6 +474,16 @@ export async function moveToStep(caseId: string, stepId: string) {
   await supabase.from('cases').update({ current_step_id: stepId }).eq('id', caseId)
 
   revalidatePath(`/cases/${caseId}`)
+
+  const { data: targetStep } = await supabase.from('case_steps').select('name').eq('id', stepId).single()
+  const ctx = await getCaseNotifyContext(caseId)
+  await notifyUsers(ctx.recipients, {
+    kind: 'task',
+    title: `Step changed on ${ctx.caseLabel}`,
+    body: `${ctx.actorName} moved the case to ${targetStep?.name || 'another step'}`,
+    link: `/cases/${caseId}/progress`,
+    caseId,
+  })
   return { success: true }
 }
 
@@ -618,6 +628,16 @@ export async function completeAction(entryId: string, caseId: string) {
 
   if (error) return { error: 'Failed to complete action' }
   revalidatePath(`/cases/${caseId}`)
+
+  const { data: action } = await supabase.from('case_entries').select('body').eq('id', entryId).single()
+  const ctx = await getCaseNotifyContext(caseId)
+  await notifyUsers(ctx.recipients, {
+    kind: 'task',
+    title: `Action completed on ${ctx.caseLabel}`,
+    body: action?.body || `${ctx.actorName} completed an action`,
+    link: `/cases/${caseId}/progress/${entryId}`,
+    caseId,
+  })
   return { success: true }
 }
 
