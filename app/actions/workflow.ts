@@ -982,13 +982,18 @@ export async function getMyQueries(): Promise<{ queries: MyQuery[]; error?: stri
       id, case_id, status, direction, created_at, opened_by, assigned_to,
       case_steps(name),
       cases(case_code, clients(first_name, last_name)),
-      case_query_messages(body, created_at),
-      case_entries(id)
+      case_query_messages(body, created_at)
     `)
     .or(`and(assigned_to.eq.${user.id},status.eq.open),and(opened_by.eq.${user.id},status.eq.answered)`)
     .order('created_at', { ascending: false })
 
   if (error) return { queries: [], error: error.message }
+
+  const queryIds = (data || []).map((q: any) => q.id)
+  const { data: entries } = queryIds.length
+    ? await supabase.from('case_entries').select('id, query_id').in('query_id', queryIds)
+    : { data: [] }
+  const entryByQuery = new Map((entries || []).map((e: any) => [e.query_id, e.id]))
 
   return {
     queries: (data || []).map((q: any) => {
@@ -998,7 +1003,7 @@ export async function getMyQueries(): Promise<{ queries: MyQuery[]; error?: stri
       return {
         id: q.id,
         case_id: q.case_id,
-        entry_id: (q.case_entries || [])[0]?.id ?? null,
+        entry_id: entryByQuery.get(q.id) ?? null,
         status: q.status,
         direction: q.direction,
         created_at: q.created_at,
