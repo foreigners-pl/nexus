@@ -18,9 +18,9 @@ export default function AdminPage() {
             <FileText className="w-5 h-5 text-[hsl(var(--color-primary))]" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Upload service protocol</p>
+            <p className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Set up service</p>
             <p className="text-xs text-[hsl(var(--color-text-secondary))] truncate">
-              Parse a DOCX into steps, eligibility, and pricing for a service.
+              Define steps, eligibility, optional stages, and reference info for a service.
             </p>
           </div>
         </Link>

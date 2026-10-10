@@ -12,6 +12,43 @@ export async function getServices(): Promise<Service[]> {
   return (data || []) as Service[]
 }
 
+export async function getServiceForEdit(serviceId: string): Promise<ParsedProtocol | null> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const { data: service } = await supabase.from('services').select('*').eq('id', serviceId).single()
+  if (!service) return null
+
+  const { data: steps } = await supabase
+    .from('service_steps')
+    .select('*')
+    .eq('service_id', serviceId)
+    .order('position')
+
+  const { data: eligibility } = await supabase
+    .from('service_eligibility')
+    .select('*')
+    .eq('service_id', serviceId)
+    .order('position')
+
+  const extras = (service.protocol_extras as Record<string, unknown>) || {}
+
+  return {
+    serviceName: service.name || '',
+    serviceDescription: service.description || '',
+    servicePrice: service.gross_price ?? null,
+    steps: (steps || []).map((s: any) => ({ name: s.name, description: s.description || '', price: null, isRequired: s.is_required })),
+    statusItems: (eligibility || []).filter((e: any) => e.type === 'status').map((e: any) => ({ title: e.title, description: e.description || '' })),
+    documentItems: (eligibility || []).filter((e: any) => e.type === 'documents').map((e: any) => ({ title: e.title, description: e.description || '' })),
+    optionalStages: (extras.optionalStages as ParsedOptionItem[]) || [],
+    allInclusive: (extras.allInclusive as { name: string; price: number | null; items: string[] } | null) || null,
+    executionStages: (extras.executionStages as { name: string; items: string[] }[]) || [],
+    closureStages: (extras.closureStages as string[]) || [],
+    sectionDescriptions: {},
+  }
+}
+
 export interface ParsedStep {
   name: string
   description: string
