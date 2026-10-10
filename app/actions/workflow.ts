@@ -510,39 +510,43 @@ export async function toggleCaseEligibility(
   caseId: string,
   type: 'status' | 'documents'
 ): Promise<{ completed: boolean; error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { completed: false, error: 'Not authenticated' }
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { completed: false, error: 'Not authenticated' }
 
-  const { data: existing } = await supabase
-    .from('case_eligibility')
-    .select('id, completed_at')
-    .eq('case_id', caseId)
-    .eq('type', type)
-    .single()
+    const { data: existing } = await supabase
+      .from('case_eligibility')
+      .select('id, completed_at')
+      .eq('case_id', caseId)
+      .eq('type', type)
+      .single()
 
-  if (existing) {
-    if (existing.completed_at) {
+    if (existing) {
+      if (existing.completed_at) {
+        await supabase
+          .from('case_eligibility')
+          .update({ completed_at: null, completed_by: null })
+          .eq('id', existing.id)
+        return { completed: false }
+      }
       await supabase
         .from('case_eligibility')
-        .update({ completed_at: null, completed_by: null })
+        .update({ completed_at: new Date().toISOString(), completed_by: user.id })
         .eq('id', existing.id)
-      return { completed: false }
+      return { completed: true }
     }
-    await supabase
-      .from('case_eligibility')
-      .update({ completed_at: new Date().toISOString(), completed_by: user.id })
-      .eq('id', existing.id)
-    return { completed: true }
-  }
 
-  await supabase.from('case_eligibility').insert({
-    case_id: caseId,
-    type,
-    completed_at: new Date().toISOString(),
-    completed_by: user.id,
-  })
-  return { completed: true }
+    await supabase.from('case_eligibility').insert({
+      case_id: caseId,
+      type,
+      completed_at: new Date().toISOString(),
+      completed_by: user.id,
+    })
+    return { completed: true }
+  } catch (e: any) {
+    return { completed: false, error: e?.message || 'Failed to save eligibility state' }
+  }
 }
 
 export async function getCaseEligibilityDetail(caseId: string, type: 'status' | 'documents'): Promise<{
