@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from 'react'
 import { getCaseAgreementData } from '@/app/actions/cases'
+import { getCompanySettings } from '@/app/actions/company'
 import { Button } from '@/components/ui/Button'
 import { Printer } from 'lucide-react'
 
@@ -12,11 +13,13 @@ interface AgreementPageProps {
 export default function AgreementPage({ params }: AgreementPageProps) {
   const { id: caseId } = use(params)
   const [data, setData] = useState<Awaited<ReturnType<typeof getCaseAgreementData>> | null>(null)
+  const [company, setCompany] = useState<Record<string, string | null>>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    getCaseAgreementData(caseId).then(res => {
-      setData(res)
+    Promise.all([getCaseAgreementData(caseId), getCompanySettings()]).then(([caseData, companyRes]) => {
+      setData(caseData)
+      setCompany(companyRes.settings || {})
       setLoading(false)
     })
   }, [caseId])
@@ -40,33 +43,63 @@ export default function AgreementPage({ params }: AgreementPageProps) {
         </Button>
       </div>
 
-      <div className="prose prose-sm max-w-none text-[hsl(var(--color-text-primary))] print:prose-black">
-        <p className="text-[hsl(var(--color-text-secondary))]">Date: {date}</p>
-        <p className="text-[hsl(var(--color-text-secondary))]">Case: {caseCode}</p>
+      <div className="prose prose-sm max-w-none text-[hsl(var(--color-text-primary))] print:prose-black space-y-6">
+        <div className="border-b border-[hsl(var(--color-border))] pb-6">
+          <p className="text-sm text-[hsl(var(--color-text-secondary))]">Date: {date}</p>
+          <p className="text-sm text-[hsl(var(--color-text-secondary))]">Case: {caseCode}</p>
+        </div>
 
-        <h2 className="text-base font-semibold mt-6">Client</h2>
-        <p>{clientName || 'Client name'}</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <h2 className="text-base font-semibold mb-2">Service provider</h2>
+            <p className="font-medium">{company.company_name || 'Nexus'}</p>
+            {company.address && <p className="text-sm text-[hsl(var(--color-text-secondary))] whitespace-pre-line">{company.address}</p>}
+            {company.tax_id && <p className="text-sm text-[hsl(var(--color-text-secondary))]">Tax ID: {company.tax_id}</p>}
+            {company.email && <p className="text-sm text-[hsl(var(--color-text-secondary))]">{company.email}</p>}
+            {company.phone && <p className="text-sm text-[hsl(var(--color-text-secondary))]">{company.phone}</p>}
+          </div>
 
-        <h2 className="text-base font-semibold mt-6">Service</h2>
-        <p>{serviceName || 'Selected service'}</p>
+          <div>
+            <h2 className="text-base font-semibold mb-2">Client</h2>
+            <p>{clientName || 'Client name'}</p>
+          </div>
+        </div>
 
-        <h2 className="text-base font-semibold mt-6">Price</h2>
-        <p>{totalPrice ? `${totalPrice.toLocaleString()} PLN` : 'To be agreed'}</p>
+        <div>
+          <h2 className="text-base font-semibold mb-2">Service</h2>
+          <p>{serviceName || 'Selected service'}</p>
+        </div>
 
-        <h2 className="text-base font-semibold mt-6">Terms</h2>
-        <p>
-          This document is a non-binding summary of the service described above. It is provided for
-          transparency so the client understands what they are paying for. No signature is required.
-        </p>
-        <p>
-          The service provider will carry out the agreed service with reasonable care and skill. The
-          client is responsible for providing accurate information and any requested documents in a
-          timely manner.
-        </p>
-        <p>
-          Payment terms, refund policy, and the exact scope of work are governed by the separate
-          engagement agreement and invoices issued through this case.
-        </p>
+        <div>
+          <h2 className="text-base font-semibold mb-2">Price</h2>
+          <p className="text-lg font-semibold">{totalPrice ? `${Number(totalPrice).toLocaleString()} PLN` : 'To be agreed'}</p>
+        </div>
+
+        {company.bank_account && (
+          <div>
+            <h2 className="text-base font-semibold mb-2">Payment details</h2>
+            <p className="text-sm text-[hsl(var(--color-text-secondary))]">{company.bank_name || 'Bank'}</p>
+            <p className="text-sm font-medium">{company.bank_account}</p>
+            {company.swift && <p className="text-sm text-[hsl(var(--color-text-secondary))]">SWIFT: {company.swift}</p>}
+          </div>
+        )}
+
+        <div>
+          <h2 className="text-base font-semibold mb-2">Terms</h2>
+          <p>
+            This document is a non-binding summary of the service described above. It is provided for
+            transparency so the client understands what they are paying for. No signature is required.
+          </p>
+          <p>
+            The service provider will carry out the agreed service with reasonable care and skill. The
+            client is responsible for providing accurate information and any requested documents in a
+            timely manner.
+          </p>
+          <p>
+            Payment terms, refund policy, and the exact scope of work are governed by the separate
+            engagement agreement and invoices issued through this case.
+          </p>
+        </div>
       </div>
     </div>
   )

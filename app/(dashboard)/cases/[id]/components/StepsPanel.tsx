@@ -244,7 +244,9 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
 
         {/* Step content — sits directly on the page background */}
         <div className="space-y-3">
-          {isActive && <ActionPanel caseId={caseId} openAction={openAction} onChanged={refresh} />}
+          {isActive && s.step_type !== 'eligibility' && s.step_type !== 'presale' && (
+            <ActionPanel caseId={caseId} openAction={openAction} onChanged={refresh} />
+          )}
 
           {!isActive && (
             <Button
