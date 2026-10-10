@@ -91,8 +91,8 @@ export default function CaseLegacyPage({ params }: LegacyPageProps) {
     <div className="max-w-3xl mx-auto pb-20">
       <SubPageHeader
         backHref={`/cases/${urlId}`}
-        title={caseCode || caseData.case_code || 'Case'}
-        subtitle={[clientName, serviceName, phone].filter(Boolean).join(' · ')}
+        title={serviceName || caseCode || caseData.case_code || 'Case'}
+        subtitle={[clientName, phone].filter(Boolean).join(' · ')}
         icon={<MessageSquareText className="w-4 h-4 text-white" />}
         titleHref={caseData.client_id ? `/clients/${caseData.client_id}` : undefined}
       />

@@ -92,11 +92,11 @@ export default function CaseBillingPage({ params }: BillingPageProps) {
     ? [client.first_name, client.last_name].filter(Boolean).join(' ') || client.contact_email
     : null
   const serviceName = (caseServices[0] as any)?.services?.name || null
-  const subtitle = [serviceName, clientPhone].filter(Boolean).join(' · ')
+  const subtitle = [clientName, clientPhone].filter(Boolean).join(' · ')
 
   return (
     <div className="max-w-3xl mx-auto pb-20">
-      <SubPageHeader backHref={`/cases/${urlId}`} title={caseCode || caseData.case_code || 'Case'} subtitle={[clientName, subtitle].filter(Boolean).join(' · ')} icon={<Receipt className="w-4 h-4 text-white" />} titleHref={caseData.client_id ? `/clients/${caseData.client_id}` : undefined} />
+      <SubPageHeader backHref={`/cases/${urlId}`} title={serviceName || caseCode || caseData.case_code || 'Case'} subtitle={subtitle} icon={<Receipt className="w-4 h-4 text-white" />} titleHref={caseData.client_id ? `/clients/${caseData.client_id}` : undefined} />
 
       <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-5 space-y-6">
         <div>

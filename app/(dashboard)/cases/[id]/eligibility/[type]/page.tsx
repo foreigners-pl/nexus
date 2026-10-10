@@ -129,8 +129,8 @@ export default function EligibilityDetailPage({ params }: EligibilityDetailPageP
     <div className="max-w-3xl mx-auto pb-20">
       <SubPageHeader
         backHref={`/cases/${urlId}/progress`}
-        title={caseCode || 'Case'}
-        subtitle={[clientName, serviceName, phone].filter(Boolean).join(' · ')}
+        title={serviceName || caseCode || 'Case'}
+        subtitle={[clientName, phone].filter(Boolean).join(' · ')}
         icon={<Icon className="w-4 h-4 text-white" />}
         titleHref={clientId ? `/clients/${clientId}` : undefined}
         action={
@@ -173,7 +173,7 @@ export default function EligibilityDetailPage({ params }: EligibilityDetailPageP
 
         <Button
           onClick={handleToggle}
-          disabled={toggling || items.length === 0}
+          disabled={toggling}
           className={`w-full ${completed ? 'bg-red-600 hover:bg-red-700' : ''}`}
         >
           {completed ? (

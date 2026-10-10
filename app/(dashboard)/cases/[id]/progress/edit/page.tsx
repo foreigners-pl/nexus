@@ -190,8 +190,8 @@ export default function WorkflowEditPage({ params }: WorkflowEditPageProps) {
     <div className="max-w-3xl mx-auto pb-20">
       <SubPageHeader
         backHref={`/cases/${urlId}/progress`}
-        title={caseCode || 'Case'}
-        subtitle={[clientName, serviceName, phone].filter(Boolean).join(' · ')}
+        title={serviceName || caseCode || 'Case'}
+        subtitle={[clientName, phone].filter(Boolean).join(' · ')}
         icon={<ListChecks className="w-4 h-4 text-white" />}
         titleHref={clientId ? `/clients/${clientId}` : undefined}
         action={

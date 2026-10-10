@@ -21,7 +21,8 @@ export function CaseHeader({ caseData, client, clientPhoneNumbers, serviceName }
   const paneBack = usePaneBack()
 
   const phones = clientPhoneNumbers.map(p => `${p.country_code || ''} ${p.number}`.trim()).filter(Boolean).join(' · ')
-  const subtitle = [clientName, serviceName, phones].filter(Boolean).join(' · ')
+  const subtitle = [clientName, phones].filter(Boolean).join(' · ')
+  const title = serviceName || caseData.case_code || 'Case'
 
   return (
     <header className="sticky -top-4 md:-top-6 z-40 -mx-4 md:-mx-6 -mt-4 md:-mt-6 mb-6 bg-[hsl(var(--color-surface))]/90 backdrop-blur border-b border-[hsl(var(--color-border))]">
@@ -47,7 +48,7 @@ export function CaseHeader({ caseData, client, clientPhoneNumbers, serviceName }
             className="min-w-0 flex-1 h-full flex flex-col justify-center rounded-lg px-1 hover:bg-[hsl(var(--color-surface-hover))] active:bg-[hsl(var(--color-surface-hover))] transition-colors"
           >
             <h1 className="text-base font-semibold text-[hsl(var(--color-text-primary))] truncate leading-tight">
-              {caseData.case_code || 'Case'}
+              {title}
             </h1>
             <p className="text-xs text-[hsl(var(--color-text-secondary))] truncate leading-tight">
               {subtitle}
@@ -56,7 +57,7 @@ export function CaseHeader({ caseData, client, clientPhoneNumbers, serviceName }
         ) : (
           <div className="min-w-0 flex-1 h-full flex flex-col justify-center">
             <h1 className="text-base font-semibold text-[hsl(var(--color-text-primary))] truncate leading-tight">
-              {caseData.case_code || 'Case'}
+              {title}
             </h1>
             <p className="text-xs text-[hsl(var(--color-text-secondary))] truncate leading-tight">
               {subtitle}

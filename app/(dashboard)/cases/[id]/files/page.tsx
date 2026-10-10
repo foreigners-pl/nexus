@@ -20,6 +20,8 @@ export default function CaseFilesPage({ params }: FilesPageProps) {
   const [caseData, setCaseData] = useState<any>(null)
   const [clientName, setClientName] = useState<string | null>(null)
   const [caseCode, setCaseCode] = useState<string | null>(null)
+  const [serviceName, setServiceName] = useState<string | null>(null)
+  const [phone, setPhone] = useState<string | null>(null)
   const [headerSub, setHeaderSub] = useState('')
   const [attachments, setAttachments] = useState<CaseAttachment[]>([])
   const [loading, setLoading] = useState(true)
@@ -35,6 +37,8 @@ export default function CaseFilesPage({ params }: FilesPageProps) {
         setCaseData({ id: cachedHeader.caseId, client_id: cachedHeader.clientId })
         setCaseCode(cachedHeader.caseCode)
         setClientName(cachedHeader.clientName || cachedHeader.title)
+        setServiceName(cachedHeader.serviceName || null)
+        setPhone(cachedHeader.phone || null)
         setHeaderSub(cachedHeader.subtitle)
         const cachedAtts = queryClient.getQueryData<CaseAttachment[]>(queryKeys.attachments(cachedHeader.caseId))
         if (cachedAtts) {
@@ -49,6 +53,8 @@ export default function CaseFilesPage({ params }: FilesPageProps) {
       setCaseData({ id: header.caseId, client_id: header.clientId, case_code: header.caseCode })
       setCaseCode(header.caseCode)
       setClientName(header.clientName || header.title)
+      setServiceName(header.serviceName || null)
+      setPhone(header.phone || null)
       setHeaderSub(header.subtitle)
 
       const cachedAtts = queryClient.getQueryData<CaseAttachment[]>(queryKeys.attachments(header.caseId))
@@ -82,7 +88,7 @@ export default function CaseFilesPage({ params }: FilesPageProps) {
 
   return (
     <div className="max-w-3xl mx-auto pb-20">
-      <SubPageHeader backHref={`/cases/${urlId}`} title={caseCode || caseData.case_code || 'Case'} subtitle={[clientName, headerSub].filter(Boolean).join(' · ')} icon={<FolderOpen className="w-4 h-4 text-white" />} titleHref={caseData.client_id ? `/clients/${caseData.client_id}` : undefined} />
+      <SubPageHeader backHref={`/cases/${urlId}`} title={serviceName || caseCode || caseData.case_code || 'Case'} subtitle={[clientName, phone].filter(Boolean).join(' · ')} icon={<FolderOpen className="w-4 h-4 text-white" />} titleHref={caseData.client_id ? `/clients/${caseData.client_id}` : undefined} />
 
       <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-5">
         <div className="flex items-center justify-between mb-4">

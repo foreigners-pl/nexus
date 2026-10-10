@@ -270,13 +270,14 @@ export default function InstallmentPage({ params }: InstallmentPageProps) {
     : invoice?.status === 'sent' ? `Invoice sent ${formatDate(invoice.sent_at)}`
     : installment.due_date ? `Due ${formatDate(installment.due_date)}`
     : 'No due date'
+  const serviceName = services[0]?.services?.name
 
   return (
     <div className="max-w-3xl mx-auto pb-20">
       <SubPageHeader
         backHref={`/cases/${urlId}/billing`}
-        title={caseData?.case_code || 'Case'}
-        subtitle={[client ? ([client.first_name, client.last_name].filter(Boolean).join(' ') || client.contact_email) : null, services[0]?.services?.name, clientPhone, displayName].filter(Boolean).join(' · ')}
+        title={serviceName || caseData?.case_code || 'Case'}
+        subtitle={[client ? ([client.first_name, client.last_name].filter(Boolean).join(' ') || client.contact_email) : null, clientPhone].filter(Boolean).join(' · ')}
         icon={<Receipt className="w-4 h-4 text-white" />}
         titleHref={caseData?.client_id ? `/clients/${caseData.client_id}` : undefined}
       />

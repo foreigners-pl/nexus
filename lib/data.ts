@@ -107,8 +107,8 @@ export async function fetchCaseHeaderData(idOrCode: string) {
     clientId: (caseRow.client_id as string | null) ?? null,
     caseCode: (caseRow.case_code as string) || 'Case',
     clientName: clientName || '',
-    title: clientName || (caseRow.case_code as string) || 'Case',
-    subtitle: [svc, phone].filter(Boolean).join(' · '),
+    title: svc || (caseRow.case_code as string) || 'Case',
+    subtitle: [clientName, phone].filter(Boolean).join(' · '),
     serviceName: svc || '',
     phone,
   }
