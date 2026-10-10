@@ -131,6 +131,7 @@ export interface Service {
   category?: string
   gross_price?: number
   price?: number
+  description?: string
   created_at?: string
 }
 
