@@ -106,6 +106,10 @@ export default function ProtocolUploadPage() {
     setParsed({ ...parsed, [type]: items })
   }
 
+  const sectionDescription = (keyword: string) =>
+    Object.entries(parsed?.sectionDescriptions || {})
+      .find(([title]) => title.toLowerCase().includes(keyword))?.[1] || ''
+
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 pb-20">
       <h1 className="text-xl font-bold text-[hsl(var(--color-text-primary))] mb-2">Upload service protocol</h1>
@@ -189,55 +193,34 @@ export default function ProtocolUploadPage() {
           </div>
 
           <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-3">
-            <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Steps ({parsed.steps.length})</h2>
+            <div>
+              <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Steps ({parsed.steps.length})</h2>
+              {sectionDescription('mandatory stages') && (
+                <p className="text-xs text-[hsl(var(--color-text-secondary))] mt-1">{sectionDescription('mandatory stages')}</p>
+              )}
+            </div>
             {parsed.steps.length === 0 ? (
               <p className="text-sm text-[hsl(var(--color-text-secondary))]">No steps were detected.</p>
             ) : (
-              <ul className="space-y-4">
+              <ul className="space-y-3">
                 {parsed.steps.map((step, i) => (
-                  <li key={i} className="flex gap-2 items-start">
-                    <div className="flex-1 space-y-2">
-                      <div>
-                        <label className="block text-xs text-[hsl(var(--color-text-secondary))] mb-1">Step name</label>
-                        <Input
-                          value={step.name}
-                          onChange={e => updateStep(i, 'name', e.target.value)}
-                          placeholder="e.g. Application submission"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-[hsl(var(--color-text-secondary))] mb-1">Description</label>
-                        <textarea
-                          value={step.description}
-                          onChange={e => updateStep(i, 'description', e.target.value)}
-                          rows={2}
-                          placeholder="Optional description"
-                          className="w-full rounded-xl bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] px-3 py-2 text-sm text-[hsl(var(--color-text-primary))] outline-none resize-y"
-                        />
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <label className="flex items-center gap-2 text-sm text-[hsl(var(--color-text-secondary))]">
-                          <input
-                            type="checkbox"
-                            checked={step.isRequired}
-                            onChange={e => updateStep(i, 'isRequired', e.target.checked)}
-                            className="rounded border-[hsl(var(--color-border))]"
-                          />
-                          Required
-                        </label>
-                        <div>
-                          <label className="sr-only">Price</label>
-                          <Input
-                            type="number"
-                            value={step.price ?? ''}
-                            onChange={e => updateStep(i, 'price', e.target.value ? parseInt(e.target.value) : null)}
-                            placeholder="Price (PLN)"
-                            className="w-36"
-                          />
-                        </div>
-                      </div>
+                  <li key={i} className="flex gap-2 items-center">
+                    <div className="flex-1">
+                      <Input
+                        value={step.name}
+                        onChange={e => updateStep(i, 'name', e.target.value)}
+                        placeholder="Step name"
+                      />
                     </div>
-                    <button onClick={() => removeStep(i)} className="mt-1 text-[hsl(var(--color-text-muted))] hover:text-red-400">
+                    <div className="w-36">
+                      <Input
+                        type="number"
+                        value={step.price ?? ''}
+                        onChange={e => updateStep(i, 'price', e.target.value ? parseInt(e.target.value) : null)}
+                        placeholder="Price (PLN)"
+                      />
+                    </div>
+                    <button onClick={() => removeStep(i)} className="text-[hsl(var(--color-text-muted))] hover:text-red-400">
                       <X className="w-4 h-4" />
                     </button>
                   </li>
@@ -247,30 +230,22 @@ export default function ProtocolUploadPage() {
           </div>
 
           <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-3">
-            <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Eligibility — Status verification</h2>
+            <div>
+              <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Eligibility — Status verification</h2>
+              {sectionDescription('status verification') && (
+                <p className="text-xs text-[hsl(var(--color-text-secondary))] mt-1">{sectionDescription('status verification')}</p>
+              )}
+            </div>
             {parsed.statusItems.map((item, i) => (
-              <div key={i} className="flex gap-2 items-start">
-                <div className="flex-1 space-y-2">
-                  <div>
-                    <label className="block text-xs text-[hsl(var(--color-text-secondary))] mb-1">Item title</label>
-                    <Input
-                      value={item.title}
-                      onChange={e => updateEligibility('statusItems', i, 'title', e.target.value)}
-                      placeholder="e.g. Current legal status active"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-[hsl(var(--color-text-secondary))] mb-1">Description</label>
-                    <textarea
-                      value={item.description}
-                      onChange={e => updateEligibility('statusItems', i, 'description', e.target.value)}
-                      rows={2}
-                      placeholder="Optional description"
-                      className="w-full rounded-xl bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] px-3 py-2 text-sm text-[hsl(var(--color-text-primary))] outline-none resize-y"
-                    />
-                  </div>
+              <div key={i} className="flex gap-2 items-center">
+                <div className="flex-1">
+                  <Input
+                    value={item.title}
+                    onChange={e => updateEligibility('statusItems', i, 'title', e.target.value)}
+                    placeholder="Item title"
+                  />
                 </div>
-                <button onClick={() => removeEligibility('statusItems', i)} className="mt-1 text-[hsl(var(--color-text-muted))] hover:text-red-400">
+                <button onClick={() => removeEligibility('statusItems', i)} className="text-[hsl(var(--color-text-muted))] hover:text-red-400">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -278,30 +253,22 @@ export default function ProtocolUploadPage() {
           </div>
 
           <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-3">
-            <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Eligibility — Mandatory documents</h2>
+            <div>
+              <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Eligibility — Mandatory documents</h2>
+              {sectionDescription('mandatory documents') && (
+                <p className="text-xs text-[hsl(var(--color-text-secondary))] mt-1">{sectionDescription('mandatory documents')}</p>
+              )}
+            </div>
             {parsed.documentItems.map((item, i) => (
-              <div key={i} className="flex gap-2 items-start">
-                <div className="flex-1 space-y-2">
-                  <div>
-                    <label className="block text-xs text-[hsl(var(--color-text-secondary))] mb-1">Item title</label>
-                    <Input
-                      value={item.title}
-                      onChange={e => updateEligibility('documentItems', i, 'title', e.target.value)}
-                      placeholder="e.g. Valid passport"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-[hsl(var(--color-text-secondary))] mb-1">Description</label>
-                    <textarea
-                      value={item.description}
-                      onChange={e => updateEligibility('documentItems', i, 'description', e.target.value)}
-                      rows={2}
-                      placeholder="Optional description"
-                      className="w-full rounded-xl bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] px-3 py-2 text-sm text-[hsl(var(--color-text-primary))] outline-none resize-y"
-                    />
-                  </div>
+              <div key={i} className="flex gap-2 items-center">
+                <div className="flex-1">
+                  <Input
+                    value={item.title}
+                    onChange={e => updateEligibility('documentItems', i, 'title', e.target.value)}
+                    placeholder="Item title"
+                  />
                 </div>
-                <button onClick={() => removeEligibility('documentItems', i)} className="mt-1 text-[hsl(var(--color-text-muted))] hover:text-red-400">
+                <button onClick={() => removeEligibility('documentItems', i)} className="text-[hsl(var(--color-text-muted))] hover:text-red-400">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -313,7 +280,10 @@ export default function ProtocolUploadPage() {
 
             {parsed.optionalStages.length > 0 && (
               <div>
-                <h3 className="text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-2">Optional stages</h3>
+                <h3 className="text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-1">Optional stages</h3>
+                {sectionDescription('optional stages') && (
+                  <p className="text-xs text-[hsl(var(--color-text-secondary))] mb-2">{sectionDescription('optional stages')}</p>
+                )}
                 <ul className="space-y-1 text-sm text-[hsl(var(--color-text-primary))]">
                   {parsed.optionalStages.map((opt, i) => (
                     <li key={i} className="flex items-center justify-between rounded-lg bg-[hsl(var(--color-background))] px-3 py-2">
@@ -327,9 +297,12 @@ export default function ProtocolUploadPage() {
 
             {parsed.allInclusive && (
               <div>
-                <h3 className="text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-2">{parsed.allInclusive.name}</h3>
+                <h3 className="text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-1">{parsed.allInclusive.name}</h3>
                 {parsed.allInclusive.price !== null && (
                   <p className="text-sm text-[hsl(var(--color-text-primary))] mb-2 font-medium">{parsed.allInclusive.price.toLocaleString()} PLN</p>
+                )}
+                {sectionDescription('all inclusive') && (
+                  <p className="text-xs text-[hsl(var(--color-text-secondary))] mb-2">{sectionDescription('all inclusive')}</p>
                 )}
                 <ul className="space-y-1 text-sm text-[hsl(var(--color-text-secondary))] list-disc list-inside">
                   {parsed.allInclusive.items.map((item, i) => <li key={i}>{item}</li>)}
@@ -344,6 +317,9 @@ export default function ProtocolUploadPage() {
                   {parsed.executionStages.map((stage, i) => (
                     <div key={i}>
                       <p className="text-sm font-medium text-[hsl(var(--color-text-primary))] mb-1">{stage.name}</p>
+                      {sectionDescription(stage.name.toLowerCase()) && (
+                        <p className="text-xs text-[hsl(var(--color-text-secondary))] mb-1">{sectionDescription(stage.name.toLowerCase())}</p>
+                      )}
                       <ul className="space-y-1 text-sm text-[hsl(var(--color-text-secondary))] list-disc list-inside">
                         {stage.items.map((item, j) => <li key={j}>{item}</li>)}
                       </ul>
@@ -355,7 +331,10 @@ export default function ProtocolUploadPage() {
 
             {parsed.closureStages.length > 0 && (
               <div>
-                <h3 className="text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-2">Service closure</h3>
+                <h3 className="text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-1">Service closure</h3>
+                {sectionDescription('service closure') && (
+                  <p className="text-xs text-[hsl(var(--color-text-secondary))] mb-2">{sectionDescription('service closure')}</p>
+                )}
                 <ul className="space-y-1 text-sm text-[hsl(var(--color-text-secondary))] list-disc list-inside">
                   {parsed.closureStages.map((item, i) => <li key={i}>{item}</li>)}
                 </ul>

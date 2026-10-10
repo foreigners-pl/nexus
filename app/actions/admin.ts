@@ -40,6 +40,7 @@ export interface ParsedProtocol {
   closureStages: string[]
   statusItems: ParsedEligibilityItem[]
   documentItems: ParsedEligibilityItem[]
+  sectionDescriptions: Record<string, string>
 }
 
 function extractPrice(text: string): { name: string; price: number | null } {
@@ -90,6 +91,7 @@ export async function parseServiceProtocol(base64Docx: string): Promise<ParsedPr
     const closureStages: string[] = []
     const statusItems: ParsedEligibilityItem[] = []
     const documentItems: ParsedEligibilityItem[] = []
+    const sectionDescriptions: Record<string, string> = {}
 
     let topSection: 'outline' | 'eligibility' | 'execution' | 'closure' | null = null
     let subsection = ''
@@ -101,6 +103,10 @@ export async function parseServiceProtocol(base64Docx: string): Promise<ParsedPr
       text.toLowerCase().includes(keyword)
 
     const flushList = () => {
+      if (subsection && pendingDescription) {
+        sectionDescriptions[subsection] = pendingDescription
+      }
+
       if (!inList || listBuffer.length === 0) {
         listBuffer = []
         pendingDescription = ''
@@ -223,6 +229,7 @@ export async function parseServiceProtocol(base64Docx: string): Promise<ParsedPr
       closureStages,
       statusItems,
       documentItems,
+      sectionDescriptions,
     }
   } catch (e: any) {
     return {
@@ -236,6 +243,7 @@ export async function parseServiceProtocol(base64Docx: string): Promise<ParsedPr
       closureStages: [],
       statusItems: [],
       documentItems: [],
+      sectionDescriptions: {},
       error: e?.message || 'Failed to parse document',
     }
   }
