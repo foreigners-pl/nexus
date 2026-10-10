@@ -10,6 +10,7 @@ import {
   completeAction,
   updateAction,
   openQuery,
+  logAgreementDownload,
   type CaseStep,
   type CaseEntry,
   type CaseQuery,
@@ -260,14 +261,17 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
           {isActive && <EntryComposer caseId={caseId} onAdded={refresh} />}
 
           {s.step_type === 'presale' && serviceId && (
-            <Link
-              href={`/cases/${caseId}/agreement`}
-              target="_blank"
+            <button
+              onClick={async () => {
+                await logAgreementDownload(caseId)
+                refresh()
+                window.open(`/cases/${caseId}/agreement`, '_blank')
+              }}
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--color-text-primary))] hover:bg-[hsl(var(--color-surface-hover))] transition-colors"
             >
               <Download className="w-4 h-4" />
               Download service agreement
-            </Link>
+            </button>
           )}
 
           {s.step_type === 'eligibility' && (
