@@ -297,6 +297,15 @@ export async function parseServiceProtocol(base64Docx: string): Promise<ParsedPr
   }
 }
 
+export async function createService(name: string): Promise<{ id?: string; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+  const { data, error } = await supabase.from('services').insert({ name }).select('id').single()
+  if (error) return { error: error.message }
+  return { id: data.id }
+}
+
 export async function saveServiceProtocol(
   serviceId: string,
   data: ParsedProtocol
