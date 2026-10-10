@@ -58,7 +58,7 @@ export interface ParsedStep {
 
 export interface ParsedEligibilityItem {
   title: string
-  description: string
+  description: string | null
 }
 
 export interface ParsedOptionItem {

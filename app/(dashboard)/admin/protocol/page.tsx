@@ -75,23 +75,28 @@ export default function ServiceSetupPage() {
 
   // Eligibility
   const addEligibility = (type: 'statusItems' | 'documentItems') =>
-    updateField(type, [...form[type], { title: '', description: '' }])
-  const updateEligibility = (type: 'statusItems' | 'documentItems', idx: number, value: string) => {
+    updateField(type, [...form[type], { title: '', description: null }])
+  const updateEligibility = (
+    type: 'statusItems' | 'documentItems',
+    idx: number,
+    field: 'title' | 'description',
+    value: string | null
+  ) => {
     const items = [...form[type]]
-    items[idx] = { ...items[idx], title: value }
+    items[idx] = { ...items[idx], [field]: value }
     updateField(type, items)
   }
   const removeEligibility = (type: 'statusItems' | 'documentItems', idx: number) =>
     updateField(type, form[type].filter((_, i) => i !== idx))
 
-  // Optional stages
-  const addOptional = () => updateField('optionalStages', [...form.optionalStages, { name: '', price: null }])
-  const updateOptional = (idx: number, field: 'name' | 'price', value: string | number | null) => {
+  // Add-ons
+  const addAddon = () => updateField('optionalStages', [...form.optionalStages, { name: '', price: null }])
+  const updateAddon = (idx: number, field: 'name' | 'price', value: string | number | null) => {
     const list = [...form.optionalStages]
     list[idx] = { ...list[idx], [field]: value } as any
     updateField('optionalStages', list)
   }
-  const removeOptional = (idx: number) => updateField('optionalStages', form.optionalStages.filter((_, i) => i !== idx))
+  const removeAddon = (idx: number) => updateField('optionalStages', form.optionalStages.filter((_, i) => i !== idx))
 
   // All inclusive
   const addAllInclusive = () => updateField('allInclusive', { name: 'All inclusive', price: null, items: [''] })
@@ -139,14 +144,14 @@ export default function ServiceSetupPage() {
     updateField('executionStages', stages)
   }
 
-  // Closure
-  const addClosureItem = () => updateField('closureStages', [...form.closureStages, ''])
-  const updateClosureItem = (idx: number, value: string) => {
+  // Completion
+  const addCompletionItem = () => updateField('closureStages', [...form.closureStages, ''])
+  const updateCompletionItem = (idx: number, value: string) => {
     const items = [...form.closureStages]
     items[idx] = value
     updateField('closureStages', items)
   }
-  const removeClosureItem = (idx: number) => updateField('closureStages', form.closureStages.filter((_, i) => i !== idx))
+  const removeCompletionItem = (idx: number) => updateField('closureStages', form.closureStages.filter((_, i) => i !== idx))
 
   const move = <T,>(arr: T[], from: number, to: number) => {
     if (to < 0 || to >= arr.length) return arr
@@ -158,7 +163,7 @@ export default function ServiceSetupPage() {
   const moveStep = (idx: number, dir: -1 | 1) => updateField('steps', move(form.steps, idx, idx + dir))
   const moveStatus = (idx: number, dir: -1 | 1) => updateField('statusItems', move(form.statusItems, idx, idx + dir))
   const moveDocument = (idx: number, dir: -1 | 1) => updateField('documentItems', move(form.documentItems, idx, idx + dir))
-  const moveOptional = (idx: number, dir: -1 | 1) => updateField('optionalStages', move(form.optionalStages, idx, idx + dir))
+  const moveAddon = (idx: number, dir: -1 | 1) => updateField('optionalStages', move(form.optionalStages, idx, idx + dir))
   const moveAllInclusiveItem = (idx: number, dir: -1 | 1) => {
     if (!form.allInclusive) return
     updateField('allInclusive', { ...form.allInclusive, items: move(form.allInclusive.items, idx, idx + dir) })
@@ -169,7 +174,7 @@ export default function ServiceSetupPage() {
     stages[stageIdx] = { ...stages[stageIdx], items: move(stages[stageIdx].items, itemIdx, itemIdx + dir) }
     updateField('executionStages', stages)
   }
-  const moveClosureItem = (idx: number, dir: -1 | 1) => updateField('closureStages', move(form.closureStages, idx, idx + dir))
+  const moveCompletionItem = (idx: number, dir: -1 | 1) => updateField('closureStages', move(form.closureStages, idx, idx + dir))
 
   const ReorderButtons = ({ idx, total, onMove }: { idx: number; total: number; onMove: (dir: -1 | 1) => void }) => (
     <div className="flex flex-col">
@@ -194,7 +199,7 @@ export default function ServiceSetupPage() {
     <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 pb-20">
       <h1 className="text-xl font-bold text-[hsl(var(--color-text-primary))] mb-2">Set up service</h1>
       <p className="text-sm text-[hsl(var(--color-text-secondary))] mb-6">
-        Select a service and fill out its protocol manually. Only the Steps and Eligibility sections are used in case workflows; the rest is reference info.
+        Select a service and fill out its protocol manually. Only the mandatory steps and eligibility sections are used in case workflows; the rest is reference info.
       </p>
 
       {error && (
@@ -256,9 +261,9 @@ export default function ServiceSetupPage() {
             </div>
           </div>
 
-          {/* Workflow steps */}
+          {/* Mandatory steps */}
           <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-3">
-            <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Workflow steps</h2>
+            <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Mandatory steps</h2>
             <ul className="space-y-3">
               {form.steps.map((step, i) => (
                 <li key={i} className="flex gap-2 items-center">
@@ -281,80 +286,34 @@ export default function ServiceSetupPage() {
             </Button>
           </div>
 
-          {/* Eligibility status */}
+          {/* Add-ons */}
           <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-3">
-            <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Eligibility — Status verification</h2>
-            {form.statusItems.map((item, i) => (
-              <div key={i} className="flex gap-2 items-center">
-                <ReorderButtons idx={i} total={form.statusItems.length} onMove={dir => moveStatus(i, dir)} />
-                <div className="flex-1">
-                  <Input
-                    value={item.title}
-                    onChange={e => updateEligibility('statusItems', i, e.target.value)}
-                    placeholder="Item title"
-                  />
-                </div>
-                <button onClick={() => removeEligibility('statusItems', i)} className="text-[hsl(var(--color-text-muted))] hover:text-red-400">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-            <Button variant="outline" size="sm" onClick={() => addEligibility('statusItems')} className="w-full">
-              <Plus className="w-4 h-4 mr-2" /> Add status item
-            </Button>
-          </div>
-
-          {/* Eligibility documents */}
-          <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-3">
-            <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Eligibility — Mandatory documents</h2>
-            {form.documentItems.map((item, i) => (
-              <div key={i} className="flex gap-2 items-center">
-                <ReorderButtons idx={i} total={form.documentItems.length} onMove={dir => moveDocument(i, dir)} />
-                <div className="flex-1">
-                  <Input
-                    value={item.title}
-                    onChange={e => updateEligibility('documentItems', i, e.target.value)}
-                    placeholder="Item title"
-                  />
-                </div>
-                <button onClick={() => removeEligibility('documentItems', i)} className="text-[hsl(var(--color-text-muted))] hover:text-red-400">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-            <Button variant="outline" size="sm" onClick={() => addEligibility('documentItems')} className="w-full">
-              <Plus className="w-4 h-4 mr-2" /> Add document item
-            </Button>
-          </div>
-
-          {/* Optional stages */}
-          <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-3">
-            <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Optional stages</h2>
+            <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Add-ons</h2>
             {form.optionalStages.map((opt, i) => (
               <div key={i} className="flex gap-2 items-center">
-                <ReorderButtons idx={i} total={form.optionalStages.length} onMove={dir => moveOptional(i, dir)} />
+                <ReorderButtons idx={i} total={form.optionalStages.length} onMove={dir => moveAddon(i, dir)} />
                 <div className="flex-1">
                   <Input
                     value={opt.name}
-                    onChange={e => updateOptional(i, 'name', e.target.value)}
-                    placeholder="Optional stage name"
+                    onChange={e => updateAddon(i, 'name', e.target.value)}
+                    placeholder="Add-on name"
                   />
                 </div>
                 <div className="w-28">
                   <Input
                     type="number"
                     value={opt.price ?? ''}
-                    onChange={e => updateOptional(i, 'price', e.target.value ? parseInt(e.target.value) : null)}
+                    onChange={e => updateAddon(i, 'price', e.target.value ? parseInt(e.target.value) : null)}
                     placeholder="PLN"
                   />
                 </div>
-                <button onClick={() => removeOptional(i)} className="text-[hsl(var(--color-text-muted))] hover:text-red-400">
+                <button onClick={() => removeAddon(i)} className="text-[hsl(var(--color-text-muted))] hover:text-red-400">
                   <X className="w-4 h-4" />
                 </button>
               </div>
             ))}
-            <Button variant="outline" size="sm" onClick={addOptional} className="w-full">
-              <Plus className="w-4 h-4 mr-2" /> Add optional stage
+            <Button variant="outline" size="sm" onClick={addAddon} className="w-full">
+              <Plus className="w-4 h-4 mr-2" /> Add add-on
             </Button>
           </div>
 
@@ -414,9 +373,91 @@ export default function ServiceSetupPage() {
             </Button>
           )}
 
-          {/* Execution and Completion */}
+          {/* Status verification */}
+          <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-3">
+            <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Status verification</h2>
+            {form.statusItems.map((item, i) => (
+              <div key={i} className="flex gap-2 items-start">
+                <div className="pt-2">
+                  <ReorderButtons idx={i} total={form.statusItems.length} onMove={dir => moveStatus(i, dir)} />
+                </div>
+                <div className="flex-1 space-y-2">
+                  <Input
+                    value={item.title}
+                    onChange={e => updateEligibility('statusItems', i, 'title', e.target.value)}
+                    placeholder="Item title"
+                  />
+                  <label className="flex items-center gap-2 text-xs text-[hsl(var(--color-text-secondary))]">
+                    <input
+                      type="checkbox"
+                      checked={item.description !== null}
+                      onChange={e => updateEligibility('statusItems', i, 'description', e.target.checked ? '' : null)}
+                      className="rounded border-[hsl(var(--color-border))]"
+                    />
+                    Only applies in specific cases
+                  </label>
+                  {item.description !== null && (
+                    <Input
+                      value={item.description}
+                      onChange={e => updateEligibility('statusItems', i, 'description', e.target.value)}
+                      placeholder="e.g. Only for family reunification"
+                    />
+                  )}
+                </div>
+                <button onClick={() => removeEligibility('statusItems', i)} className="text-[hsl(var(--color-text-muted))] hover:text-red-400 pt-2">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+            <Button variant="outline" size="sm" onClick={() => addEligibility('statusItems')} className="w-full">
+              <Plus className="w-4 h-4 mr-2" /> Add status item
+            </Button>
+          </div>
+
+          {/* Mandatory documents */}
+          <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-3">
+            <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Mandatory documents</h2>
+            {form.documentItems.map((item, i) => (
+              <div key={i} className="flex gap-2 items-start">
+                <div className="pt-2">
+                  <ReorderButtons idx={i} total={form.documentItems.length} onMove={dir => moveDocument(i, dir)} />
+                </div>
+                <div className="flex-1 space-y-2">
+                  <Input
+                    value={item.title}
+                    onChange={e => updateEligibility('documentItems', i, 'title', e.target.value)}
+                    placeholder="Item title"
+                  />
+                  <label className="flex items-center gap-2 text-xs text-[hsl(var(--color-text-secondary))]">
+                    <input
+                      type="checkbox"
+                      checked={item.description !== null}
+                      onChange={e => updateEligibility('documentItems', i, 'description', e.target.checked ? '' : null)}
+                      className="rounded border-[hsl(var(--color-border))]"
+                    />
+                    Only applies in specific cases
+                  </label>
+                  {item.description !== null && (
+                    <Input
+                      value={item.description}
+                      onChange={e => updateEligibility('documentItems', i, 'description', e.target.value)}
+                      placeholder="e.g. Only for first-time applicants"
+                    />
+                  )}
+                </div>
+                <button onClick={() => removeEligibility('documentItems', i)} className="text-[hsl(var(--color-text-muted))] hover:text-red-400 pt-2">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+            <Button variant="outline" size="sm" onClick={() => addEligibility('documentItems')} className="w-full">
+              <Plus className="w-4 h-4 mr-2" /> Add document item
+            </Button>
+          </div>
+
+          {/* Execution */}
           <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-4">
-            <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Execution and Completion</h2>
+            <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Execution</h2>
             {form.executionStages.map((stage, i) => (
               <div key={i} className="space-y-2 rounded-lg bg-[hsl(var(--color-background))] p-3">
                 <div className="flex gap-2 items-center">
@@ -457,26 +498,26 @@ export default function ServiceSetupPage() {
             </Button>
           </div>
 
-          {/* Service Closure */}
+          {/* Completion */}
           <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-3">
-            <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Service Closure</h2>
+            <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Completion</h2>
             {form.closureStages.map((item, i) => (
               <div key={i} className="flex gap-2 items-center">
-                <ReorderButtons idx={i} total={form.closureStages.length} onMove={dir => moveClosureItem(i, dir)} />
+                <ReorderButtons idx={i} total={form.closureStages.length} onMove={dir => moveCompletionItem(i, dir)} />
                 <div className="flex-1">
                   <Input
                     value={item}
-                    onChange={e => updateClosureItem(i, e.target.value)}
-                    placeholder="Closure item"
+                    onChange={e => updateCompletionItem(i, e.target.value)}
+                    placeholder="Completion item"
                   />
                 </div>
-                <button onClick={() => removeClosureItem(i)} className="text-[hsl(var(--color-text-muted))] hover:text-red-400">
+                <button onClick={() => removeCompletionItem(i)} className="text-[hsl(var(--color-text-muted))] hover:text-red-400">
                   <X className="w-4 h-4" />
                 </button>
               </div>
             ))}
-            <Button variant="outline" size="sm" onClick={addClosureItem} className="w-full">
-              <Plus className="w-4 h-4 mr-2" /> Add closure item
+            <Button variant="outline" size="sm" onClick={addCompletionItem} className="w-full">
+              <Plus className="w-4 h-4 mr-2" /> Add completion item
             </Button>
           </div>
 
