@@ -12,6 +12,7 @@ export default function ProtocolUploadPage() {
   const router = useRouter()
   const [services, setServices] = useState<Service[]>([])
   const [serviceId, setServiceId] = useState('')
+  const [serviceName, setServiceName] = useState('')
   const [fileName, setFileName] = useState('')
   const [parsing, setParsing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -21,6 +22,14 @@ export default function ProtocolUploadPage() {
   useEffect(() => {
     getServices().then(setServices)
   }, [])
+
+  useEffect(() => {
+    const selected = services.find(s => s.id === serviceId)
+    setServiceName(selected?.name || '')
+    if (parsed) {
+      setParsed({ ...parsed, serviceName: selected?.name || '' })
+    }
+  }, [serviceId, services])
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -44,7 +53,7 @@ export default function ProtocolUploadPage() {
       if (result.error) {
         setError(result.error)
       } else {
-        setParsed(result)
+        setParsed({ ...result, serviceName: serviceName || result.serviceName })
       }
     } catch (err: any) {
       setError(err?.message || 'Failed to read file')
@@ -57,7 +66,7 @@ export default function ProtocolUploadPage() {
     if (!serviceId || !parsed) return
     setSaving(true)
     setError(null)
-    const result = await saveServiceProtocol(serviceId, parsed)
+    const result = await saveServiceProtocol(serviceId, { ...parsed, serviceName })
     setSaving(false)
     if (result.error) {
       setError(result.error)
@@ -148,6 +157,17 @@ export default function ProtocolUploadPage() {
         <div className="space-y-6">
           <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-4">
             <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Service details</h2>
+            <div>
+              <label className="block text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-1">Service name</label>
+              <Input
+                value={serviceName}
+                onChange={e => {
+                  setServiceName(e.target.value)
+                  if (parsed) setParsed({ ...parsed, serviceName: e.target.value })
+                }}
+                placeholder="e.g. TRC Full Service"
+              />
+            </div>
             <div>
               <label className="block text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-1">Description</label>
               <textarea
@@ -286,6 +306,61 @@ export default function ProtocolUploadPage() {
                 </button>
               </div>
             ))}
+          </div>
+
+          <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-4">
+            <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Optional / reference info (not part of workflow)</h2>
+
+            {parsed.optionalStages.length > 0 && (
+              <div>
+                <h3 className="text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-2">Optional stages</h3>
+                <ul className="space-y-1 text-sm text-[hsl(var(--color-text-primary))]">
+                  {parsed.optionalStages.map((opt, i) => (
+                    <li key={i} className="flex items-center justify-between rounded-lg bg-[hsl(var(--color-background))] px-3 py-2">
+                      <span>{opt.name}</span>
+                      {opt.price !== null && <span className="text-xs text-[hsl(var(--color-text-secondary))]">{opt.price.toLocaleString()} PLN</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {parsed.allInclusive && (
+              <div>
+                <h3 className="text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-2">{parsed.allInclusive.name}</h3>
+                {parsed.allInclusive.price !== null && (
+                  <p className="text-sm text-[hsl(var(--color-text-primary))] mb-2 font-medium">{parsed.allInclusive.price.toLocaleString()} PLN</p>
+                )}
+                <ul className="space-y-1 text-sm text-[hsl(var(--color-text-secondary))] list-disc list-inside">
+                  {parsed.allInclusive.items.map((item, i) => <li key={i}>{item}</li>)}
+                </ul>
+              </div>
+            )}
+
+            {parsed.executionStages.length > 0 && (
+              <div>
+                <h3 className="text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-2">Execution and completion</h3>
+                <div className="space-y-3">
+                  {parsed.executionStages.map((stage, i) => (
+                    <div key={i}>
+                      <p className="text-sm font-medium text-[hsl(var(--color-text-primary))] mb-1">{stage.name}</p>
+                      <ul className="space-y-1 text-sm text-[hsl(var(--color-text-secondary))] list-disc list-inside">
+                        {stage.items.map((item, j) => <li key={j}>{item}</li>)}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {parsed.closureStages.length > 0 && (
+              <div>
+                <h3 className="text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-2">Service closure</h3>
+                <ul className="space-y-1 text-sm text-[hsl(var(--color-text-secondary))] list-disc list-inside">
+                  {parsed.closureStages.map((item, i) => <li key={i}>{item}</li>)}
+                </ul>
+              </div>
+            )}
           </div>
 
           <Button onClick={handleSave} disabled={!serviceId || saving} className="w-full">

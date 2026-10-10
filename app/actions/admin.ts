@@ -24,10 +24,20 @@ export interface ParsedEligibilityItem {
   description: string
 }
 
+export interface ParsedOptionItem {
+  name: string
+  price: number | null
+}
+
 export interface ParsedProtocol {
+  serviceName: string
   serviceDescription: string
   servicePrice: number | null
   steps: ParsedStep[]
+  optionalStages: ParsedOptionItem[]
+  allInclusive: { name: string; price: number | null; items: string[] } | null
+  executionStages: { name: string; items: string[] }[]
+  closureStages: string[]
   statusItems: ParsedEligibilityItem[]
   documentItems: ParsedEligibilityItem[]
 }
@@ -74,6 +84,10 @@ export async function parseServiceProtocol(base64Docx: string): Promise<ParsedPr
     let serviceDescription = ''
     let servicePrice: number | null = null
     const steps: ParsedStep[] = []
+    const optionalStages: ParsedOptionItem[] = []
+    let allInclusive: { name: string; price: number | null; items: string[] } | null = null
+    const executionStages: { name: string; items: string[] }[] = []
+    const closureStages: string[] = []
     const statusItems: ParsedEligibilityItem[] = []
     const documentItems: ParsedEligibilityItem[] = []
 
@@ -83,44 +97,43 @@ export async function parseServiceProtocol(base64Docx: string): Promise<ParsedPr
     let pendingDescription = ''
     let listBuffer: string[] = []
 
+    const isHeading = (text: string, keyword: string) =>
+      text.toLowerCase().includes(keyword)
+
     const flushList = () => {
-      if (!inList || listBuffer.length === 0) return
+      if (!inList || listBuffer.length === 0) {
+        listBuffer = []
+        pendingDescription = ''
+        inList = false
+        return
+      }
 
       if (topSection === 'outline') {
-        if (subsection.toLowerCase().startsWith('mandatory stages')) {
+        if (isHeading(subsection, 'mandatory stages')) {
           for (const item of listBuffer) {
             const { name, price } = extractPrice(item)
-            steps.push({ name, description: pendingDescription, price, isRequired: true })
+            steps.push({ name, description: '', price, isRequired: true })
           }
-        } else if (subsection.toLowerCase().startsWith('option stages')) {
+        } else if (isHeading(subsection, 'optional stages') || isHeading(subsection, 'option stages')) {
           for (const item of listBuffer) {
             const { name, price } = extractPrice(item)
-            steps.push({ name, description: pendingDescription, price, isRequired: false })
+            optionalStages.push({ name, price })
           }
-        } else if (subsection.toLowerCase().startsWith('all inclusive')) {
+        } else if (isHeading(subsection, 'all inclusive')) {
           const { name, price } = extractPrice(subsection)
-          steps.push({
-            name,
-            description: [pendingDescription, ...listBuffer].filter(Boolean).join(' · '),
-            price,
-            isRequired: false,
-          })
+          allInclusive = { name, price, items: listBuffer.filter(Boolean) }
         }
       } else if (topSection === 'eligibility') {
-        const target = subsection.toLowerCase().includes('status')
+        const target = isHeading(subsection, 'status')
           ? statusItems
           : documentItems
         for (const item of listBuffer) {
-          target.push({ title: item, description: pendingDescription })
+          target.push({ title: item, description: '' })
         }
       } else if (topSection === 'execution') {
-        // Each execution subsection becomes one step; bullets become description
-        steps.push({
-          name: subsection,
-          description: [pendingDescription, ...listBuffer].filter(Boolean).join(' · '),
-          price: null,
-          isRequired: true,
-        })
+        executionStages.push({ name: subsection, items: listBuffer.filter(Boolean) })
+      } else if (topSection === 'closure') {
+        closureStages.push(...listBuffer.filter(Boolean))
       }
 
       listBuffer = []
@@ -152,25 +165,25 @@ export async function parseServiceProtocol(base64Docx: string): Promise<ParsedPr
       }
 
       // Top-level sections
-      if (lower === 'service outline') {
+      if (isHeading(line, 'service outline')) {
         flushList()
         topSection = 'outline'
         subsection = ''
         continue
       }
-      if (lower === 'eligibility verification') {
+      if (isHeading(line, 'eligibility verification')) {
         flushList()
         topSection = 'eligibility'
         subsection = ''
         continue
       }
-      if (lower === 'execution and completion') {
+      if (isHeading(line, 'execution and completion')) {
         flushList()
         topSection = 'execution'
         subsection = ''
         continue
       }
-      if (lower === 'service closure') {
+      if (isHeading(line, 'service closure')) {
         flushList()
         topSection = 'closure'
         subsection = ''
@@ -188,7 +201,7 @@ export async function parseServiceProtocol(base64Docx: string): Promise<ParsedPr
       if (topSection && line) {
         flushList()
         subsection = line
-        if (topSection === 'outline' && lower.startsWith('mandatory stages')) {
+        if (topSection === 'outline' && isHeading(line, 'mandatory stages')) {
           const { price } = extractPrice(line)
           servicePrice = price
         }
@@ -198,17 +211,27 @@ export async function parseServiceProtocol(base64Docx: string): Promise<ParsedPr
     flushList()
 
     return {
+      serviceName: '',
       serviceDescription,
       servicePrice,
       steps,
+      optionalStages,
+      allInclusive,
+      executionStages,
+      closureStages,
       statusItems,
       documentItems,
     }
   } catch (e: any) {
     return {
+      serviceName: '',
       serviceDescription: '',
       servicePrice: null,
       steps: [],
+      optionalStages: [],
+      allInclusive: null,
+      executionStages: [],
+      closureStages: [],
       statusItems: [],
       documentItems: [],
       error: e?.message || 'Failed to parse document',
@@ -224,17 +247,30 @@ export async function saveServiceProtocol(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'Not authenticated' }
 
+  const protocolExtras = {
+    optionalStages: data.optionalStages,
+    allInclusive: data.allInclusive,
+    executionStages: data.executionStages,
+    closureStages: data.closureStages,
+  }
+
+  const updates: Record<string, unknown> = {
+    description: data.serviceDescription,
+    gross_price: data.servicePrice,
+    protocol_extras: protocolExtras,
+  }
+  if (data.serviceName.trim()) {
+    updates.name = data.serviceName.trim()
+  }
+
   const { error: svcError } = await supabase
     .from('services')
-    .update({
-      description: data.serviceDescription,
-      gross_price: data.servicePrice,
-    })
+    .update(updates)
     .eq('id', serviceId)
 
   if (svcError) return { success: false, error: svcError.message }
 
-  // Replace existing service steps
+  // Replace existing service steps with mandatory steps only
   await supabase.from('service_steps').delete().eq('service_id', serviceId)
 
   const stepInserts = data.steps.map((step, i) => ({
@@ -242,7 +278,7 @@ export async function saveServiceProtocol(
     name: step.name,
     description: step.description,
     position: i * 100,
-    is_required: step.isRequired,
+    is_required: true,
   }))
 
   if (stepInserts.length > 0) {

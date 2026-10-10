@@ -132,6 +132,7 @@ export interface Service {
   gross_price?: number
   price?: number
   description?: string
+  protocol_extras?: Record<string, unknown>
   created_at?: string
 }
 
