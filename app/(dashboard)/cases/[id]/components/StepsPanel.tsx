@@ -18,7 +18,8 @@ import {
 } from '@/app/actions/workflow'
 import { usePaneLink, usePaneNavigate } from '@/lib/panes'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
-import { fetchWorkflowQuery, queryKeys } from '@/lib/query'
+import { queryKeys } from '@/lib/query'
+import { fetchCaseWorkflow } from '@/lib/data'
 import { isDesktopViewport } from '@/lib/viewport'
 import {
   ChevronRight,
@@ -55,9 +56,9 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
   const slideRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error: queryError } = useQuery({
     queryKey: queryKeys.workflow(caseId),
-    queryFn: () => fetchWorkflowQuery(queryClient, caseId),
+    queryFn: () => fetchCaseWorkflow(caseId),
     staleTime: 0,
   })
 
@@ -150,6 +151,15 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
         <div className="h-24 rounded-xl bg-[hsl(var(--color-surface-hover))]" />
         <div className="h-16 rounded-xl bg-[hsl(var(--color-surface-hover))]" />
         <div className="h-16 rounded-xl bg-[hsl(var(--color-surface-hover))]" />
+      </div>
+    )
+  }
+
+  if (queryError) {
+    return (
+      <div className="px-4 md:px-6 py-8 text-center text-red-400">
+        Failed to load workflow.
+        <p className="text-xs text-[hsl(var(--color-text-secondary))] mt-2">{queryError.message}</p>
       </div>
     )
   }
