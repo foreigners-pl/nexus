@@ -110,6 +110,63 @@ export default function ProtocolUploadPage() {
     Object.entries(parsed?.sectionDescriptions || {})
       .find(([title]) => title.toLowerCase().includes(keyword))?.[1] || ''
 
+  const updateOptional = (idx: number, field: 'name' | 'price', value: string | number | null) => {
+    if (!parsed) return
+    const list = [...parsed.optionalStages]
+    list[idx] = { ...list[idx], [field]: value } as any
+    setParsed({ ...parsed, optionalStages: list })
+  }
+  const removeOptional = (idx: number) => {
+    if (!parsed) return
+    setParsed({ ...parsed, optionalStages: parsed.optionalStages.filter((_, i) => i !== idx) })
+  }
+  const updateAllInclusive = (field: 'name' | 'price', value: string | number | null) => {
+    if (!parsed || !parsed.allInclusive) return
+    setParsed({ ...parsed, allInclusive: { ...parsed.allInclusive, [field]: value } })
+  }
+  const updateAllInclusiveItem = (idx: number, value: string) => {
+    if (!parsed || !parsed.allInclusive) return
+    const items = [...parsed.allInclusive.items]
+    items[idx] = value
+    setParsed({ ...parsed, allInclusive: { ...parsed.allInclusive, items } })
+  }
+  const removeAllInclusiveItem = (idx: number) => {
+    if (!parsed || !parsed.allInclusive) return
+    setParsed({ ...parsed, allInclusive: { ...parsed.allInclusive, items: parsed.allInclusive.items.filter((_, i) => i !== idx) } })
+  }
+  const updateExecutionStage = (stageIdx: number, value: string) => {
+    if (!parsed) return
+    const stages = [...parsed.executionStages]
+    stages[stageIdx] = { ...stages[stageIdx], name: value }
+    setParsed({ ...parsed, executionStages: stages })
+  }
+  const updateExecutionItem = (stageIdx: number, itemIdx: number, value: string) => {
+    if (!parsed) return
+    const stages = [...parsed.executionStages]
+    stages[stageIdx].items[itemIdx] = value
+    setParsed({ ...parsed, executionStages: stages })
+  }
+  const removeExecutionItem = (stageIdx: number, itemIdx: number) => {
+    if (!parsed) return
+    const stages = [...parsed.executionStages]
+    stages[stageIdx] = { ...stages[stageIdx], items: stages[stageIdx].items.filter((_, i) => i !== itemIdx) }
+    setParsed({ ...parsed, executionStages: stages })
+  }
+  const removeExecutionStage = (stageIdx: number) => {
+    if (!parsed) return
+    setParsed({ ...parsed, executionStages: parsed.executionStages.filter((_, i) => i !== stageIdx) })
+  }
+  const updateClosureItem = (idx: number, value: string) => {
+    if (!parsed) return
+    const items = [...parsed.closureStages]
+    items[idx] = value
+    setParsed({ ...parsed, closureStages: items })
+  }
+  const removeClosureItem = (idx: number) => {
+    if (!parsed) return
+    setParsed({ ...parsed, closureStages: parsed.closureStages.filter((_, i) => i !== idx) })
+  }
+
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 pb-20">
       <h1 className="text-xl font-bold text-[hsl(var(--color-text-primary))] mb-2">Upload service protocol</h1>
@@ -212,14 +269,6 @@ export default function ProtocolUploadPage() {
                         placeholder="Step name"
                       />
                     </div>
-                    <div className="w-36">
-                      <Input
-                        type="number"
-                        value={step.price ?? ''}
-                        onChange={e => updateStep(i, 'price', e.target.value ? parseInt(e.target.value) : null)}
-                        placeholder="Price (PLN)"
-                      />
-                    </div>
                     <button onClick={() => removeStep(i)} className="text-[hsl(var(--color-text-muted))] hover:text-red-400">
                       <X className="w-4 h-4" />
                     </button>
@@ -275,71 +324,137 @@ export default function ProtocolUploadPage() {
             ))}
           </div>
 
-          <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-4">
-            <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Optional / reference info (not part of workflow)</h2>
-
-            {parsed.optionalStages.length > 0 && (
-              <div>
-                <h3 className="text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-1">Optional stages</h3>
-                {sectionDescription('optional stages') && (
-                  <p className="text-xs text-[hsl(var(--color-text-secondary))] mb-2">{sectionDescription('optional stages')}</p>
-                )}
-                <ul className="space-y-1 text-sm text-[hsl(var(--color-text-primary))]">
-                  {parsed.optionalStages.map((opt, i) => (
-                    <li key={i} className="flex items-center justify-between rounded-lg bg-[hsl(var(--color-background))] px-3 py-2">
-                      <span>{opt.name}</span>
-                      {opt.price !== null && <span className="text-xs text-[hsl(var(--color-text-secondary))]">{opt.price.toLocaleString()} PLN</span>}
-                    </li>
-                  ))}
-                </ul>
+          <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-3">
+            <div>
+              <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">1. Service Outline — Optional stages</h2>
+              {sectionDescription('optional stages') && (
+                <p className="text-xs text-[hsl(var(--color-text-secondary))] mt-1">{sectionDescription('optional stages')}</p>
+              )}
+            </div>
+            {parsed.optionalStages.map((opt, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                <div className="flex-1">
+                  <Input
+                    value={opt.name}
+                    onChange={e => updateOptional(i, 'name', e.target.value)}
+                    placeholder="Optional stage name"
+                  />
+                </div>
+                <div className="w-28">
+                  <Input
+                    type="number"
+                    value={opt.price ?? ''}
+                    onChange={e => updateOptional(i, 'price', e.target.value ? parseInt(e.target.value) : null)}
+                    placeholder="PLN"
+                  />
+                </div>
+                <button onClick={() => removeOptional(i)} className="text-[hsl(var(--color-text-muted))] hover:text-red-400">
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-            )}
+            ))}
+          </div>
 
-            {parsed.allInclusive && (
+          {parsed.allInclusive && (
+            <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-3">
               <div>
-                <h3 className="text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-1">{parsed.allInclusive.name}</h3>
-                {parsed.allInclusive.price !== null && (
-                  <p className="text-sm text-[hsl(var(--color-text-primary))] mb-2 font-medium">{parsed.allInclusive.price.toLocaleString()} PLN</p>
-                )}
+                <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">All inclusive package</h2>
                 {sectionDescription('all inclusive') && (
-                  <p className="text-xs text-[hsl(var(--color-text-secondary))] mb-2">{sectionDescription('all inclusive')}</p>
+                  <p className="text-xs text-[hsl(var(--color-text-secondary))] mt-1">{sectionDescription('all inclusive')}</p>
                 )}
-                <ul className="space-y-1 text-sm text-[hsl(var(--color-text-secondary))] list-disc list-inside">
-                  {parsed.allInclusive.items.map((item, i) => <li key={i}>{item}</li>)}
-                </ul>
               </div>
-            )}
-
-            {parsed.executionStages.length > 0 && (
-              <div>
-                <h3 className="text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-2">Execution and completion</h3>
-                <div className="space-y-3">
-                  {parsed.executionStages.map((stage, i) => (
-                    <div key={i}>
-                      <p className="text-sm font-medium text-[hsl(var(--color-text-primary))] mb-1">{stage.name}</p>
-                      {sectionDescription(stage.name.toLowerCase()) && (
-                        <p className="text-xs text-[hsl(var(--color-text-secondary))] mb-1">{sectionDescription(stage.name.toLowerCase())}</p>
-                      )}
-                      <ul className="space-y-1 text-sm text-[hsl(var(--color-text-secondary))] list-disc list-inside">
-                        {stage.items.map((item, j) => <li key={j}>{item}</li>)}
-                      </ul>
-                    </div>
-                  ))}
+              <div className="flex gap-2 items-center">
+                <div className="flex-1">
+                  <Input
+                    value={parsed.allInclusive.name}
+                    onChange={e => updateAllInclusive('name', e.target.value)}
+                    placeholder="Package name"
+                  />
+                </div>
+                <div className="w-28">
+                  <Input
+                    type="number"
+                    value={parsed.allInclusive.price ?? ''}
+                    onChange={e => updateAllInclusive('price', e.target.value ? parseInt(e.target.value) : null)}
+                    placeholder="PLN"
+                  />
                 </div>
               </div>
-            )}
+              {parsed.allInclusive.items.map((item, i) => (
+                <div key={i} className="flex gap-2 items-center">
+                  <div className="flex-1">
+                    <Input
+                      value={item}
+                      onChange={e => updateAllInclusiveItem(i, e.target.value)}
+                      placeholder="Included item"
+                    />
+                  </div>
+                  <button onClick={() => removeAllInclusiveItem(i)} className="text-[hsl(var(--color-text-muted))] hover:text-red-400">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
 
-            {parsed.closureStages.length > 0 && (
-              <div>
-                <h3 className="text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-1">Service closure</h3>
-                {sectionDescription('service closure') && (
-                  <p className="text-xs text-[hsl(var(--color-text-secondary))] mb-2">{sectionDescription('service closure')}</p>
+          <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-4">
+            <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">3. Execution and Completion</h2>
+            {parsed.executionStages.map((stage, i) => (
+              <div key={i} className="space-y-2">
+                <div className="flex gap-2 items-center">
+                  <div className="flex-1">
+                    <Input
+                      value={stage.name}
+                      onChange={e => updateExecutionStage(i, e.target.value)}
+                      placeholder="Stage name"
+                    />
+                  </div>
+                  <button onClick={() => removeExecutionStage(i)} className="text-[hsl(var(--color-text-muted))] hover:text-red-400">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                {sectionDescription(stage.name.toLowerCase()) && (
+                  <p className="text-xs text-[hsl(var(--color-text-secondary))] pl-1">{sectionDescription(stage.name.toLowerCase())}</p>
                 )}
-                <ul className="space-y-1 text-sm text-[hsl(var(--color-text-secondary))] list-disc list-inside">
-                  {parsed.closureStages.map((item, i) => <li key={i}>{item}</li>)}
-                </ul>
+                {stage.items.map((item, j) => (
+                  <div key={j} className="flex gap-2 items-center pl-4">
+                    <div className="flex-1">
+                      <Input
+                        value={item}
+                        onChange={e => updateExecutionItem(i, j, e.target.value)}
+                        placeholder="Item"
+                      />
+                    </div>
+                    <button onClick={() => removeExecutionItem(i, j)} className="text-[hsl(var(--color-text-muted))] hover:text-red-400">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
               </div>
-            )}
+            ))}
+          </div>
+
+          <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-3">
+            <div>
+              <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">4. Service Closure</h2>
+              {sectionDescription('service closure') && (
+                <p className="text-xs text-[hsl(var(--color-text-secondary))] mt-1">{sectionDescription('service closure')}</p>
+              )}
+            </div>
+            {parsed.closureStages.map((item, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                <div className="flex-1">
+                  <Input
+                    value={item}
+                    onChange={e => updateClosureItem(i, e.target.value)}
+                    placeholder="Closure item"
+                  />
+                </div>
+                <button onClick={() => removeClosureItem(i)} className="text-[hsl(var(--color-text-muted))] hover:text-red-400">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
           </div>
 
           <Button onClick={handleSave} disabled={!serviceId || saving} className="w-full">
