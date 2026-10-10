@@ -13,7 +13,7 @@ export interface CaseStep {
   name: string
   position: number
   is_required: boolean
-  step_type: 'presale' | 'consultation' | 'service' | 'custom'
+  step_type: 'presale' | 'consultation' | 'service' | 'custom' | 'eligibility'
   service_id: string | null
   completed_at: string | null
   completed_by: string | null
@@ -41,17 +41,20 @@ export interface CaseEntry {
 // is attached to a case. Safe to call repeatedly (no dupes).
 // ============================================================
 
-/** Creates the Pre-sale + Consultation system steps if missing. */
+/** Creates the Eligibility + Pre-sale + Consultation system steps if missing. */
 export async function ensureSystemSteps(caseId: string) {
   const supabase = await createClient()
   const { data: existing } = await supabase
     .from('case_steps')
     .select('id, step_type')
     .eq('case_id', caseId)
-    .in('step_type', ['presale', 'consultation'])
+    .in('step_type', ['eligibility', 'presale', 'consultation'])
 
   const types = new Set((existing || []).map(s => s.step_type))
   const toInsert = []
+  if (!types.has('eligibility')) {
+    toInsert.push({ case_id: caseId, name: 'Eligibility check', position: -3, is_required: true, step_type: 'eligibility' })
+  }
   if (!types.has('presale')) {
     toInsert.push({ case_id: caseId, name: 'Pre-sale', position: -2, is_required: true, step_type: 'presale' })
   }
@@ -60,6 +63,27 @@ export async function ensureSystemSteps(caseId: string) {
   }
   if (toInsert.length > 0) {
     await supabase.from('case_steps').insert(toInsert)
+  }
+}
+
+/** Ensures the two eligibility tracking rows exist for a case+service. */
+export async function ensureCaseEligibility(caseId: string, serviceId: string) {
+  const supabase = await createClient()
+  const { data: existing } = await supabase
+    .from('case_eligibility')
+    .select('type')
+    .eq('case_id', caseId)
+
+  const types = new Set((existing || []).map(e => e.type))
+  const toInsert = []
+  if (!types.has('status')) {
+    toInsert.push({ case_id: caseId, service_id: serviceId, type: 'status' })
+  }
+  if (!types.has('documents')) {
+    toInsert.push({ case_id: caseId, service_id: serviceId, type: 'documents' })
+  }
+  if (toInsert.length > 0) {
+    await supabase.from('case_eligibility').insert(toInsert)
   }
 }
 
@@ -104,9 +128,19 @@ export async function generateStepsForService(caseId: string, serviceId: string)
   )
 }
 
-/** Sets current_step_id on a brand-new case (first step = Pre-sale). */
+/** Sets current_step_id on a brand-new case (first step = Eligibility check). */
 export async function setInitialStep(caseId: string) {
   const supabase = await createClient()
+  const { data: eligibility } = await supabase
+    .from('case_steps')
+    .select('id')
+    .eq('case_id', caseId)
+    .eq('step_type', 'eligibility')
+    .single()
+  if (eligibility) {
+    await supabase.from('cases').update({ current_step_id: eligibility.id }).eq('id', caseId)
+    return
+  }
   const { data: presale } = await supabase
     .from('case_steps')
     .select('id')
@@ -122,6 +156,22 @@ export async function setInitialStep(caseId: string) {
 // Reads
 // ============================================================
 
+export interface ServiceEligibilityItem {
+  id: string
+  service_id: string
+  type: 'status' | 'documents'
+  title: string
+  description: string | null
+  position: number
+}
+
+export interface CaseEligibilityState {
+  statusCompleted: boolean
+  documentsCompleted: boolean
+  statusAt: string | null
+  documentsAt: string | null
+}
+
 export async function getCaseWorkflow(caseId: string): Promise<{
   steps: CaseStep[]
   entries: CaseEntry[]
@@ -129,13 +179,16 @@ export async function getCaseWorkflow(caseId: string): Promise<{
   currentStepId: string | null
   openAction: CaseEntry | null
   meId: string | null
+  serviceId: string | null
+  eligibility: CaseEligibilityState
+  eligibilityItems: ServiceEligibilityItem[]
   error?: string
 }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { steps: [], entries: [], queries: {}, currentStepId: null, openAction: null, meId: null, error: 'Not authenticated' }
+  if (!user) return { steps: [], entries: [], queries: {}, currentStepId: null, openAction: null, meId: null, serviceId: null, eligibility: { statusCompleted: false, documentsCompleted: false, statusAt: null, documentsAt: null }, eligibilityItems: [], error: 'Not authenticated' }
 
-  const [caseRes, stepsRes, entriesRes, queriesRes] = await Promise.all([
+  const [caseRes, stepsRes, entriesRes, queriesRes, servicesRes, eligibilityRes] = await Promise.all([
     supabase.from('cases').select('current_step_id').eq('id', caseId).single(),
     supabase.from('case_steps').select('*').eq('case_id', caseId).order('position'),
     supabase
@@ -144,12 +197,29 @@ export async function getCaseWorkflow(caseId: string): Promise<{
       .eq('case_id', caseId)
       .order('created_at', { ascending: false }),
     supabase.from('case_queries').select('*').eq('case_id', caseId),
+    supabase.from('case_services').select('service_id').eq('case_id', caseId).order('created_at').limit(1),
+    supabase.from('case_eligibility').select('*').eq('case_id', caseId),
   ])
 
   const entries = (entriesRes.data || []) as CaseEntry[]
   const openAction = entries.find(e => e.kind === 'action' && !e.completed_at) || null
   const queries: Record<string, CaseQuery> = {}
   for (const q of queriesRes.data || []) queries[q.id] = q as CaseQuery
+
+  const serviceId = (servicesRes.data?.[0] as any)?.service_id ?? null
+  const eligibilityRows = (eligibilityRes.data || []) as any[]
+  const statusRow = eligibilityRows.find(e => e.type === 'status')
+  const documentsRow = eligibilityRows.find(e => e.type === 'documents')
+
+  let eligibilityItems: ServiceEligibilityItem[] = []
+  if (serviceId) {
+    const { data: items } = await supabase
+      .from('service_eligibility')
+      .select('*')
+      .eq('service_id', serviceId)
+      .order('position')
+    eligibilityItems = (items || []) as ServiceEligibilityItem[]
+  }
 
   return {
     steps: (stepsRes.data || []) as CaseStep[],
@@ -158,6 +228,14 @@ export async function getCaseWorkflow(caseId: string): Promise<{
     currentStepId: caseRes.data?.current_step_id ?? null,
     openAction,
     meId: user.id,
+    serviceId,
+    eligibility: {
+      statusCompleted: !!statusRow?.completed_at,
+      documentsCompleted: !!documentsRow?.completed_at,
+      statusAt: statusRow?.completed_at ?? null,
+      documentsAt: documentsRow?.completed_at ?? null,
+    },
+    eligibilityItems,
   }
 }
 
@@ -423,6 +501,45 @@ export async function saveWorkflowChanges(
 
   revalidatePath(`/cases/${caseId}/progress`)
   return {}
+}
+
+export async function toggleCaseEligibility(
+  caseId: string,
+  type: 'status' | 'documents'
+): Promise<{ completed: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { completed: false, error: 'Not authenticated' }
+
+  const { data: existing } = await supabase
+    .from('case_eligibility')
+    .select('id, completed_at')
+    .eq('case_id', caseId)
+    .eq('type', type)
+    .single()
+
+  if (existing) {
+    if (existing.completed_at) {
+      await supabase
+        .from('case_eligibility')
+        .update({ completed_at: null, completed_by: null })
+        .eq('id', existing.id)
+      return { completed: false }
+    }
+    await supabase
+      .from('case_eligibility')
+      .update({ completed_at: new Date().toISOString(), completed_by: user.id })
+      .eq('id', existing.id)
+    return { completed: true }
+  }
+
+  await supabase.from('case_eligibility').insert({
+    case_id: caseId,
+    type,
+    completed_at: new Date().toISOString(),
+    completed_by: user.id,
+  })
+  return { completed: true }
 }
 
 /** The board entry that carries a given query (for deep links). */

@@ -168,7 +168,7 @@ export async function fetchClientPageData(idOrCode: string) {
 // ============================================================
 
 export async function fetchCaseWorkflow(caseId: string) {
-  const [me, caseRes, stepsRes, entriesRes, queriesRes] = await Promise.all([
+  const [me, caseRes, stepsRes, entriesRes, queriesRes, servicesRes, eligibilityRes] = await Promise.all([
     meId(),
     supabase.from('cases').select('current_step_id').eq('id', caseId).single(),
     supabase.from('case_steps').select('*').eq('case_id', caseId).order('position'),
@@ -178,12 +178,29 @@ export async function fetchCaseWorkflow(caseId: string) {
       .eq('case_id', caseId)
       .order('created_at', { ascending: false }),
     supabase.from('case_queries').select('*').eq('case_id', caseId),
+    supabase.from('case_services').select('service_id').eq('case_id', caseId).limit(1),
+    supabase.from('case_eligibility').select('*').eq('case_id', caseId),
   ])
 
   const entries = (entriesRes.data || []) as any[]
   const openAction = entries.find(e => e.kind === 'action' && !e.completed_at) || null
   const queries: Record<string, any> = {}
   for (const q of queriesRes.data || []) queries[q.id] = q
+
+  const serviceId = (servicesRes.data?.[0] as any)?.service_id ?? null
+  const eligibilityRows = (eligibilityRes.data || []) as any[]
+  const statusRow = eligibilityRows.find(e => e.type === 'status')
+  const documentsRow = eligibilityRows.find(e => e.type === 'documents')
+
+  let eligibilityItems: any[] = []
+  if (serviceId) {
+    const { data: items } = await supabase
+      .from('service_eligibility')
+      .select('*')
+      .eq('service_id', serviceId)
+      .order('position')
+    eligibilityItems = items || []
+  }
 
   return {
     steps: (stepsRes.data || []) as any[],
@@ -192,6 +209,14 @@ export async function fetchCaseWorkflow(caseId: string) {
     currentStepId: caseRes.data?.current_step_id ?? null,
     openAction,
     meId: me,
+    serviceId,
+    eligibility: {
+      statusCompleted: !!statusRow?.completed_at,
+      documentsCompleted: !!documentsRow?.completed_at,
+      statusAt: statusRow?.completed_at ?? null,
+      documentsAt: documentsRow?.completed_at ?? null,
+    },
+    eligibilityItems,
   }
 }
 

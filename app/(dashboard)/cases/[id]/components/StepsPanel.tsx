@@ -10,9 +10,12 @@ import {
   completeAction,
   updateAction,
   openQuery,
+  toggleCaseEligibility,
   type CaseStep,
   type CaseEntry,
   type CaseQuery,
+  type CaseEligibilityState,
+  type ServiceEligibilityItem,
 } from '@/app/actions/workflow'
 import { usePaneLink } from '@/lib/panes'
 import { useQueryClient } from '@tanstack/react-query'
@@ -25,6 +28,9 @@ import {
   Zap,
   AlertTriangle,
   MessageSquare,
+  ShieldCheck,
+  FileCheck,
+  Download,
 } from 'lucide-react'
 import { Modal } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
@@ -39,6 +45,9 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
   const [currentStepId, setCurrentStepId] = useState<string | null>(null)
   const [openAction, setOpenAction] = useState<CaseEntry | null>(null)
   const [queries, setQueries] = useState<Record<string, CaseQuery>>({})
+  const [serviceId, setServiceId] = useState<string | null>(null)
+  const [eligibility, setEligibility] = useState<CaseEligibilityState>({ statusCompleted: false, documentsCompleted: false, statusAt: null, documentsAt: null })
+  const [eligibilityItems, setEligibilityItems] = useState<ServiceEligibilityItem[]>([])
   const [loading, setLoading] = useState(true)
   const [viewIdx, setViewIdx] = useState(0)
   const [dragPct, setDragPct] = useState(0)
@@ -55,6 +64,9 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
     setQueries(data.queries)
     setCurrentStepId(data.currentStepId)
     setOpenAction(data.openAction)
+    setServiceId(data.serviceId)
+    setEligibility(data.eligibility)
+    setEligibilityItems(data.eligibilityItems)
     if (!didInit.current) {
       const idx = data.steps.findIndex(s => s.id === data.currentStepId)
       setViewIdx(idx >= 0 ? idx : 0)
@@ -158,6 +170,7 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
     const isActive = s.id === currentStepId
     const isDone = !!s.completed_at && !isActive
     const stepEntries = boardEntries(s.id)
+    const presaleStep = steps.find(st => st.step_type === 'presale')
 
     return (
       <div key={s.id} className="w-full shrink-0 align-top px-4 md:px-6">
@@ -224,7 +237,7 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
 
         {/* Step content — sits directly on the page background */}
         <div className="space-y-3">
-          {isActive && (
+          {isActive && s.step_type !== 'eligibility' && (
             <ActionPanel caseId={caseId} openAction={openAction} onChanged={load} />
           )}
 
@@ -234,7 +247,33 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
             </Button>
           )}
 
-          {isActive && <EntryComposer caseId={caseId} onAdded={load} />}
+          {isActive && s.step_type === 'eligibility' && (
+            <EligibilityPanel
+              caseId={caseId}
+              eligibility={eligibility}
+              items={eligibilityItems}
+              onChanged={load}
+            />
+          )}
+
+          {isActive && s.step_type === 'eligibility' && presaleStep && eligibility.statusCompleted && eligibility.documentsCompleted && (
+            <Button onClick={() => handleMove(presaleStep.id)} className="w-full">
+              Proceed to Pre-sale
+            </Button>
+          )}
+
+          {isActive && s.step_type === 'presale' && serviceId && (
+            <Link
+              href={`/cases/${caseId}/agreement`}
+              target="_blank"
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--color-text-primary))] hover:bg-[hsl(var(--color-surface-hover))] transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              Download service agreement
+            </Link>
+          )}
+
+          {isActive && s.step_type !== 'eligibility' && <EntryComposer caseId={caseId} onAdded={load} />}
 
           {stepEntries.length === 0 ? (
             <p className="text-xs text-[hsl(var(--color-text-muted))] py-6 text-center">
@@ -444,6 +483,103 @@ function ActionForm({ caseId, existing, submitLabel, skipLabel = 'Skip', onDone,
           </Button>
         )}
       </div>
+    </div>
+  )
+}
+
+// ============================================================
+// Eligibility panel (active eligibility step only)
+// ============================================================
+function EligibilityPanel({
+  caseId,
+  eligibility,
+  items,
+  onChanged,
+}: {
+  caseId: string
+  eligibility: CaseEligibilityState
+  items: ServiceEligibilityItem[]
+  onChanged: () => void
+}) {
+  const [modalType, setModalType] = useState<'status' | 'documents' | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  const filtered = items.filter(i => i.type === modalType)
+  const statusDone = eligibility.statusCompleted
+  const docsDone = eligibility.documentsCompleted
+
+  const toggle = async (type: 'status' | 'documents') => {
+    setSaving(true)
+    const result = await toggleCaseEligibility(caseId, type)
+    setSaving(false)
+    if (!result.error) {
+      onChanged()
+    }
+  }
+
+  const close = () => setModalType(null)
+
+  return (
+    <div className="py-1 space-y-3">
+      <div className="flex gap-2">
+        <Button
+          variant="secondary"
+          onClick={() => setModalType('status')}
+          className={`flex-1 gap-2 ${statusDone ? 'border-green-500/30 text-green-400' : ''}`}
+        >
+          <ShieldCheck className="w-4 h-4" />
+          Status verification
+        </Button>
+        <Button
+          variant="secondary"
+          onClick={() => setModalType('documents')}
+          className={`flex-1 gap-2 ${docsDone ? 'border-green-500/30 text-green-400' : ''}`}
+        >
+          <FileCheck className="w-4 h-4" />
+          Mandatory documents
+        </Button>
+      </div>
+
+      <Modal isOpen={modalType !== null} onClose={close} title={modalType === 'status' ? 'Status verification' : 'Mandatory documents'}>
+        <div className="space-y-4">
+          {filtered.length === 0 ? (
+            <p className="text-sm text-[hsl(var(--color-text-secondary))]">
+              No items configured for this service yet.
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {filtered.map(item => (
+                <li key={item.id} className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-3">
+                  <p className="text-sm font-medium text-[hsl(var(--color-text-primary))]">{item.title}</p>
+                  {item.description && (
+                    <p className="text-xs text-[hsl(var(--color-text-secondary))] mt-1">{item.description}</p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" onClick={close}>Close</Button>
+            <Button
+              onClick={() => { if (modalType) toggle(modalType) }}
+              disabled={saving}
+              className={
+                modalType === 'status' && statusDone
+                  ? 'bg-red-600 hover:bg-red-700'
+                  : modalType === 'documents' && docsDone
+                    ? 'bg-red-600 hover:bg-red-700'
+                    : undefined
+              }
+            >
+              {modalType === 'status' && statusDone
+                ? 'Mark as not done'
+                : modalType === 'documents' && docsDone
+                  ? 'Mark as not done'
+                  : 'Mark as done'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

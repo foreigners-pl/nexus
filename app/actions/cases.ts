@@ -3,8 +3,40 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { logActivity, logActivityForUsers } from './dashboard'
-import { ensureSystemSteps, setInitialStep, generateStepsForService } from './workflow'
+import { ensureSystemSteps, setInitialStep, generateStepsForService, ensureCaseEligibility } from './workflow'
 import { notifyUsers } from './notifications'
+
+export async function getCaseAgreementData(caseId: string): Promise<{
+  caseCode: string | null
+  clientName: string | null
+  serviceName: string | null
+  totalPrice: number | null
+  date: string | null
+  error?: string
+}> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { caseCode: null, clientName: null, serviceName: null, totalPrice: null, date: null, error: 'Not authenticated' }
+
+  const { data: caseData } = await supabase
+    .from('cases')
+    .select('case_code, total_price, created_at, clients(first_name, last_name), case_services(services(name))')
+    .eq('id', caseId)
+    .single()
+
+  if (!caseData) return { caseCode: null, clientName: null, serviceName: null, totalPrice: null, date: null, error: 'Case not found' }
+
+  const client = (caseData.clients as any)
+  const service = ((caseData.case_services as any)?.[0]?.services as any)?.name
+
+  return {
+    caseCode: caseData.case_code ?? null,
+    clientName: client ? [client.first_name, client.last_name].filter(Boolean).join(' ') : null,
+    serviceName: service || null,
+    totalPrice: caseData.total_price ?? null,
+    date: caseData.created_at ? new Date(caseData.created_at).toLocaleDateString() : null,
+  }
+}
 
 // Everything the case detail page needs in one round trip — the sub-queries
 // run in parallel server-side instead of as a client waterfall.
@@ -151,6 +183,7 @@ export async function addCase(formData: FormData) {
         .from('case_services')
         .insert({ case_id: data.id, service_id: serviceId })
       await generateStepsForService(data.id, serviceId)
+      await ensureCaseEligibility(data.id, serviceId)
     }
 
     // setInitialStep ran after the insert — pull the current step onto the returned row
