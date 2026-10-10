@@ -153,18 +153,12 @@ export async function parseServiceProtocol(base64Docx: string): Promise<ParsedPr
 
       const lower = line.toLowerCase()
 
-      if (lower.startsWith('[li] ')) {
-        const item = line.replace(/^\[li\]\s*/, '').trim()
-        if (item) listBuffer.push(item)
-        continue
-      }
-
       if (lower.startsWith('description:')) {
         pendingDescription = line.replace(/^description:/i, '').trim()
         continue
       }
 
-      // Top-level sections
+      // Top-level sections (DOCX renders these as ordered-list items, so strip [LI])
       if (isHeading(line, 'service outline')) {
         flushList()
         topSection = 'outline'
@@ -198,13 +192,21 @@ export async function parseServiceProtocol(base64Docx: string): Promise<ParsedPr
       }
 
       // Subsection headings
-      if (topSection && line) {
+      if (topSection && line && !lower.startsWith('[li] ')) {
         flushList()
         subsection = line
         if (topSection === 'outline' && isHeading(line, 'mandatory stages')) {
           const { price } = extractPrice(line)
           servicePrice = price
         }
+        continue
+      }
+
+      // Regular list items
+      if (lower.startsWith('[li] ')) {
+        const item = line.replace(/^\[li\]\s*/i, '').trim()
+        if (item) listBuffer.push(item)
+        continue
       }
     }
 
