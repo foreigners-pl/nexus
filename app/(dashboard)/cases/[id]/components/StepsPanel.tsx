@@ -259,11 +259,7 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
 
           {isActive && <EntryComposer caseId={caseId} onAdded={refresh} />}
 
-          {isActive && s.step_type === 'eligibility' && (
-            <EligibilityRows caseId={caseId} eligibility={eligibility} items={eligibilityItems} />
-          )}
-
-          {isActive && s.step_type === 'presale' && serviceId && (
+          {s.step_type === 'presale' && serviceId && (
             <Link
               href={`/cases/${caseId}/agreement`}
               target="_blank"
@@ -274,10 +270,8 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
             </Link>
           )}
 
-          {isActive && s.step_type === 'eligibility' && presaleStep && eligibility.statusCompleted && eligibility.documentsCompleted && (
-            <Button onClick={() => handleMove(presaleStep.id)} className="w-full">
-              Proceed to Pre-sale
-            </Button>
+          {s.step_type === 'eligibility' && (
+            <EligibilityRows caseId={caseId} eligibility={eligibility} items={eligibilityItems} inactive={!isActive} />
           )}
 
           {stepEntries.length === 0 ? (
@@ -499,10 +493,12 @@ function EligibilityRows({
   caseId,
   eligibility,
   items,
+  inactive = false,
 }: {
   caseId: string
   eligibility: CaseEligibilityState
   items: ServiceEligibilityItem[]
+  inactive?: boolean
 }) {
   const paneNav = usePaneNavigate()
   const statusCount = items.filter(i => i.type === 'status').length
@@ -514,17 +510,12 @@ function EligibilityRows({
   ]
 
   return (
-    <div className="space-y-2">
+    <div className={`space-y-2 ${inactive ? 'opacity-70' : ''}`}>
       {rows.map(row => {
         const Icon = row.icon
         const href = `/cases/${caseId}/eligibility/${row.type}`
-        return (
-          <Link
-            key={row.type}
-            href={href}
-            onClick={(e) => { if (paneNav(href)) e.preventDefault() }}
-            className="flex items-center gap-3 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-4 py-3.5 hover:bg-[hsl(var(--color-surface-hover))] transition-colors"
-          >
+        const content = (
+          <>
             <Icon className={`w-5 h-5 shrink-0 ${row.done ? 'text-green-500' : 'text-red-400'}`} />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">{row.label}</p>
@@ -537,6 +528,23 @@ function EligibilityRows({
             ) : (
               <ChevronRight className="w-5 h-5 text-[hsl(var(--color-text-muted))] shrink-0" />
             )}
+          </>
+        )
+        return inactive ? (
+          <div
+            key={row.type}
+            className="flex items-center gap-3 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-4 py-3.5"
+          >
+            {content}
+          </div>
+        ) : (
+          <Link
+            key={row.type}
+            href={href}
+            onClick={(e) => { if (paneNav(href)) e.preventDefault() }}
+            className="flex items-center gap-3 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-4 py-3.5 hover:bg-[hsl(var(--color-surface-hover))] transition-colors"
+          >
+            {content}
           </Link>
         )
       })}
