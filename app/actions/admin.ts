@@ -34,15 +34,20 @@ export async function getServiceForEdit(serviceId: string): Promise<ParsedProtoc
 
   const extras = (service.protocol_extras as Record<string, unknown>) || {}
 
+  const saleExecution = (extras.saleExecution as string[]) || []
+  const legalHandoff = (extras.legalHandoff as string[]) || []
+
   return {
     serviceName: service.name || '',
     serviceDescription: service.description || '',
     servicePrice: service.gross_price ?? null,
     steps: (steps || []).map((s: any) => ({ name: s.name, description: s.description || '', price: null, isRequired: s.is_required })),
-    statusItems: (eligibility || []).filter((e: any) => e.type === 'status').map((e: any) => ({ title: e.title, description: e.description || '' })),
-    documentItems: (eligibility || []).filter((e: any) => e.type === 'documents').map((e: any) => ({ title: e.title, description: e.description || '' })),
+    statusItems: (eligibility || []).filter((e: any) => e.type === 'status').map((e: any) => ({ title: e.title, description: e.description || null })),
+    documentItems: (eligibility || []).filter((e: any) => e.type === 'documents').map((e: any) => ({ title: e.title, description: e.description || null })),
     optionalStages: (extras.optionalStages as ParsedOptionItem[]) || [],
     allInclusive: (extras.allInclusive as { name: string; price: number | null; items: string[] } | null) || null,
+    saleExecution,
+    legalHandoff,
     executionStages: (extras.executionStages as { name: string; items: string[] }[]) || [],
     closureStages: (extras.closureStages as string[]) || [],
     sectionDescriptions: {},
@@ -73,7 +78,9 @@ export interface ParsedProtocol {
   steps: ParsedStep[]
   optionalStages: ParsedOptionItem[]
   allInclusive: { name: string; price: number | null; items: string[] } | null
-  executionStages: { name: string; items: string[] }[]
+  saleExecution: string[]
+  legalHandoff: string[]
+  executionStages?: { name: string; items: string[] }[]
   closureStages: string[]
   statusItems: ParsedEligibilityItem[]
   documentItems: ParsedEligibilityItem[]
@@ -262,6 +269,8 @@ export async function parseServiceProtocol(base64Docx: string): Promise<ParsedPr
       steps,
       optionalStages,
       allInclusive,
+      saleExecution: [],
+      legalHandoff: [],
       executionStages,
       closureStages,
       statusItems,
@@ -276,6 +285,8 @@ export async function parseServiceProtocol(base64Docx: string): Promise<ParsedPr
       steps: [],
       optionalStages: [],
       allInclusive: null,
+      saleExecution: [],
+      legalHandoff: [],
       executionStages: [],
       closureStages: [],
       statusItems: [],
@@ -297,7 +308,8 @@ export async function saveServiceProtocol(
   const protocolExtras = {
     optionalStages: data.optionalStages,
     allInclusive: data.allInclusive,
-    executionStages: data.executionStages,
+    saleExecution: data.saleExecution,
+    legalHandoff: data.legalHandoff,
     closureStages: data.closureStages,
   }
 

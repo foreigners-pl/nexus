@@ -15,7 +15,8 @@ const emptyForm: ParsedProtocol = {
   steps: [],
   optionalStages: [],
   allInclusive: null,
-  executionStages: [],
+  saleExecution: [],
+  legalHandoff: [],
   closureStages: [],
   statusItems: [],
   documentItems: [],
@@ -120,29 +121,23 @@ export default function ServiceSetupPage() {
   }
   const removeAllInclusive = () => updateField('allInclusive', null)
 
-  // Execution
-  const addExecutionStage = () => updateField('executionStages', [...form.executionStages, { name: '', items: [''] }])
-  const updateExecutionStage = (idx: number, value: string) => {
-    const stages = [...form.executionStages]
-    stages[idx] = { ...stages[idx], name: value }
-    updateField('executionStages', stages)
+  // Sale execution
+  const addSaleItem = () => updateField('saleExecution', [...form.saleExecution, ''])
+  const updateSaleItem = (idx: number, value: string) => {
+    const items = [...form.saleExecution]
+    items[idx] = value
+    updateField('saleExecution', items)
   }
-  const removeExecutionStage = (idx: number) => updateField('executionStages', form.executionStages.filter((_, i) => i !== idx))
-  const addExecutionItem = (stageIdx: number) => {
-    const stages = [...form.executionStages]
-    stages[stageIdx] = { ...stages[stageIdx], items: [...stages[stageIdx].items, ''] }
-    updateField('executionStages', stages)
+  const removeSaleItem = (idx: number) => updateField('saleExecution', form.saleExecution.filter((_, i) => i !== idx))
+
+  // Legal handoff
+  const addHandoffItem = () => updateField('legalHandoff', [...form.legalHandoff, ''])
+  const updateHandoffItem = (idx: number, value: string) => {
+    const items = [...form.legalHandoff]
+    items[idx] = value
+    updateField('legalHandoff', items)
   }
-  const updateExecutionItem = (stageIdx: number, itemIdx: number, value: string) => {
-    const stages = [...form.executionStages]
-    stages[stageIdx].items[itemIdx] = value
-    updateField('executionStages', stages)
-  }
-  const removeExecutionItem = (stageIdx: number, itemIdx: number) => {
-    const stages = [...form.executionStages]
-    stages[stageIdx] = { ...stages[stageIdx], items: stages[stageIdx].items.filter((_, i) => i !== itemIdx) }
-    updateField('executionStages', stages)
-  }
+  const removeHandoffItem = (idx: number) => updateField('legalHandoff', form.legalHandoff.filter((_, i) => i !== idx))
 
   // Completion
   const addCompletionItem = () => updateField('closureStages', [...form.closureStages, ''])
@@ -168,12 +163,8 @@ export default function ServiceSetupPage() {
     if (!form.allInclusive) return
     updateField('allInclusive', { ...form.allInclusive, items: move(form.allInclusive.items, idx, idx + dir) })
   }
-  const moveExecutionStage = (idx: number, dir: -1 | 1) => updateField('executionStages', move(form.executionStages, idx, idx + dir))
-  const moveExecutionItem = (stageIdx: number, itemIdx: number, dir: -1 | 1) => {
-    const stages = [...form.executionStages]
-    stages[stageIdx] = { ...stages[stageIdx], items: move(stages[stageIdx].items, itemIdx, itemIdx + dir) }
-    updateField('executionStages', stages)
-  }
+  const moveSaleItem = (idx: number, dir: -1 | 1) => updateField('saleExecution', move(form.saleExecution, idx, idx + dir))
+  const moveHandoffItem = (idx: number, dir: -1 | 1) => updateField('legalHandoff', move(form.legalHandoff, idx, idx + dir))
   const moveCompletionItem = (idx: number, dir: -1 | 1) => updateField('closureStages', move(form.closureStages, idx, idx + dir))
 
   const ReorderButtons = ({ idx, total, onMove }: { idx: number; total: number; onMove: (dir: -1 | 1) => void }) => (
@@ -455,46 +446,49 @@ export default function ServiceSetupPage() {
             </Button>
           </div>
 
-          {/* Execution */}
-          <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-4">
-            <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Execution</h2>
-            {form.executionStages.map((stage, i) => (
-              <div key={i} className="space-y-2 rounded-lg bg-[hsl(var(--color-background))] p-3">
-                <div className="flex gap-2 items-center">
-                  <ReorderButtons idx={i} total={form.executionStages.length} onMove={dir => moveExecutionStage(i, dir)} />
-                  <div className="flex-1">
-                    <Input
-                      value={stage.name}
-                      onChange={e => updateExecutionStage(i, e.target.value)}
-                      placeholder="Stage name"
-                    />
-                  </div>
-                  <button onClick={() => removeExecutionStage(i)} className="text-[hsl(var(--color-text-muted))] hover:text-red-400">
-                    <X className="w-4 h-4" />
-                  </button>
+          {/* Sale execution */}
+          <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-3">
+            <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Sale execution</h2>
+            {form.saleExecution.map((item, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                <ReorderButtons idx={i} total={form.saleExecution.length} onMove={dir => moveSaleItem(i, dir)} />
+                <div className="flex-1">
+                  <Input
+                    value={item}
+                    onChange={e => updateSaleItem(i, e.target.value)}
+                    placeholder="e.g. Send personalised service agreement"
+                  />
                 </div>
-                {stage.items.map((item, j) => (
-                  <div key={j} className="flex gap-2 items-center pl-4">
-                    <ReorderButtons idx={j} total={stage.items.length} onMove={dir => moveExecutionItem(i, j, dir)} />
-                    <div className="flex-1">
-                      <Input
-                        value={item}
-                        onChange={e => updateExecutionItem(i, j, e.target.value)}
-                        placeholder="Item"
-                      />
-                    </div>
-                    <button onClick={() => removeExecutionItem(i, j)} className="text-[hsl(var(--color-text-muted))] hover:text-red-400">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-                <Button variant="outline" size="sm" onClick={() => addExecutionItem(i)} className="w-full">
-                  <Plus className="w-4 h-4 mr-2" /> Add item
-                </Button>
+                <button onClick={() => removeSaleItem(i)} className="text-[hsl(var(--color-text-muted))] hover:text-red-400">
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             ))}
-            <Button variant="outline" size="sm" onClick={addExecutionStage} className="w-full">
-              <Plus className="w-4 h-4 mr-2" /> Add execution stage
+            <Button variant="outline" size="sm" onClick={addSaleItem} className="w-full">
+              <Plus className="w-4 h-4 mr-2" /> Add sale execution item
+            </Button>
+          </div>
+
+          {/* Legal handoff */}
+          <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-3">
+            <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Legal handoff</h2>
+            {form.legalHandoff.map((item, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                <ReorderButtons idx={i} total={form.legalHandoff.length} onMove={dir => moveHandoffItem(i, dir)} />
+                <div className="flex-1">
+                  <Input
+                    value={item}
+                    onChange={e => updateHandoffItem(i, e.target.value)}
+                    placeholder="e.g. Lawyer officially takes over the case"
+                  />
+                </div>
+                <button onClick={() => removeHandoffItem(i)} className="text-[hsl(var(--color-text-muted))] hover:text-red-400">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+            <Button variant="outline" size="sm" onClick={addHandoffItem} className="w-full">
+              <Plus className="w-4 h-4 mr-2" /> Add legal handoff item
             </Button>
           </div>
 
