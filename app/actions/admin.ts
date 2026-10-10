@@ -32,124 +32,170 @@ export interface ParsedProtocol {
   documentItems: ParsedEligibilityItem[]
 }
 
-function cleanLine(line: string) {
-  return line.replace(/^[-•·]\s*/, '').trim()
-}
-
-function extractPrice(line: string): { text: string; price: number | null } {
-  // Look for patterns like "- 2,599", " - 199pln", " - 6,399pln"
-  const match = line.match(/(.+?)\s*[-–—]\s*([\d\s,]+)(?:\s*pln)?$/i)
+function extractPrice(text: string): { name: string; price: number | null } {
+  const match = text.match(/(.+?)\s*[-–—]\s*([\d\s,]+)(?:\s*pln)?$/i)
   if (match) {
     const priceText = match[2].replace(/\s/g, '').replace(/,/g, '')
     const price = parseInt(priceText, 10)
     if (!isNaN(price)) {
-      return { text: match[1].trim(), price }
+      return { name: match[1].trim(), price }
     }
   }
-  return { text: line, price: null }
+  return { name: text, price: null }
+}
+
+function normalizeHtml(html: string) {
+  return html
+    .replace(/<\/?strong>/gi, '')
+    .replace(/<\/?em>/gi, '')
+    .replace(/<\/?span[^>]*>/gi, '')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<p>/gi, '\n')
+    .replace(/<ul>/gi, '\n[UL_START]\n')
+    .replace(/<\/ul>/gi, '\n[UL_END]\n')
+    .replace(/<ol>/gi, '\n')
+    .replace(/<\/ol>/gi, '\n')
+    .replace(/<li>/gi, '\n[LI] ')
+    .replace(/<\/li>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/&nbsp;/g, ' ')
 }
 
 export async function parseServiceProtocol(base64Docx: string): Promise<ParsedProtocol & { error?: string }> {
   try {
     const buffer = Buffer.from(base64Docx, 'base64')
-    const result = await mammoth.extractRawText({ buffer })
-    const text = result.value
-    const lines = text
+    const htmlResult = await mammoth.convertToHtml({ buffer })
+    const raw = normalizeHtml(htmlResult.value)
+    const lines = raw
       .split(/\r?\n/)
       .map(l => l.trim())
       .filter(Boolean)
 
-    const idx = (keywords: string[]) =>
-      lines.findIndex(l => keywords.some(k => l.toLowerCase().includes(k)))
-
-    const titleIdx = idx(['service protocol template', 'service protocol'])
-    const outlineIdx = idx(['service outline'])
-    const mandatoryIdx = idx(['mandatory stages'])
-    const optionIdx = idx(['option stages'])
-    const eligibilityIdx = idx(['eligibility verification'])
-    const statusIdx = idx(['status verification'])
-    const docsIdx = idx(['mandatory documents'])
-    const executionIdx = idx(['execution and completion'])
-    const closureIdx = idx(['service closure'])
-
-    const between = (start: number, end: number) => {
-      if (start < 0) return []
-      const stop = end > start ? end : lines.length
-      return lines.slice(start + 1, stop)
-    }
-
-    // Service description is the "Description:" line right after the title or before Service Outline
     let serviceDescription = ''
-    const descLine = lines.find(l => l.toLowerCase().startsWith('description:'))
-    if (descLine) {
-      serviceDescription = descLine.replace(/^description:/i, '').trim()
-    }
-
-    // Service price from "Mandatory Stages - 2,599"
     let servicePrice: number | null = null
-    if (mandatoryIdx >= 0) {
-      const { price } = extractPrice(lines[mandatoryIdx])
-      servicePrice = price
-    }
-
-    const parseStepList = (sectionStart: number, sectionEnd: number, isRequired: boolean): ParsedStep[] => {
-      const raw = between(sectionStart, sectionEnd)
-      const steps: ParsedStep[] = []
-      let currentDesc = ''
-      for (const line of raw) {
-        if (line.toLowerCase().startsWith('description:')) {
-          currentDesc = line.replace(/^description:/i, '').trim()
-          continue
-        }
-        if (/^\d+\s+/.test(line)) continue // skip summary lines like "3 additional documents"
-        const cleaned = cleanLine(line)
-        if (!cleaned) continue
-        const { text, price } = extractPrice(cleaned)
-        steps.push({
-          name: text,
-          description: currentDesc,
-          price,
-          isRequired,
-        })
-        currentDesc = ''
-      }
-      return steps
-    }
-
     const steps: ParsedStep[] = []
-    if (mandatoryIdx >= 0) {
-      steps.push(...parseStepList(mandatoryIdx, optionIdx > mandatoryIdx ? optionIdx : eligibilityIdx, true))
-    }
-    if (optionIdx >= 0) {
-      steps.push(...parseStepList(optionIdx, eligibilityIdx > optionIdx ? eligibilityIdx : executionIdx, false))
-    }
+    const statusItems: ParsedEligibilityItem[] = []
+    const documentItems: ParsedEligibilityItem[] = []
 
-    const parseEligibilityItems = (sectionStart: number, sectionEnd: number): ParsedEligibilityItem[] => {
-      const raw = between(sectionStart, sectionEnd)
-      const items: ParsedEligibilityItem[] = []
-      let sectionDesc = ''
-      for (const line of raw) {
-        if (line.toLowerCase().startsWith('description:')) {
-          sectionDesc = line.replace(/^description:/i, '').trim()
-          continue
+    let topSection: 'outline' | 'eligibility' | 'execution' | 'closure' | null = null
+    let subsection = ''
+    let inList = false
+    let pendingDescription = ''
+    let listBuffer: string[] = []
+
+    const flushList = () => {
+      if (!inList || listBuffer.length === 0) return
+
+      if (topSection === 'outline') {
+        if (subsection.toLowerCase().startsWith('mandatory stages')) {
+          for (const item of listBuffer) {
+            const { name, price } = extractPrice(item)
+            steps.push({ name, description: pendingDescription, price, isRequired: true })
+          }
+        } else if (subsection.toLowerCase().startsWith('option stages')) {
+          for (const item of listBuffer) {
+            const { name, price } = extractPrice(item)
+            steps.push({ name, description: pendingDescription, price, isRequired: false })
+          }
+        } else if (subsection.toLowerCase().startsWith('all inclusive')) {
+          const { name, price } = extractPrice(subsection)
+          steps.push({
+            name,
+            description: [pendingDescription, ...listBuffer].filter(Boolean).join(' · '),
+            price,
+            isRequired: false,
+          })
         }
-        const cleaned = cleanLine(line)
-        if (!cleaned) continue
-        items.push({
-          title: cleaned,
-          description: sectionDesc,
+      } else if (topSection === 'eligibility') {
+        const target = subsection.toLowerCase().includes('status')
+          ? statusItems
+          : documentItems
+        for (const item of listBuffer) {
+          target.push({ title: item, description: pendingDescription })
+        }
+      } else if (topSection === 'execution') {
+        // Each execution subsection becomes one step; bullets become description
+        steps.push({
+          name: subsection,
+          description: [pendingDescription, ...listBuffer].filter(Boolean).join(' · '),
+          price: null,
+          isRequired: true,
         })
-        sectionDesc = ''
       }
-      return items
+
+      listBuffer = []
+      pendingDescription = ''
+      inList = false
     }
 
-    const statusItems = statusIdx >= 0
-      ? parseEligibilityItems(statusIdx, docsIdx > statusIdx ? docsIdx : executionIdx)
-      : []
-    const documentItems = docsIdx >= 0
-      ? parseEligibilityItems(docsIdx, executionIdx > docsIdx ? executionIdx : closureIdx)
-      : []
+    for (const line of lines) {
+      if (line === '[UL_START]') {
+        inList = true
+        continue
+      }
+      if (line === '[UL_END]') {
+        flushList()
+        continue
+      }
+
+      const lower = line.toLowerCase()
+
+      if (lower.startsWith('[li] ')) {
+        const item = line.replace(/^\[li\]\s*/, '').trim()
+        if (item) listBuffer.push(item)
+        continue
+      }
+
+      if (lower.startsWith('description:')) {
+        pendingDescription = line.replace(/^description:/i, '').trim()
+        continue
+      }
+
+      // Top-level sections
+      if (lower === 'service outline') {
+        flushList()
+        topSection = 'outline'
+        subsection = ''
+        continue
+      }
+      if (lower === 'eligibility verification') {
+        flushList()
+        topSection = 'eligibility'
+        subsection = ''
+        continue
+      }
+      if (lower === 'execution and completion') {
+        flushList()
+        topSection = 'execution'
+        subsection = ''
+        continue
+      }
+      if (lower === 'service closure') {
+        flushList()
+        topSection = 'closure'
+        subsection = ''
+        continue
+      }
+
+      // First "Description:" before any section = service description
+      if (!serviceDescription && pendingDescription && !topSection) {
+        serviceDescription = pendingDescription
+        pendingDescription = ''
+        continue
+      }
+
+      // Subsection headings
+      if (topSection && line) {
+        flushList()
+        subsection = line
+        if (topSection === 'outline' && lower.startsWith('mandatory stages')) {
+          const { price } = extractPrice(line)
+          servicePrice = price
+        }
+      }
+    }
+
+    flushList()
 
     return {
       serviceDescription,
