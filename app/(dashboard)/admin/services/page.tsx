@@ -6,6 +6,18 @@ import { getServices } from '@/app/actions/admin'
 import type { Service } from '@/types/database'
 import { FileText, Plus } from 'lucide-react'
 
+const CATEGORY_ORDER = ['immigration', 'driving', 'business', 'language']
+
+const categoryLabel = (cat: string) => {
+  const map: Record<string, string> = {
+    immigration: 'Immigration',
+    driving: 'Driving',
+    business: 'Business',
+    language: 'Language',
+  }
+  return map[cat] || cat
+}
+
 export default function ServicesListPage() {
   const [services, setServices] = useState<Service[]>([])
   const [loading, setLoading] = useState(true)
@@ -16,6 +28,18 @@ export default function ServicesListPage() {
       setLoading(false)
     })
   }, [])
+
+  const grouped = services.reduce<Record<string, Service[]>>((acc, s) => {
+    const cat = s.category || 'other'
+    if (!acc[cat]) acc[cat] = []
+    acc[cat].push(s)
+    return acc
+  }, {})
+
+  const sortedCategories = [
+    ...CATEGORY_ORDER.filter(c => grouped[c]?.length > 0),
+    ...Object.keys(grouped).filter(c => !CATEGORY_ORDER.includes(c) && grouped[c]?.length > 0),
+  ]
 
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 pb-20">
@@ -36,29 +60,38 @@ export default function ServicesListPage() {
       {loading ? (
         <div className="text-sm text-[hsl(var(--color-text-secondary))]">Loading…</div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {services.map(service => (
-            <Link
-              key={service.id}
-              href={`/admin/services/${service.id}`}
-              className="flex items-center gap-4 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 hover:bg-[hsl(var(--color-surface-hover))] transition-colors"
-            >
-              <div className="w-10 h-10 rounded-xl bg-[hsl(var(--color-primary))]/10 flex items-center justify-center shrink-0">
-                <FileText className="w-5 h-5 text-[hsl(var(--color-primary))]" />
+        <div className="space-y-8">
+          {sortedCategories.map(cat => (
+            <div key={cat}>
+              <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))] mb-3 uppercase tracking-wide">
+                {categoryLabel(cat)}
+              </h2>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {grouped[cat].map(service => (
+                  <Link
+                    key={service.id}
+                    href={`/admin/services/${service.id}`}
+                    className="flex items-center gap-4 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 hover:bg-[hsl(var(--color-surface-hover))] transition-colors"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-[hsl(var(--color-primary))]/10 flex items-center justify-center shrink-0">
+                      <FileText className="w-5 h-5 text-[hsl(var(--color-primary))]" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-[hsl(var(--color-text-primary))] truncate">{service.name}</p>
+                      {service.gross_price !== null && service.gross_price !== undefined && (
+                        <p className="text-xs text-[hsl(var(--color-text-secondary))]">{Number(service.gross_price).toLocaleString()} PLN</p>
+                      )}
+                    </div>
+                  </Link>
+                ))}
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-[hsl(var(--color-text-primary))] truncate">{service.name}</p>
-                {service.gross_price !== null && service.gross_price !== undefined && (
-                  <p className="text-xs text-[hsl(var(--color-text-secondary))]">{Number(service.gross_price).toLocaleString()} PLN</p>
-                )}
-              </div>
-            </Link>
+            </div>
           ))}
-        </div>
-      )}
 
-      {!loading && services.length === 0 && (
-        <p className="text-sm text-[hsl(var(--color-text-secondary))] mt-4">No services yet.</p>
+          {!loading && services.length === 0 && (
+            <p className="text-sm text-[hsl(var(--color-text-secondary))]">No services yet.</p>
+          )}
+        </div>
       )}
     </div>
   )

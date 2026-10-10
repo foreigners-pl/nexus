@@ -39,6 +39,7 @@ export async function getServiceForEdit(serviceId: string): Promise<ParsedProtoc
 
   return {
     serviceName: service.name || '',
+    category: service.category || '',
     serviceDescription: service.description || '',
     servicePrice: service.gross_price ?? null,
     steps: (steps || []).map((s: any) => ({ name: s.name, description: s.description || '', price: null, isRequired: s.is_required })),
@@ -73,6 +74,7 @@ export interface ParsedOptionItem {
 
 export interface ParsedProtocol {
   serviceName: string
+  category: string
   serviceDescription: string
   servicePrice: number | null
   steps: ParsedStep[]
@@ -264,6 +266,7 @@ export async function parseServiceProtocol(base64Docx: string): Promise<ParsedPr
 
     return {
       serviceName: '',
+      category: '',
       serviceDescription,
       servicePrice,
       steps,
@@ -280,6 +283,7 @@ export async function parseServiceProtocol(base64Docx: string): Promise<ParsedPr
   } catch (e: any) {
     return {
       serviceName: '',
+      category: '',
       serviceDescription: '',
       servicePrice: null,
       steps: [],
@@ -326,6 +330,7 @@ export async function saveServiceProtocol(
     description: data.serviceDescription,
     gross_price: data.servicePrice,
     protocol_extras: protocolExtras,
+    category: data.category || null,
   }
   if (data.serviceName.trim()) {
     updates.name = data.serviceName.trim()

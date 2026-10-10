@@ -9,6 +9,7 @@ import { Loader2, Plus, X, ArrowUp, ArrowDown } from 'lucide-react'
 
 const emptyForm: ParsedProtocol = {
   serviceName: '',
+  category: 'immigration',
   serviceDescription: '',
   servicePrice: null,
   steps: [],
@@ -237,6 +238,19 @@ export default function ServiceForm({ serviceId, isNew }: ServiceFormProps) {
               onChange={e => updateField('serviceName', e.target.value)}
               placeholder="e.g. TRC Full Service"
             />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-1">Category</label>
+            <select
+              value={form.category}
+              onChange={e => updateField('category', e.target.value)}
+              className="w-full rounded-xl bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] px-3 py-2.5 text-sm text-[hsl(var(--color-text-primary))] outline-none"
+            >
+              <option value="immigration">Immigration</option>
+              <option value="driving">Driving</option>
+              <option value="business">Business</option>
+              <option value="language">Language</option>
+            </select>
           </div>
           <div>
             <label className="block text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-1">Description</label>
