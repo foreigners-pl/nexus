@@ -195,7 +195,7 @@ export function CustomKanbanCard({ card, isSharedBoard, userAccessLevel, onUpdat
             <Button
               onClick={handleDelete}
               disabled={isDeleting}
-              className="bg-red-500 hover:bg-red-600 text-white"
+              variant="danger"
             >
               {isDeleting ? 'Deleting...' : 'Delete'}
             </Button>

@@ -273,10 +273,10 @@ export default function ClientPage({ params }: ClientPageProps) {
             >
               Cancel
             </Button>
-            <Button 
-              onClick={handleDeleteClient} 
+            <Button
+              onClick={handleDeleteClient}
               disabled={submitting}
-              className="bg-red-600 hover:bg-red-700 text-white"
+              variant="danger"
             >
               {submitting ? 'Deleting...' : 'Delete Client'}
             </Button>

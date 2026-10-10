@@ -846,7 +846,7 @@ export default function WikiPage() {
             <Button variant="ghost" onClick={() => setShowDeleteFolderModal(false)} disabled={submitting}>
               Cancel
             </Button>
-            <Button onClick={handleDeleteFolder} className="bg-red-600 hover:bg-red-700" disabled={submitting}>
+            <Button onClick={handleDeleteFolder} variant="danger" disabled={submitting}>
               {submitting ? 'Deleting...' : 'Delete'}
             </Button>
           </div>
@@ -862,7 +862,7 @@ export default function WikiPage() {
             <Button variant="ghost" onClick={() => setShowDeleteDocModal(false)} disabled={submitting}>
               Cancel
             </Button>
-            <Button onClick={handleDeleteDocument} className="bg-red-600 hover:bg-red-700" disabled={submitting}>
+            <Button onClick={handleDeleteDocument} variant="danger" disabled={submitting}>
               {submitting ? 'Deleting...' : 'Delete'}
             </Button>
           </div>

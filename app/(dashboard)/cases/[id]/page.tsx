@@ -152,7 +152,7 @@ export default function CasePage({ params }: CasePageProps) {
           <p>Are you sure you want to delete this case? This action cannot be undone.</p>
           <div className="flex justify-end gap-3">
             <Button variant="ghost" onClick={() => setIsDeleteModalOpen(false)} disabled={submitting}>Cancel</Button>
-            <Button onClick={handleDelete} disabled={submitting} className="bg-red-500 hover:bg-red-600 text-white">{submitting ? 'Deleting...' : 'Delete Case'}</Button>
+            <Button onClick={handleDelete} disabled={submitting} variant="danger">{submitting ? 'Deleting...' : 'Delete Case'}</Button>
           </div>
         </div>
       </Modal>

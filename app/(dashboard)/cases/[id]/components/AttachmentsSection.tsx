@@ -213,10 +213,10 @@ export function AttachmentsSection({ caseId, attachments, onUpdate, onAddClick }
             <Button variant="ghost" onClick={() => setDeleteModalOpen(false)} disabled={deleting}>
               Cancel
             </Button>
-            <Button 
-              onClick={confirmDelete} 
+            <Button
+              onClick={confirmDelete}
               disabled={deleting}
-              className="bg-red-500 hover:bg-red-600 text-white"
+              variant="danger"
             >
               {deleting ? 'Deleting...' : 'Delete'}
             </Button>

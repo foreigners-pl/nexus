@@ -17,8 +17,8 @@ import {
   type ServiceEligibilityItem,
 } from '@/app/actions/workflow'
 import { usePaneLink, usePaneNavigate } from '@/lib/panes'
-import { useQueryClient } from '@tanstack/react-query'
-import { useWorkflowCache, fetchWorkflowQuery, queryKeys } from '@/lib/query'
+import { useQueryClient, useQuery } from '@tanstack/react-query'
+import { fetchWorkflowQuery, queryKeys } from '@/lib/query'
 import { isDesktopViewport } from '@/lib/viewport'
 import {
   ChevronRight,
@@ -47,7 +47,6 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
   const [serviceId, setServiceId] = useState<string | null>(null)
   const [eligibility, setEligibility] = useState<CaseEligibilityState>({ statusCompleted: false, documentsCompleted: false, statusAt: null, documentsAt: null })
   const [eligibilityItems, setEligibilityItems] = useState<ServiceEligibilityItem[]>([])
-  const [loading, setLoading] = useState(true)
   const [viewIdx, setViewIdx] = useState(0)
   const [dragPct, setDragPct] = useState(0)
   const [animating, setAnimating] = useState(false)
@@ -55,7 +54,12 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
   const touchStartX = useRef<number | null>(null)
   const slideRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
-  const { getCached: getCachedWorkflow } = useWorkflowCache(caseId)
+
+  const { data, isLoading } = useQuery({
+    queryKey: queryKeys.workflow(caseId),
+    queryFn: () => fetchWorkflowQuery(queryClient, caseId),
+    staleTime: 0,
+  })
 
   const applyData = useCallback((data: Awaited<ReturnType<typeof getCaseWorkflow>>) => {
     setSteps(data.steps)
@@ -73,31 +77,24 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
     }
   }, [])
 
-  const load = useCallback(async () => {
-    // fetchQuery joins an in-flight row-hover prefetch; staleTime:0 still
-    // refetches after mutations since load() is also the mutation refresh.
-    const data = await fetchWorkflowQuery(queryClient, caseId)
-    applyData(data)
-    setLoading(false)
-    // Home / Requests / Actions pages share these keys — keep them fresh
-    // after workflow mutations (new request, completed action, etc.)
-    queryClient.invalidateQueries({ queryKey: queryKeys.requests })
-    queryClient.invalidateQueries({ queryKey: queryKeys.myActions })
-  }, [caseId, applyData, queryClient])
+  useEffect(() => {
+    if (data) applyData(data)
+  }, [data, applyData])
 
   useEffect(() => {
-    const cached = getCachedWorkflow()
-    if (cached) {
-      applyData(cached)
-      setLoading(false)
+    if (data) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.requests })
+      queryClient.invalidateQueries({ queryKey: queryKeys.myActions })
     }
-    load() // always refresh; silent when cache already rendered
-  }, [load])
+  }, [data, queryClient])
+
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.workflow(caseId) })
+  }
 
   const handleMove = async (stepId: string) => {
     await moveToStep(caseId, stepId)
-    setCurrentStepId(stepId)
-    load()
+    refresh()
   }
 
   // All steps live on one track; the transform is -viewIdx*100 + dragPct.
@@ -141,7 +138,7 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
     touchStartX.current = null
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="px-4 md:px-6 space-y-3 animate-pulse">
         <div className="h-12 rounded-xl bg-[hsl(var(--color-surface-hover))]" />
@@ -236,7 +233,7 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
 
         {/* Step content — sits directly on the page background */}
         <div className="space-y-3">
-          {isActive && <ActionPanel caseId={caseId} openAction={openAction} onChanged={load} />}
+          {isActive && <ActionPanel caseId={caseId} openAction={openAction} onChanged={refresh} />}
 
           {!isActive && (
             <Button
@@ -250,7 +247,7 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
             </Button>
           )}
 
-          {isActive && <EntryComposer caseId={caseId} onAdded={load} />}
+          {isActive && <EntryComposer caseId={caseId} onAdded={refresh} />}
 
           {isActive && s.step_type === 'eligibility' && (
             <EligibilityRows caseId={caseId} eligibility={eligibility} items={eligibilityItems} />
@@ -518,7 +515,7 @@ function EligibilityRows({
             onClick={(e) => { if (paneNav(href)) e.preventDefault() }}
             className="flex items-center gap-3 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-4 py-3.5 hover:bg-[hsl(var(--color-surface-hover))] transition-colors"
           >
-            <Icon className="w-5 h-5 text-[hsl(var(--color-text-secondary))] shrink-0" />
+            <Icon className={`w-5 h-5 shrink-0 ${row.done ? 'text-green-500' : 'text-red-400'}`} />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">{row.label}</p>
               <p className="text-xs text-[hsl(var(--color-text-secondary))] truncate mt-0.5">

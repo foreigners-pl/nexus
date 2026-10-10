@@ -174,7 +174,8 @@ export default function EligibilityDetailPage({ params }: EligibilityDetailPageP
         <Button
           onClick={handleToggle}
           disabled={toggling}
-          className={`w-full ${completed ? 'bg-red-600 hover:bg-red-700' : ''}`}
+          variant={completed ? 'danger' : 'primary'}
+          className="w-full"
         >
           {completed ? (
             <>
