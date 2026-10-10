@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { getServices, getServiceForEdit, saveServiceProtocol, type ParsedProtocol } from '@/app/actions/admin'
-import { Loader2, Plus, X } from 'lucide-react'
+import { Loader2, Plus, X, ArrowUp, ArrowDown } from 'lucide-react'
 import type { Service } from '@/types/database'
 
 const emptyForm: ParsedProtocol = {
@@ -148,6 +148,48 @@ export default function ServiceSetupPage() {
   }
   const removeClosureItem = (idx: number) => updateField('closureStages', form.closureStages.filter((_, i) => i !== idx))
 
+  const move = <T,>(arr: T[], from: number, to: number) => {
+    if (to < 0 || to >= arr.length) return arr
+    const next = [...arr]
+    const [item] = next.splice(from, 1)
+    next.splice(to, 0, item)
+    return next
+  }
+  const moveStep = (idx: number, dir: -1 | 1) => updateField('steps', move(form.steps, idx, idx + dir))
+  const moveStatus = (idx: number, dir: -1 | 1) => updateField('statusItems', move(form.statusItems, idx, idx + dir))
+  const moveDocument = (idx: number, dir: -1 | 1) => updateField('documentItems', move(form.documentItems, idx, idx + dir))
+  const moveOptional = (idx: number, dir: -1 | 1) => updateField('optionalStages', move(form.optionalStages, idx, idx + dir))
+  const moveAllInclusiveItem = (idx: number, dir: -1 | 1) => {
+    if (!form.allInclusive) return
+    updateField('allInclusive', { ...form.allInclusive, items: move(form.allInclusive.items, idx, idx + dir) })
+  }
+  const moveExecutionStage = (idx: number, dir: -1 | 1) => updateField('executionStages', move(form.executionStages, idx, idx + dir))
+  const moveExecutionItem = (stageIdx: number, itemIdx: number, dir: -1 | 1) => {
+    const stages = [...form.executionStages]
+    stages[stageIdx] = { ...stages[stageIdx], items: move(stages[stageIdx].items, itemIdx, itemIdx + dir) }
+    updateField('executionStages', stages)
+  }
+  const moveClosureItem = (idx: number, dir: -1 | 1) => updateField('closureStages', move(form.closureStages, idx, idx + dir))
+
+  const ReorderButtons = ({ idx, total, onMove }: { idx: number; total: number; onMove: (dir: -1 | 1) => void }) => (
+    <div className="flex flex-col">
+      <button
+        onClick={() => onMove(-1)}
+        disabled={idx === 0}
+        className="text-[hsl(var(--color-text-muted))] hover:text-[hsl(var(--color-text-primary))] disabled:opacity-30 disabled:hover:text-[hsl(var(--color-text-muted))]"
+      >
+        <ArrowUp className="w-3.5 h-3.5" />
+      </button>
+      <button
+        onClick={() => onMove(1)}
+        disabled={idx === total - 1}
+        className="text-[hsl(var(--color-text-muted))] hover:text-[hsl(var(--color-text-primary))] disabled:opacity-30 disabled:hover:text-[hsl(var(--color-text-muted))]"
+      >
+        <ArrowDown className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  )
+
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 pb-20">
       <h1 className="text-xl font-bold text-[hsl(var(--color-text-primary))] mb-2">Set up service</h1>
@@ -220,6 +262,7 @@ export default function ServiceSetupPage() {
             <ul className="space-y-3">
               {form.steps.map((step, i) => (
                 <li key={i} className="flex gap-2 items-center">
+                  <ReorderButtons idx={i} total={form.steps.length} onMove={dir => moveStep(i, dir)} />
                   <div className="flex-1">
                     <Input
                       value={step.name}
@@ -243,6 +286,7 @@ export default function ServiceSetupPage() {
             <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Eligibility — Status verification</h2>
             {form.statusItems.map((item, i) => (
               <div key={i} className="flex gap-2 items-center">
+                <ReorderButtons idx={i} total={form.statusItems.length} onMove={dir => moveStatus(i, dir)} />
                 <div className="flex-1">
                   <Input
                     value={item.title}
@@ -265,6 +309,7 @@ export default function ServiceSetupPage() {
             <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Eligibility — Mandatory documents</h2>
             {form.documentItems.map((item, i) => (
               <div key={i} className="flex gap-2 items-center">
+                <ReorderButtons idx={i} total={form.documentItems.length} onMove={dir => moveDocument(i, dir)} />
                 <div className="flex-1">
                   <Input
                     value={item.title}
@@ -287,6 +332,7 @@ export default function ServiceSetupPage() {
             <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Optional stages</h2>
             {form.optionalStages.map((opt, i) => (
               <div key={i} className="flex gap-2 items-center">
+                <ReorderButtons idx={i} total={form.optionalStages.length} onMove={dir => moveOptional(i, dir)} />
                 <div className="flex-1">
                   <Input
                     value={opt.name}
@@ -314,48 +360,54 @@ export default function ServiceSetupPage() {
 
           {/* All inclusive */}
           {form.allInclusive ? (
-            <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">All inclusive package</h2>
-                <button onClick={removeAllInclusive} className="text-[hsl(var(--color-text-muted))] hover:text-red-400 text-xs">
-                  Remove package
-                </button>
-              </div>
-              <div className="flex gap-2 items-center">
-                <div className="flex-1">
-                  <Input
-                    value={form.allInclusive.name}
-                    onChange={e => updateAllInclusive('name', e.target.value)}
-                    placeholder="Package name"
-                  />
-                </div>
-                <div className="w-28">
-                  <Input
-                    type="number"
-                    value={form.allInclusive.price ?? ''}
-                    onChange={e => updateAllInclusive('price', e.target.value ? parseInt(e.target.value) : null)}
-                    placeholder="PLN"
-                  />
-                </div>
-              </div>
-              {form.allInclusive.items.map((item, i) => (
-                <div key={i} className="flex gap-2 items-center pl-4">
-                  <div className="flex-1">
-                    <Input
-                      value={item}
-                      onChange={e => updateAllInclusiveItem(i, e.target.value)}
-                      placeholder="Included item"
-                    />
+            (() => {
+              const ai = form.allInclusive
+              return (
+                <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">All inclusive package</h2>
+                    <button onClick={removeAllInclusive} className="text-[hsl(var(--color-text-muted))] hover:text-red-400 text-xs">
+                      Remove package
+                    </button>
                   </div>
-                  <button onClick={() => removeAllInclusiveItem(i)} className="text-[hsl(var(--color-text-muted))] hover:text-red-400">
-                    <X className="w-4 h-4" />
-                  </button>
+                  <div className="flex gap-2 items-center">
+                    <div className="flex-1">
+                      <Input
+                        value={ai.name}
+                        onChange={e => updateAllInclusive('name', e.target.value)}
+                        placeholder="Package name"
+                      />
+                    </div>
+                    <div className="w-28">
+                      <Input
+                        type="number"
+                        value={ai.price ?? ''}
+                        onChange={e => updateAllInclusive('price', e.target.value ? parseInt(e.target.value) : null)}
+                        placeholder="PLN"
+                      />
+                    </div>
+                  </div>
+                  {ai.items.map((item, i) => (
+                    <div key={i} className="flex gap-2 items-center pl-4">
+                      <ReorderButtons idx={i} total={ai.items.length} onMove={dir => moveAllInclusiveItem(i, dir)} />
+                      <div className="flex-1">
+                        <Input
+                          value={item}
+                          onChange={e => updateAllInclusiveItem(i, e.target.value)}
+                          placeholder="Included item"
+                        />
+                      </div>
+                      <button onClick={() => removeAllInclusiveItem(i)} className="text-[hsl(var(--color-text-muted))] hover:text-red-400">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                  <Button variant="outline" size="sm" onClick={addAllInclusiveItem} className="w-full">
+                    <Plus className="w-4 h-4 mr-2" /> Add included item
+                  </Button>
                 </div>
-              ))}
-              <Button variant="outline" size="sm" onClick={addAllInclusiveItem} className="w-full">
-                <Plus className="w-4 h-4 mr-2" /> Add included item
-              </Button>
-            </div>
+              )
+            })()
           ) : (
             <Button variant="outline" size="sm" onClick={addAllInclusive} className="w-full">
               <Plus className="w-4 h-4 mr-2" /> Add all inclusive package
@@ -368,6 +420,7 @@ export default function ServiceSetupPage() {
             {form.executionStages.map((stage, i) => (
               <div key={i} className="space-y-2 rounded-lg bg-[hsl(var(--color-background))] p-3">
                 <div className="flex gap-2 items-center">
+                  <ReorderButtons idx={i} total={form.executionStages.length} onMove={dir => moveExecutionStage(i, dir)} />
                   <div className="flex-1">
                     <Input
                       value={stage.name}
@@ -381,6 +434,7 @@ export default function ServiceSetupPage() {
                 </div>
                 {stage.items.map((item, j) => (
                   <div key={j} className="flex gap-2 items-center pl-4">
+                    <ReorderButtons idx={j} total={stage.items.length} onMove={dir => moveExecutionItem(i, j, dir)} />
                     <div className="flex-1">
                       <Input
                         value={item}
@@ -408,6 +462,7 @@ export default function ServiceSetupPage() {
             <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Service Closure</h2>
             {form.closureStages.map((item, i) => (
               <div key={i} className="flex gap-2 items-center">
+                <ReorderButtons idx={i} total={form.closureStages.length} onMove={dir => moveClosureItem(i, dir)} />
                 <div className="flex-1">
                   <Input
                     value={item}
