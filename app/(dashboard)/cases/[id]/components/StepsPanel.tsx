@@ -10,14 +10,13 @@ import {
   completeAction,
   updateAction,
   openQuery,
-  toggleCaseEligibility,
   type CaseStep,
   type CaseEntry,
   type CaseQuery,
   type CaseEligibilityState,
   type ServiceEligibilityItem,
 } from '@/app/actions/workflow'
-import { usePaneLink } from '@/lib/panes'
+import { usePaneLink, usePaneNavigate } from '@/lib/panes'
 import { useQueryClient } from '@tanstack/react-query'
 import { useWorkflowCache, fetchWorkflowQuery, queryKeys } from '@/lib/query'
 import { isDesktopViewport } from '@/lib/viewport'
@@ -237,29 +236,24 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
 
         {/* Step content — sits directly on the page background */}
         <div className="space-y-3">
-          {isActive && s.step_type !== 'eligibility' && (
-            <ActionPanel caseId={caseId} openAction={openAction} onChanged={load} />
-          )}
+          {isActive && <ActionPanel caseId={caseId} openAction={openAction} onChanged={load} />}
 
           {!isActive && (
-            <Button onClick={() => handleMove(s.id)} className="w-full">
-              Move to this step
+            <Button
+              onClick={() => handleMove(s.id)}
+              disabled={s.step_type === 'presale' && (!eligibility.statusCompleted || !eligibility.documentsCompleted)}
+              className="w-full"
+            >
+              {s.step_type === 'presale' && (!eligibility.statusCompleted || !eligibility.documentsCompleted)
+                ? 'Complete eligibility first'
+                : 'Move to this step'}
             </Button>
           )}
+
+          {isActive && <EntryComposer caseId={caseId} onAdded={load} />}
 
           {isActive && s.step_type === 'eligibility' && (
-            <EligibilityPanel
-              caseId={caseId}
-              eligibility={eligibility}
-              items={eligibilityItems}
-              onChanged={load}
-            />
-          )}
-
-          {isActive && s.step_type === 'eligibility' && presaleStep && eligibility.statusCompleted && eligibility.documentsCompleted && (
-            <Button onClick={() => handleMove(presaleStep.id)} className="w-full">
-              Proceed to Pre-sale
-            </Button>
+            <EligibilityRows caseId={caseId} eligibility={eligibility} items={eligibilityItems} />
           )}
 
           {isActive && s.step_type === 'presale' && serviceId && (
@@ -273,7 +267,11 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
             </Link>
           )}
 
-          {isActive && s.step_type !== 'eligibility' && <EntryComposer caseId={caseId} onAdded={load} />}
+          {isActive && s.step_type === 'eligibility' && presaleStep && eligibility.statusCompleted && eligibility.documentsCompleted && (
+            <Button onClick={() => handleMove(presaleStep.id)} className="w-full">
+              Proceed to Pre-sale
+            </Button>
+          )}
 
           {stepEntries.length === 0 ? (
             <p className="text-xs text-[hsl(var(--color-text-muted))] py-6 text-center">
@@ -488,98 +486,53 @@ function ActionForm({ caseId, existing, submitLabel, skipLabel = 'Skip', onDone,
 }
 
 // ============================================================
-// Eligibility panel (active eligibility step only)
+// Eligibility rows (active eligibility step only)
 // ============================================================
-function EligibilityPanel({
+function EligibilityRows({
   caseId,
   eligibility,
   items,
-  onChanged,
 }: {
   caseId: string
   eligibility: CaseEligibilityState
   items: ServiceEligibilityItem[]
-  onChanged: () => void
 }) {
-  const [modalType, setModalType] = useState<'status' | 'documents' | null>(null)
-  const [saving, setSaving] = useState(false)
+  const paneNav = usePaneNavigate()
+  const statusCount = items.filter(i => i.type === 'status').length
+  const docsCount = items.filter(i => i.type === 'documents').length
 
-  const filtered = items.filter(i => i.type === modalType)
-  const statusDone = eligibility.statusCompleted
-  const docsDone = eligibility.documentsCompleted
-
-  const toggle = async (type: 'status' | 'documents') => {
-    setSaving(true)
-    const result = await toggleCaseEligibility(caseId, type)
-    setSaving(false)
-    if (!result.error) {
-      onChanged()
-    }
-  }
-
-  const close = () => setModalType(null)
+  const rows: { type: 'status' | 'documents'; label: string; icon: typeof ShieldCheck; done: boolean; count: number }[] = [
+    { type: 'status', label: 'Status verification', icon: ShieldCheck, done: eligibility.statusCompleted, count: statusCount },
+    { type: 'documents', label: 'Mandatory documents', icon: FileCheck, done: eligibility.documentsCompleted, count: docsCount },
+  ]
 
   return (
-    <div className="py-1 space-y-3">
-      <div className="flex gap-2">
-        <Button
-          variant="secondary"
-          onClick={() => setModalType('status')}
-          className={`flex-1 gap-2 ${statusDone ? 'border-green-500/30 text-green-400' : ''}`}
-        >
-          <ShieldCheck className="w-4 h-4" />
-          Status verification
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={() => setModalType('documents')}
-          className={`flex-1 gap-2 ${docsDone ? 'border-green-500/30 text-green-400' : ''}`}
-        >
-          <FileCheck className="w-4 h-4" />
-          Mandatory documents
-        </Button>
-      </div>
-
-      <Modal isOpen={modalType !== null} onClose={close} title={modalType === 'status' ? 'Status verification' : 'Mandatory documents'}>
-        <div className="space-y-4">
-          {filtered.length === 0 ? (
-            <p className="text-sm text-[hsl(var(--color-text-secondary))]">
-              No items configured for this service yet.
-            </p>
-          ) : (
-            <ul className="space-y-3">
-              {filtered.map(item => (
-                <li key={item.id} className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-3">
-                  <p className="text-sm font-medium text-[hsl(var(--color-text-primary))]">{item.title}</p>
-                  {item.description && (
-                    <p className="text-xs text-[hsl(var(--color-text-secondary))] mt-1">{item.description}</p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="ghost" onClick={close}>Close</Button>
-            <Button
-              onClick={() => { if (modalType) toggle(modalType) }}
-              disabled={saving}
-              className={
-                modalType === 'status' && statusDone
-                  ? 'bg-red-600 hover:bg-red-700'
-                  : modalType === 'documents' && docsDone
-                    ? 'bg-red-600 hover:bg-red-700'
-                    : undefined
-              }
-            >
-              {modalType === 'status' && statusDone
-                ? 'Mark as not done'
-                : modalType === 'documents' && docsDone
-                  ? 'Mark as not done'
-                  : 'Mark as done'}
-            </Button>
-          </div>
-        </div>
-      </Modal>
+    <div className="space-y-2">
+      {rows.map(row => {
+        const Icon = row.icon
+        const href = `/cases/${caseId}/eligibility/${row.type}`
+        return (
+          <Link
+            key={row.type}
+            href={href}
+            onClick={(e) => { if (paneNav(href)) e.preventDefault() }}
+            className="flex items-center gap-3 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-4 py-3.5 hover:bg-[hsl(var(--color-surface-hover))] transition-colors"
+          >
+            <Icon className="w-5 h-5 text-[hsl(var(--color-text-secondary))] shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">{row.label}</p>
+              <p className="text-xs text-[hsl(var(--color-text-secondary))] truncate mt-0.5">
+                {row.count === 0 ? 'Nothing configured' : `${row.count} item${row.count === 1 ? '' : 's'}`}
+              </p>
+            </div>
+            {row.done ? (
+              <span className="text-xs font-medium text-green-400">Done</span>
+            ) : (
+              <ChevronRight className="w-5 h-5 text-[hsl(var(--color-text-muted))] shrink-0" />
+            )}
+          </Link>
+        )
+      })}
     </div>
   )
 }

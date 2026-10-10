@@ -542,6 +542,49 @@ export async function toggleCaseEligibility(
   return { completed: true }
 }
 
+export async function getCaseEligibilityDetail(caseId: string, type: 'status' | 'documents'): Promise<{
+  items: ServiceEligibilityItem[]
+  completed: boolean
+  completedAt: string | null
+  error?: string
+}> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { items: [], completed: false, completedAt: null, error: 'Not authenticated' }
+
+  const { data: serviceRow } = await supabase
+    .from('case_services')
+    .select('service_id')
+    .eq('case_id', caseId)
+    .limit(1)
+    .maybeSingle()
+
+  const serviceId = (serviceRow as any)?.service_id ?? null
+  let items: ServiceEligibilityItem[] = []
+  if (serviceId) {
+    const { data } = await supabase
+      .from('service_eligibility')
+      .select('*')
+      .eq('service_id', serviceId)
+      .eq('type', type)
+      .order('position')
+    items = (data || []) as ServiceEligibilityItem[]
+  }
+
+  const { data: row } = await supabase
+    .from('case_eligibility')
+    .select('completed_at')
+    .eq('case_id', caseId)
+    .eq('type', type)
+    .maybeSingle()
+
+  return {
+    items,
+    completed: !!row?.completed_at,
+    completedAt: row?.completed_at ?? null,
+  }
+}
+
 /** The board entry that carries a given query (for deep links). */
 export async function getEntryIdForQuery(queryId: string): Promise<string | null> {
   const supabase = await createClient()
