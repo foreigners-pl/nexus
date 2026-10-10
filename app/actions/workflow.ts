@@ -13,7 +13,7 @@ export interface CaseStep {
   name: string
   position: number
   is_required: boolean
-  step_type: 'presale' | 'consultation' | 'service' | 'custom' | 'eligibility'
+  step_type: 'presale' | 'consultation' | 'service' | 'custom' | 'eligibility' | 'closure'
   service_id: string | null
   completed_at: string | null
   completed_by: string | null
@@ -60,6 +60,9 @@ export async function ensureSystemSteps(caseId: string) {
   }
   if (!types.has('consultation')) {
     toInsert.push({ case_id: caseId, name: 'Consultation', position: -1, is_required: false, step_type: 'consultation' })
+  }
+  if (!types.has('closure')) {
+    toInsert.push({ case_id: caseId, name: 'Service closure', position: 1000000, is_required: true, step_type: 'closure' })
   }
   if (toInsert.length > 0) {
     await supabase.from('case_steps').insert(toInsert)
