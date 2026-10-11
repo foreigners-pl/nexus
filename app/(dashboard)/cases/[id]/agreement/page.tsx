@@ -31,7 +31,7 @@ export default function AgreementPage({ params }: AgreementPageProps) {
     return <div className="flex items-center justify-center min-h-screen"><p>Agreement unavailable</p></div>
   }
 
-  const { caseCode, clientName, serviceName, totalPrice, date } = data
+  const { clientName, serviceName, totalPrice, steps, date } = data
 
   return (
     <div className="max-w-3xl mx-auto py-8 px-4 md:px-6">
@@ -46,13 +46,12 @@ export default function AgreementPage({ params }: AgreementPageProps) {
       <div className="prose prose-sm max-w-none text-[hsl(var(--color-text-primary))] print:prose-black space-y-6">
         <div className="border-b border-[hsl(var(--color-border))] pb-6">
           <p className="text-sm text-[hsl(var(--color-text-secondary))]">Date: {date}</p>
-          <p className="text-sm text-[hsl(var(--color-text-secondary))]">Case: {caseCode}</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <h2 className="text-base font-semibold mb-2">Service provider</h2>
-            <p className="font-medium">{company.company_name || 'Nexus'}</p>
+            <p className="font-medium">{company.company_name || 'Foreigners.pl'}</p>
             {company.address && <p className="text-sm text-[hsl(var(--color-text-secondary))] whitespace-pre-line">{company.address}</p>}
             {company.tax_id && <p className="text-sm text-[hsl(var(--color-text-secondary))]">Tax ID: {company.tax_id}</p>}
             {company.email && <p className="text-sm text-[hsl(var(--color-text-secondary))]">{company.email}</p>}
@@ -76,15 +75,33 @@ export default function AgreementPage({ params }: AgreementPageProps) {
         </div>
 
         <div>
-          <h2 className="text-base font-semibold mb-2">Terms</h2>
+          <h2 className="text-base font-semibold mb-2">What is included</h2>
+          {steps.length > 0 ? (
+            <ol className="list-decimal pl-5 space-y-1">
+              {steps.map((step, i) => (
+                <li key={i}>{step}</li>
+              ))}
+            </ol>
+          ) : (
+            <p className="text-[hsl(var(--color-text-secondary))]">No mandatory steps configured for this service.</p>
+          )}
+        </div>
+
+        <div>
+          <h2 className="text-base font-semibold mb-2">Important notice</h2>
           <p>
             This document is a non-binding summary of the service described above. It is provided for
             transparency so the client understands what they are paying for. No signature is required.
           </p>
           <p>
-            The service provider will carry out the agreed service with reasonable care and skill. The
+            The service provider will carry out the included steps with reasonable care and skill. The
             client is responsible for providing accurate information and any requested documents in a
             timely manner.
+          </p>
+          <p>
+            The outcome of any application, residence permit, or other government decision depends
+            entirely on the relevant immigration office or authority. The service provider does not
+            guarantee a positive decision and cannot influence the final ruling.
           </p>
           <p>
             Payment terms, refund policy, and the exact scope of work are governed by the separate

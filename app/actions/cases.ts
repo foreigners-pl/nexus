@@ -7,24 +7,24 @@ import { ensureSystemSteps, setInitialStep, generateStepsForService, ensureCaseE
 import { notifyUsers } from './notifications'
 
 export async function getCaseAgreementData(caseId: string): Promise<{
-  caseCode: string | null
   clientName: string | null
   serviceName: string | null
   totalPrice: number | null
+  steps: string[]
   date: string | null
   error?: string
 }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { caseCode: null, clientName: null, serviceName: null, totalPrice: null, date: null, error: 'Not authenticated' }
+  if (!user) return { clientName: null, serviceName: null, totalPrice: null, steps: [], date: null, error: 'Not authenticated' }
 
   const { data: caseData } = await supabase
     .from('cases')
-    .select('case_code, total_price, created_at, client_id')
+    .select('created_at, client_id')
     .eq('id', caseId)
     .single()
 
-  if (!caseData) return { caseCode: null, clientName: null, serviceName: null, totalPrice: null, date: null, error: 'Case not found' }
+  if (!caseData) return { clientName: null, serviceName: null, totalPrice: null, steps: [], date: null, error: 'Case not found' }
 
   let clientName: string | null = null
   if (caseData.client_id) {
@@ -39,6 +39,8 @@ export async function getCaseAgreementData(caseId: string): Promise<{
   }
 
   let serviceName: string | null = null
+  let totalPrice: number | null = null
+  let steps: string[] = []
   const { data: caseService } = await supabase
     .from('case_services')
     .select('service_id')
@@ -46,19 +48,22 @@ export async function getCaseAgreementData(caseId: string): Promise<{
     .limit(1)
     .maybeSingle()
   if (caseService?.service_id) {
-    const { data: service } = await supabase
-      .from('services')
-      .select('name')
-      .eq('id', caseService.service_id)
-      .single()
-    if (service) serviceName = service.name
+    const [{ data: service }, { data: serviceSteps }] = await Promise.all([
+      supabase.from('services').select('name, gross_price').eq('id', caseService.service_id).single(),
+      supabase.from('service_steps').select('name').eq('service_id', caseService.service_id).order('position'),
+    ])
+    if (service) {
+      serviceName = service.name
+      totalPrice = service.gross_price ?? null
+    }
+    steps = (serviceSteps || []).map(s => s.name)
   }
 
   return {
-    caseCode: caseData.case_code ?? null,
     clientName,
     serviceName,
-    totalPrice: caseData.total_price ?? null,
+    totalPrice,
+    steps,
     date: caseData.created_at ? new Date(caseData.created_at).toLocaleDateString() : null,
   }
 }
