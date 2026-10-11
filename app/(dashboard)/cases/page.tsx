@@ -75,11 +75,9 @@ export default function CasesPage() {
       if (statuses.length === 0) fetchStatuses()
       if (users.length === 0) fetchUsers()
       if (services.length === 0) {
-        // For now only "TRC Full service" is offered at case creation
         getAllServices().then(list => {
-          const allowed = list.filter(s => s.name === 'TRC Full service')
-          setServices(allowed)
-          if (allowed.length === 1) setSelectedService(allowed[0].id)
+          setServices(list)
+          if (list.length === 1) setSelectedService(list[0].id)
         })
       }
     }

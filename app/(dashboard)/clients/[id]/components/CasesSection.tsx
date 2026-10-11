@@ -57,12 +57,10 @@ export function CasesSection({ clientId, cases, onCaseAdded }: CasesSectionProps
       })
   }, [cases])
 
-  // For now only "TRC Full service" is offered at case creation
   useEffect(() => {
     getAllServices().then(list => {
-      const allowed = list.filter(s => s.name === 'TRC Full service')
-      setServices(allowed)
-      if (allowed.length === 1) setSelectedService(allowed[0].id)
+      setServices(list)
+      if (list.length === 1) setSelectedService(list[0].id)
     })
     createClient()
       .from('users')
