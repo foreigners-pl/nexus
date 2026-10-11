@@ -20,19 +20,44 @@ export async function getCaseAgreementData(caseId: string): Promise<{
 
   const { data: caseData } = await supabase
     .from('cases')
-    .select('case_code, total_price, created_at, clients(first_name, last_name), case_services(services(name))')
+    .select('case_code, total_price, created_at, client_id')
     .eq('id', caseId)
     .single()
 
   if (!caseData) return { caseCode: null, clientName: null, serviceName: null, totalPrice: null, date: null, error: 'Case not found' }
 
-  const client = (caseData.clients as any)
-  const service = ((caseData.case_services as any)?.[0]?.services as any)?.name
+  let clientName: string | null = null
+  if (caseData.client_id) {
+    const { data: client } = await supabase
+      .from('clients')
+      .select('first_name, last_name')
+      .eq('id', caseData.client_id)
+      .single()
+    if (client) {
+      clientName = [client.first_name, client.last_name].filter(Boolean).join(' ')
+    }
+  }
+
+  let serviceName: string | null = null
+  const { data: caseService } = await supabase
+    .from('case_services')
+    .select('service_id')
+    .eq('case_id', caseId)
+    .limit(1)
+    .maybeSingle()
+  if (caseService?.service_id) {
+    const { data: service } = await supabase
+      .from('services')
+      .select('name')
+      .eq('id', caseService.service_id)
+      .single()
+    if (service) serviceName = service.name
+  }
 
   return {
     caseCode: caseData.case_code ?? null,
-    clientName: client ? [client.first_name, client.last_name].filter(Boolean).join(' ') : null,
-    serviceName: service || null,
+    clientName,
+    serviceName,
     totalPrice: caseData.total_price ?? null,
     date: caseData.created_at ? new Date(caseData.created_at).toLocaleDateString() : null,
   }

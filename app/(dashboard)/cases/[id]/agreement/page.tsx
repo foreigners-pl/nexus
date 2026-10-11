@@ -75,15 +75,6 @@ export default function AgreementPage({ params }: AgreementPageProps) {
           <p className="text-lg font-semibold">{totalPrice ? `${Number(totalPrice).toLocaleString()} PLN` : 'To be agreed'}</p>
         </div>
 
-        {company.bank_account && (
-          <div>
-            <h2 className="text-base font-semibold mb-2">Payment details</h2>
-            <p className="text-sm text-[hsl(var(--color-text-secondary))]">{company.bank_name || 'Bank'}</p>
-            <p className="text-sm font-medium">{company.bank_account}</p>
-            {company.swift && <p className="text-sm text-[hsl(var(--color-text-secondary))]">SWIFT: {company.swift}</p>}
-          </div>
-        )}
-
         <div>
           <h2 className="text-base font-semibold mb-2">Terms</h2>
           <p>
