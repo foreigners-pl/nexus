@@ -29,43 +29,33 @@ export default function ServicesListPage() {
     })
   }, [])
 
-  const grouped = services.reduce<Record<string, Service[]>>((acc, s) => {
-    const cat = s.category || 'other'
-    if (!acc[cat]) acc[cat] = []
-    acc[cat].push(s)
-    return acc
-  }, {})
+  const byCategory = (list: Service[]) =>
+    list.reduce<Record<string, Service[]>>((acc, s) => {
+      const cat = s.category || 'other'
+      if (!acc[cat]) acc[cat] = []
+      acc[cat].push(s)
+      return acc
+    }, {})
 
-  const sortedCategories = [
-    ...CATEGORY_ORDER.filter(c => grouped[c]?.length > 0),
-    ...Object.keys(grouped).filter(c => !CATEGORY_ORDER.includes(c) && grouped[c]?.length > 0),
-  ]
+  const migrated = services.filter(s => s.migrated)
+  const legacy = services.filter(s => !s.migrated)
 
-  return (
-    <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 pb-20">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-bold text-[hsl(var(--color-text-primary))] mb-1">Services</h1>
-          <p className="text-sm text-[hsl(var(--color-text-secondary))]">Select a service to edit or create a new one.</p>
-        </div>
-        <Link
-          href="/admin/services/new"
-          className="inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--color-primary))] px-4 py-2 text-sm font-medium text-white hover:bg-[hsl(var(--color-primary))]/90 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          New service
-        </Link>
-      </div>
-
-      {loading ? (
-        <div className="text-sm text-[hsl(var(--color-text-secondary))]">Loading…</div>
-      ) : (
-        <div className="space-y-8">
-          {sortedCategories.map(cat => (
+  const renderGroup = (title: string, list: Service[]) => {
+    if (list.length === 0) return null
+    const grouped = byCategory(list)
+    const cats = [
+      ...CATEGORY_ORDER.filter(c => grouped[c]?.length > 0),
+      ...Object.keys(grouped).filter(c => !CATEGORY_ORDER.includes(c)),
+    ]
+    return (
+      <div>
+        <h2 className="text-base font-semibold text-[hsl(var(--color-text-primary))] mb-3">{title}</h2>
+        <div className="space-y-6">
+          {cats.map(cat => (
             <div key={cat}>
-              <h2 className="text-sm font-semibold text-[hsl(var(--color-text-primary))] mb-3 uppercase tracking-wide">
+              <h3 className="text-xs font-semibold text-[hsl(var(--color-text-secondary))] mb-2 uppercase tracking-wide">
                 {categoryLabel(cat)}
-              </h2>
+              </h3>
               <div className="grid gap-3 sm:grid-cols-2">
                 {grouped[cat].map(service => (
                   <Link
@@ -87,8 +77,35 @@ export default function ServicesListPage() {
               </div>
             </div>
           ))}
+        </div>
+      </div>
+    )
+  }
 
-          {!loading && services.length === 0 && (
+  return (
+    <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 pb-20">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-xl font-bold text-[hsl(var(--color-text-primary))] mb-1">Services</h1>
+          <p className="text-sm text-[hsl(var(--color-text-secondary))]">Select a service to edit or create a new one.</p>
+        </div>
+        <Link
+          href="/admin/services/new"
+          className="inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--color-primary))] px-4 py-2 text-sm font-medium text-white hover:bg-[hsl(var(--color-primary))]/90 transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          New service
+        </Link>
+      </div>
+
+      {loading ? (
+        <div className="text-sm text-[hsl(var(--color-text-secondary))]">Loading…</div>
+      ) : (
+        <div className="space-y-8">
+          {renderGroup('Migrated', migrated)}
+          {renderGroup('Legacy', legacy)}
+
+          {services.length === 0 && (
             <p className="text-sm text-[hsl(var(--color-text-secondary))]">No services yet.</p>
           )}
         </div>

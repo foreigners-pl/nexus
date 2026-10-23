@@ -133,6 +133,7 @@ export interface Service {
   price?: number
   description?: string
   protocol_extras?: Record<string, unknown>
+  migrated?: boolean
   created_at?: string
 }
 

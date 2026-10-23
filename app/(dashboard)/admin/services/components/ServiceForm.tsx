@@ -12,6 +12,7 @@ import { DangerZone } from '@/components/shared/DangerZone'
 const emptyForm: ParsedProtocol = {
   serviceName: '',
   category: 'immigration',
+  migrated: false,
   serviceDescription: '',
   servicePrice: null,
   steps: [],
@@ -269,6 +270,15 @@ export default function ServiceForm({ serviceId, isNew }: ServiceFormProps) {
               <option value="language">Language</option>
             </select>
           </div>
+          <label className="flex items-center gap-2 text-xs text-[hsl(var(--color-text-secondary))]">
+            <input
+              type="checkbox"
+              checked={form.migrated}
+              onChange={e => updateField('migrated', e.target.checked)}
+              className="rounded border-[hsl(var(--color-border))]"
+            />
+            Mark as migrated (protocol fully set up)
+          </label>
           <div>
             <label className="block text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-1">Description</label>
             <textarea
