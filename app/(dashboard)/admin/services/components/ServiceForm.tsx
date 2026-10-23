@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { createService, getServiceForEdit, saveServiceProtocol, type ParsedProtocol } from '@/app/actions/admin'
+import { createService, deleteService, getServiceForEdit, saveServiceProtocol, type ParsedProtocol } from '@/app/actions/admin'
 import { Loader2, Plus, X, ArrowUp, ArrowDown } from 'lucide-react'
+import { Modal } from '@/components/ui'
+import { DangerZone } from '@/components/shared/DangerZone'
 
 const emptyForm: ParsedProtocol = {
   serviceName: '',
@@ -33,6 +35,8 @@ export default function ServiceForm({ serviceId, isNew }: ServiceFormProps) {
   const [loading, setLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [form, setForm] = useState<ParsedProtocol>(emptyForm)
 
   useEffect(() => {
@@ -77,6 +81,19 @@ export default function ServiceForm({ serviceId, isNew }: ServiceFormProps) {
     setSaving(false)
     if (result.error) {
       setError(result.error)
+    } else {
+      router.push('/admin/services')
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!serviceId) return
+    setDeleting(true)
+    const result = await deleteService(serviceId)
+    setDeleting(false)
+    if (result.error) {
+      setError(result.error)
+      setIsDeleteModalOpen(false)
     } else {
       router.push('/admin/services')
     }
@@ -539,7 +556,50 @@ export default function ServiceForm({ serviceId, isNew }: ServiceFormProps) {
           {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
           Save service
         </Button>
+
+        {!isNew && (
+          <DangerZone
+            title="Danger zone"
+            description="Deleting this service will remove its template steps, eligibility items, and unlink it from existing cases. Cases keep their copied steps. This cannot be undone."
+            buttonText="Delete Service"
+            onDelete={() => setIsDeleteModalOpen(true)}
+            disabled={deleting}
+          />
+        )}
       </div>
+
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        title="Delete Service"
+      >
+        <div className="space-y-4">
+          <p className="text-[hsl(var(--color-text-primary))]">
+            Are you sure you want to delete <strong>{form.serviceName || 'this service'}</strong>?
+          </p>
+          <p className="text-[hsl(var(--color-text-secondary))] text-sm">
+            This cannot be undone. The service and its template data will be permanently deleted, and it will be unlinked from any existing cases.
+          </p>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setIsDeleteModalOpen(false)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDelete}
+              disabled={deleting}
+              variant="danger"
+            >
+              {deleting ? 'Deleting...' : 'Delete Service'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

@@ -310,6 +310,25 @@ export async function createService(name: string): Promise<{ id?: string; error?
   return { id: data.id }
 }
 
+export async function deleteService(serviceId: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Not authenticated' }
+
+  const { error: linkError } = await supabase
+    .from('case_services')
+    .delete()
+    .eq('service_id', serviceId)
+  if (linkError) return { success: false, error: linkError.message }
+
+  const { error } = await supabase
+    .from('services')
+    .delete()
+    .eq('id', serviceId)
+  if (error) return { success: false, error: error.message }
+  return { success: true }
+}
+
 export async function saveServiceProtocol(
   serviceId: string,
   data: ParsedProtocol
