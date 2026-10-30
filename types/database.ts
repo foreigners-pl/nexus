@@ -57,6 +57,7 @@ export interface Case {
   csr_id?: string              // Customer success rep
   current_step_id?: string     // Active step in the case process
   total_price?: number         // Editable billing total (null = service price)
+  custom_service_name?: string // Name for custom cases created without a service template
   attachments?: string
   due_date?: string            // Optional due date for the case
   position?: number            // Position within status column for ordering

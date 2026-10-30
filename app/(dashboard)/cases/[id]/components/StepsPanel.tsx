@@ -251,10 +251,10 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
           {!isActive && (
             <Button
               onClick={() => handleMove(s.id)}
-              disabled={s.step_type === 'presale' && (!eligibility.statusCompleted || !eligibility.documentsCompleted)}
+              disabled={s.step_type === 'presale' && eligibilityItems.length > 0 && (!eligibility.statusCompleted || !eligibility.documentsCompleted)}
               className="w-full"
             >
-              {s.step_type === 'presale' && (!eligibility.statusCompleted || !eligibility.documentsCompleted)
+              {s.step_type === 'presale' && eligibilityItems.length > 0 && (!eligibility.statusCompleted || !eligibility.documentsCompleted)
                 ? 'Complete eligibility first'
                 : 'Move to this step'}
             </Button>

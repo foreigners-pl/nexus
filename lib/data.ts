@@ -65,7 +65,9 @@ export async function fetchCasePageData(idOrCode: string) {
     supabase.from('comments').select('id', { count: 'exact', head: true }).eq('case_id', caseData.id),
   ])
 
-  const svc = (serviceRes.data?.services as { name?: string } | null)?.name || ''
+  const svc = (serviceRes.data?.services as { name?: string } | null)?.name
+    || (caseData.custom_service_name as string | null)
+    || ''
   const inst = (installmentsRes.data || []) as { amount: number; paid: boolean; parent_installment_id?: string }[]
 
   return {
@@ -82,14 +84,16 @@ export async function fetchCasePageData(idOrCode: string) {
 }
 
 export async function fetchCaseHeaderData(idOrCode: string) {
-  const select = 'id, case_code, client_id, case_services!fk_case_services_case(services(name))'
+  const select = 'id, case_code, client_id, custom_service_name, case_services!fk_case_services_case(services(name))'
   const { data: caseRow } = idOrCode.startsWith('C')
     ? await supabase.from('cases').select(select).eq('case_code', idOrCode).single()
     : await supabase.from('cases').select(select).eq('id', idOrCode).single()
 
   if (!caseRow) return { error: 'Case not found' as const }
 
-  const svc = (caseRow.case_services as { services?: { name?: string } }[] | null)?.[0]?.services?.name || null
+  const svc = (caseRow.case_services as { services?: { name?: string } }[] | null)?.[0]?.services?.name
+    || (caseRow.custom_service_name as string | null)
+    || null
   let clientName = ''
   let phone = ''
   if (caseRow.client_id) {
@@ -243,7 +247,7 @@ export async function fetchCaseEntry(entryId: string) {
       : Promise.resolve({ data: null }),
     supabase
       .from('cases')
-      .select('case_code, client_id, clients(first_name, last_name, contact_email), case_services!fk_case_services_case(services(name))')
+      .select('case_code, client_id, custom_service_name, clients(first_name, last_name, contact_email), case_services!fk_case_services_case(services(name))')
       .eq('id', entry.case_id)
       .maybeSingle(),
   ])
@@ -256,7 +260,7 @@ export async function fetchCaseEntry(entryId: string) {
   let serviceName: string | null = null
   let phone: string | null = null
   if (caseRow) {
-    const svc = caseRow.case_services?.[0]?.services?.name ?? null
+    const svc = caseRow.case_services?.[0]?.services?.name ?? caseRow.custom_service_name ?? null
     serviceName = svc
     const cl = caseRow.clients
     clientName = cl ? ([cl.first_name, cl.last_name].filter(Boolean).join(' ') || cl.contact_email) : null

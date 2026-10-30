@@ -20,7 +20,7 @@ export async function getCaseAgreementData(caseId: string): Promise<{
 
   const { data: caseData } = await supabase
     .from('cases')
-    .select('created_at, client_id')
+    .select('created_at, client_id, custom_service_name, total_price')
     .eq('id', caseId)
     .single()
 
@@ -58,6 +58,8 @@ export async function getCaseAgreementData(caseId: string): Promise<{
     }
     steps = (serviceSteps || []).map(s => s.name)
   }
+  if (!serviceName) serviceName = caseData.custom_service_name ?? null
+  if (totalPrice === null) totalPrice = caseData.total_price ?? null
 
   return {
     clientName,
@@ -99,7 +101,9 @@ export async function getCasePageData(idOrCode: string) {
     supabase.from('comments').select('id', { count: 'exact', head: true }).eq('case_id', caseData.id),
   ])
 
-  const svc = (serviceRes.data?.services as { name?: string } | null)?.name || ''
+  const svc = (serviceRes.data?.services as { name?: string } | null)?.name
+    || (caseData.custom_service_name as string | null)
+    || ''
   const inst = (installmentsRes.data || []) as { amount: number; paid: boolean; parent_installment_id?: string }[]
 
   return {
@@ -119,14 +123,16 @@ export async function getCasePageData(idOrCode: string) {
 export async function getCaseHeaderData(idOrCode: string) {
   const supabase = await createClient()
 
-  const select = 'id, case_code, client_id, case_services!fk_case_services_case(services(name))'
+  const select = 'id, case_code, client_id, custom_service_name, case_services!fk_case_services_case(services(name))'
   const { data: caseRow } = idOrCode.startsWith('C')
     ? await supabase.from('cases').select(select).eq('case_code', idOrCode).single()
     : await supabase.from('cases').select(select).eq('id', idOrCode).single()
 
   if (!caseRow) return { error: 'Case not found' as const }
 
-  const svc = (caseRow.case_services as { services?: { name?: string } }[] | null)?.[0]?.services?.name || null
+  const svc = (caseRow.case_services as { services?: { name?: string } }[] | null)?.[0]?.services?.name
+    || (caseRow.custom_service_name as string | null)
+    || null
   let clientName = ''
   let phone = ''
   if (caseRow.client_id) {
@@ -159,9 +165,20 @@ export async function addCase(formData: FormData) {
   let statusId = formData.get('statusId') as string | null
   const assignedTo = formData.get('assignedTo') as string | null
   const serviceId = formData.get('serviceId') as string | null
+  const isCustomService = serviceId === 'custom'
+  const customServiceName = (formData.get('customServiceName') as string | null)?.trim() || null
+  const customPriceRaw = (formData.get('customPrice') as string | null)?.trim()
+  const customPrice = customPriceRaw ? parseFloat(customPriceRaw) : null
+  let customSteps: string[] = []
+  try {
+    customSteps = JSON.parse((formData.get('customSteps') as string | null) || '[]')
+  } catch { customSteps = [] }
 
   if (!clientId) {
     return { error: 'Client ID is required' }
+  }
+  if (isCustomService && !customServiceName) {
+    return { error: 'Service name is required for a custom case' }
   }
 
   // If no status is provided, get the "New" status
@@ -184,6 +201,8 @@ export async function addCase(formData: FormData) {
       status_id: statusId,
       assigned_to: assignedTo,
       csr_id: user?.id || null,
+      custom_service_name: isCustomService ? customServiceName : null,
+      total_price: isCustomService ? customPrice : null,
     })
     .select(`
       *,
@@ -208,12 +227,29 @@ export async function addCase(formData: FormData) {
     await setInitialStep(data.id)
 
     // Attach the selected service and copy its step template onto the case
-    if (serviceId) {
+    if (serviceId && !isCustomService) {
       await supabase
         .from('case_services')
         .insert({ case_id: data.id, service_id: serviceId })
       await generateStepsForService(data.id, serviceId)
       await ensureCaseEligibility(data.id, serviceId)
+    }
+
+    // Custom case — insert the steps the CSR defined (after Consultation, before Service closure)
+    if (isCustomService && customSteps.length > 0) {
+      const rows = customSteps
+        .map(s => s.trim())
+        .filter(Boolean)
+        .map((name, idx) => ({
+          case_id: data.id,
+          name,
+          position: idx * 100,
+          is_required: true,
+          step_type: 'custom' as const,
+        }))
+      if (rows.length > 0) {
+        await supabase.from('case_steps').insert(rows)
+      }
     }
 
     // setInitialStep ran after the insert — pull the current step onto the returned row

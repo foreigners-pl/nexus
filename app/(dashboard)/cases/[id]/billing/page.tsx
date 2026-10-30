@@ -91,7 +91,7 @@ export default function CaseBillingPage({ params }: BillingPageProps) {
   const clientName = client
     ? [client.first_name, client.last_name].filter(Boolean).join(' ') || client.contact_email
     : null
-  const serviceName = (caseServices[0] as any)?.services?.name || null
+  const serviceName = (caseServices[0] as any)?.services?.name || caseData.custom_service_name || null
   const subtitle = [clientName, clientPhone].filter(Boolean).join(' · ')
 
   return (
@@ -102,7 +102,16 @@ export default function CaseBillingPage({ params }: BillingPageProps) {
         <div>
           <h3 className="text-base font-semibold text-[hsl(var(--color-text-primary))] mb-3">Service</h3>
           {caseServices.length === 0 ? (
-            <p className="text-sm text-[hsl(var(--color-text-secondary))]">No service attached to this case</p>
+            caseData.custom_service_name ? (
+              <div className="flex items-center justify-between py-2.5">
+                <span className="text-sm text-[hsl(var(--color-text-primary))]">{caseData.custom_service_name}</span>
+                <span className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">
+                  {Number(caseData.total_price ?? 0).toFixed(2)} PLN
+                </span>
+              </div>
+            ) : (
+              <p className="text-sm text-[hsl(var(--color-text-secondary))]">No service attached to this case</p>
+            )
           ) : (
             <div className="divide-y divide-[hsl(var(--color-border))]">
               {caseServices.map(cs => (

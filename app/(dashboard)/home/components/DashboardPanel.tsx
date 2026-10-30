@@ -823,7 +823,7 @@ function MyCasesTab({ cases }: { cases: any[] }) {
             const phone = c.clients?.contact_numbers?.[0]
             const phoneDisplay = phone ? (phone.country_code ? `${phone.country_code} ${phone.number}` : phone.number) : null
             const services = c.case_services || []
-            const serviceNames = services.map((s: any) => s.services?.name).filter(Boolean).join(', ')
+            const serviceNames = services.map((s: any) => s.services?.name).filter(Boolean).join(', ') || (c as any).custom_service_name || ''
             const isOverdue = c.due_date && new Date(c.due_date) < today
             
             return (
@@ -846,7 +846,7 @@ function MyCasesTab({ cases }: { cases: any[] }) {
                   {c.case_code || <span className="text-[hsl(var(--color-text-secondary))] italic">No code</span>}
                 </div>
                 <div className="col-span-2 text-sm text-[hsl(var(--color-text-secondary))] truncate" title={serviceNames}>
-                  {services.length > 0 ? (services.length === 1 ? serviceNames : `${services.length} services`) : <span className="italic">No services</span>}
+                  {serviceNames ? (services.length > 1 ? `${services.length} services` : serviceNames) : <span className="italic">No services</span>}
                 </div>
                 <div className={cn("col-span-2 text-sm truncate", isOverdue ? "text-red-500 font-medium" : "text-[hsl(var(--color-text-secondary))]")}>
                   {c.due_date ? formatDueDate(c.due_date) : <span className="italic">No due date</span>}

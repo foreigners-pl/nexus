@@ -39,8 +39,12 @@ export default function CasesPage() {
   const [selectedClient, setSelectedClient] = useState<string>('')
   const [selectedStatus, setSelectedStatus] = useState<string>('')
   const [selectedAssignee, setSelectedAssignee] = useState<string>('')
-  const [services, setServices] = useState<{ id: string; name: string }[]>([])
+  const [services, setServices] = useState<{ id: string; name: string; migrated?: boolean }[]>([])
   const [selectedService, setSelectedService] = useState<string>('')
+  const [modalStep, setModalStep] = useState<'details' | 'custom'>('details')
+  const [customName, setCustomName] = useState('')
+  const [customPrice, setCustomPrice] = useState('')
+  const [customSteps, setCustomSteps] = useState<string[]>([''])
   const [filters, setFilters] = useState({
     search: '',
     status: '',
@@ -76,8 +80,9 @@ export default function CasesPage() {
       if (users.length === 0) fetchUsers()
       if (services.length === 0) {
         getAllServices().then(list => {
-          setServices(list)
-          if (list.length === 1) setSelectedService(list[0].id)
+          const migrated = (list || []).filter(s => s.migrated)
+          setServices(migrated)
+          if (migrated.length === 1) setSelectedService(migrated[0].id)
         })
       }
     }
@@ -247,7 +252,7 @@ export default function CasesPage() {
 
     const q = filters.search.toLowerCase()
     const clientFullName = `${caseItem.clients?.first_name || ''} ${caseItem.clients?.last_name || ''}`.trim()
-    const service = caseItem.case_services?.map(cs => cs.services?.name).filter(Boolean).join(', ') || ''
+    const service = caseItem.case_services?.map(cs => cs.services?.name).filter(Boolean).join(', ') || caseItem.custom_service_name || ''
     const step = (caseItem.current_step_id && stepNames[caseItem.current_step_id]) || ''
     const matchesSearch = !q ||
       caseItem.case_code?.toLowerCase().includes(q) ||
@@ -271,11 +276,29 @@ export default function CasesPage() {
       return
     }
 
+    if (selectedService === 'custom') {
+      if (!customName.trim()) {
+        setError('Please enter a service name')
+        setIsSubmitting(false)
+        return
+      }
+      if (!customSteps.some(s => s.trim())) {
+        setError('Please add at least one step')
+        setIsSubmitting(false)
+        return
+      }
+    }
+
     const formData = new FormData()
     formData.set('clientId', selectedClient)
     if (selectedStatus) formData.set('statusId', selectedStatus)
     if (selectedAssignee) formData.set('assignedTo', selectedAssignee)
     if (selectedService) formData.set('serviceId', selectedService)
+    if (selectedService === 'custom') {
+      formData.set('customServiceName', customName.trim())
+      if (customPrice.trim()) formData.set('customPrice', customPrice.trim())
+      formData.set('customSteps', JSON.stringify(customSteps))
+    }
 
     const result = await addCase(formData)
 
@@ -288,6 +311,11 @@ export default function CasesPage() {
       setSelectedClient('')
       setSelectedStatus('')
       setSelectedAssignee('')
+      setSelectedService('')
+      setModalStep('details')
+      setCustomName('')
+      setCustomPrice('')
+      setCustomSteps([''])
       fetchCases()
     }
   }
@@ -328,80 +356,175 @@ export default function CasesPage() {
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-2">
-              Client
-            </label>
-            <Select
-              options={clients.map(c => ({ 
-                id: c.id, 
-                label: `${c.first_name || ''} ${c.last_name || ''} ${c.contact_email || ''}`.trim() || 'Unnamed Client'
-              }))}
-              value={selectedClient}
-              onChange={setSelectedClient}
-              placeholder="Select client..."
-              searchPlaceholder="Search clients..."
-            />
-          </div>
+          {modalStep === 'details' ? (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-2">
+                  Client
+                </label>
+                <Select
+                  options={clients.map(c => ({
+                    id: c.id,
+                    label: `${c.first_name || ''} ${c.last_name || ''} ${c.contact_email || ''}`.trim() || 'Unnamed Client'
+                  }))}
+                  value={selectedClient}
+                  onChange={setSelectedClient}
+                  placeholder="Select client..."
+                  searchPlaceholder="Search clients..."
+                />
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-2">
-              Service
-            </label>
-            <Select
-              options={services.map(s => ({ id: s.id, label: s.name }))}
-              value={selectedService}
-              onChange={setSelectedService}
-              placeholder="Select service..."
-              searchPlaceholder="Search services..."
-            />
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-2">
+                  Service
+                </label>
+                <Select
+                  options={[...services.map(s => ({ id: s.id, label: s.name })), { id: 'custom', label: 'Custom' }]}
+                  value={selectedService}
+                  onChange={setSelectedService}
+                  placeholder="Select service..."
+                  searchPlaceholder="Search services..."
+                />
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-2">
-              Status
-            </label>
-            <Select
-              options={statuses.map(s => ({ id: s.id, label: s.name }))}
-              value={selectedStatus}
-              onChange={setSelectedStatus}
-              placeholder="Select status..."
-              searchPlaceholder="Search statuses..."
-            />
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-2">
+                  Status
+                </label>
+                <Select
+                  options={statuses.map(s => ({ id: s.id, label: s.name }))}
+                  value={selectedStatus}
+                  onChange={setSelectedStatus}
+                  placeholder="Select status..."
+                  searchPlaceholder="Search statuses..."
+                />
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-2">
-              Legal rep
-            </label>
-            <Select
-              options={users.map(u => ({ 
-                id: u.id, 
-                label: u.display_name || u.email 
-              }))}
-              value={selectedAssignee}
-              onChange={setSelectedAssignee}
-              placeholder="Assign lawyer..."
-              searchPlaceholder="Search users..."
-            />
-            <p className="text-[11px] text-[hsl(var(--color-text-muted))] mt-1.5">
-              You'll be the customer success rep automatically
-            </p>
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-2">
+                  Legal rep
+                </label>
+                <Select
+                  options={users.map(u => ({
+                    id: u.id,
+                    label: u.display_name || u.email
+                  }))}
+                  value={selectedAssignee}
+                  onChange={setSelectedAssignee}
+                  placeholder="Assign lawyer..."
+                  searchPlaceholder="Search users..."
+                />
+                <p className="text-[11px] text-[hsl(var(--color-text-muted))] mt-1.5">
+                  You'll be the customer success rep automatically
+                </p>
+              </div>
 
-          <div className="flex justify-end gap-3 pt-4">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setIsModalOpen(false)}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Creating...' : 'Create Case'}
-            </Button>
-          </div>
+              <div className="flex justify-end gap-3 pt-4">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setIsModalOpen(false)}
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </Button>
+                {selectedService === 'custom' ? (
+                  <Button type="button" onClick={() => { setError(null); setModalStep('custom') }}>
+                    Next
+                  </Button>
+                ) : (
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? 'Creating...' : 'Create Case'}
+                  </Button>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-2">
+                  Service name
+                </label>
+                <Input
+                  value={customName}
+                  onChange={e => setCustomName(e.target.value)}
+                  placeholder="e.g. Custom legal support"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-2">
+                  Approximate value (PLN)
+                </label>
+                <Input
+                  type="number"
+                  value={customPrice}
+                  onChange={e => setCustomPrice(e.target.value)}
+                  placeholder="0"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-2">
+                  Workflow steps
+                </label>
+                <div className="space-y-2">
+                  {['Pre-sale', 'Consultation'].map(name => (
+                    <div
+                      key={name}
+                      className="flex items-center gap-2 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface-hover))] px-3 py-2.5 text-sm text-[hsl(var(--color-text-secondary))]"
+                    >
+                      <span className="flex-1">{name}</span>
+                      <span className="text-[10px] uppercase tracking-wide text-[hsl(var(--color-text-muted))]">auto</span>
+                    </div>
+                  ))}
+                  {customSteps.map((step, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Input
+                        value={step}
+                        onChange={e => {
+                          const next = [...customSteps]
+                          next[i] = e.target.value
+                          setCustomSteps(next)
+                        }}
+                        placeholder={`Custom step ${i + 1}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setCustomSteps(customSteps.filter((_, j) => j !== i))}
+                        className="text-[hsl(var(--color-text-muted))] hover:text-red-400 shrink-0"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCustomSteps([...customSteps, ''])}
+                    className="w-full"
+                  >
+                    + Add step
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setModalStep('details')}
+                  disabled={isSubmitting}
+                >
+                  Back
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? 'Creating...' : 'Create Case'}
+                </Button>
+              </div>
+            </>
+          )}
         </form>
       </Modal>
 
@@ -440,7 +563,7 @@ export default function CasesPage() {
       ) : (
         <div ref={tableRef} className="space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto scrollbar-thin">
           {filteredCases.map((caseItem) => {
-            const service = caseItem.case_services?.map(cs => cs.services?.name).filter(Boolean).join(', ')
+            const service = caseItem.case_services?.map(cs => cs.services?.name).filter(Boolean).join(', ') || caseItem.custom_service_name
             const step = caseItem.current_step_id ? stepNames[caseItem.current_step_id] : null
             const csrName = caseItem.csr?.display_name || caseItem.csr?.email
             const legalName = caseItem.legal?.display_name || caseItem.legal?.email

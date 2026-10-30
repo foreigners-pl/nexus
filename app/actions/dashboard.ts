@@ -807,6 +807,8 @@ export async function getMyPendingPayments(): Promise<{ cases: PendingPaymentCas
     .select(`
       id,
       case_code,
+      custom_service_name,
+      total_price,
       clients(first_name, last_name),
       case_services!fk_case_services_case(
         custom_price,
@@ -834,10 +836,12 @@ export async function getMyPendingPayments(): Promise<{ cases: PendingPaymentCas
     const clientName = client ? [client.first_name, client.last_name].filter(Boolean).join(' ') : 'Unknown'
     
     // Calculate totals - use custom_price if set, otherwise use services.gross_price
-    const totalPrice = (c.case_services || []).reduce((sum, s: any) => {
-      const price = s.custom_price ?? s.services?.gross_price ?? 0
-      return sum + (Number(price) || 0)
-    }, 0)
+    const totalPrice = (c.total_price != null)
+      ? Number(c.total_price)
+      : (c.case_services || []).reduce((sum, s: any) => {
+          const price = s.custom_price ?? s.services?.gross_price ?? 0
+          return sum + (Number(price) || 0)
+        }, 0)
     const installments = c.installments || []
     const totalPaid = installments.filter(i => i.paid).reduce((sum, i) => sum + (i.amount || 0), 0)
     const totalScheduled = installments.reduce((sum, i) => sum + (i.amount || 0), 0)
@@ -1268,7 +1272,7 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
     supabase.from('cases').select('*, clients(first_name, last_name, contact_email), case_assignees(user_id)').order('created_at', { ascending: false }),
     // My cases - include contact_numbers and case_services
     caseIds.length > 0 
-      ? supabase.from('cases').select('id, case_code, created_at, due_date, status:status_id(id, name), clients(id, first_name, last_name, contact_email, contact_numbers(id, number, country_code)), case_services!fk_case_services_case(id, services(id, name))').in('id', caseIds).order('created_at', { ascending: false })
+      ? supabase.from('cases').select('id, case_code, created_at, due_date, custom_service_name, total_price, status:status_id(id, name), clients(id, first_name, last_name, contact_email, contact_numbers(id, number, country_code)), case_services!fk_case_services_case(id, services(id, name, gross_price), custom_price)').in('id', caseIds).order('created_at', { ascending: false })
       : Promise.resolve({ data: [] }),
     // My cards/tasks
     cardIds.length > 0
@@ -1340,6 +1344,7 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
       case_code: c.case_code,
       created_at: c.created_at,
       due_date: c.due_date,
+      custom_service_name: c.custom_service_name || null,
       last_activity: caseLastActivityMap[c.id] || null,
       status: Array.isArray(c.status) ? c.status[0] || null : c.status,
       clients: client ? {
@@ -1380,12 +1385,14 @@ export async function getAllDashboardData(): Promise<{ data: DashboardData; erro
     const serviceNames = caseServices
       .map((s: any) => s.services?.name)
       .filter(Boolean)
-      .join(', ') || 'Services'
-    // Use custom_price if set, otherwise use services.gross_price
-    const totalPrice = caseServices.reduce((sum: number, s: any) => {
-      const price = s.custom_price ?? s.services?.gross_price ?? 0
-      return sum + (Number(price) || 0)
-    }, 0)
+      .join(', ') || c.custom_service_name || 'Services'
+    // Use case total if set, else custom_price if set, otherwise services.gross_price
+    const totalPrice = c.total_price != null
+      ? Number(c.total_price)
+      : caseServices.reduce((sum: number, s: any) => {
+          const price = s.custom_price ?? s.services?.gross_price ?? 0
+          return sum + (Number(price) || 0)
+        }, 0)
     
     caseInfoMap.set(c.id, {
       case_code: c.case_code,
@@ -1619,7 +1626,7 @@ export async function getMyCasesData(): Promise<{ myCases: any[]; error?: string
 
   const { data: cases } = await supabase
     .from('cases')
-    .select('id, case_code, created_at, due_date, status:status_id(id, name), clients(id, first_name, last_name, contact_email, contact_numbers(id, number, country_code)), case_services!fk_case_services_case(id, services(id, name))')
+    .select('id, case_code, created_at, due_date, custom_service_name, status:status_id(id, name), clients(id, first_name, last_name, contact_email, contact_numbers(id, number, country_code)), case_services!fk_case_services_case(id, services(id, name))')
     .in('id', caseIds)
     .order('created_at', { ascending: false })
 
@@ -1645,6 +1652,7 @@ export async function getMyCasesData(): Promise<{ myCases: any[]; error?: string
       case_code: c.case_code,
       created_at: c.created_at,
       due_date: c.due_date,
+      custom_service_name: c.custom_service_name || null,
       last_activity: caseLastActivityMap[c.id] || null,
       status: Array.isArray(c.status) ? c.status[0] || null : c.status,
       clients: client ? {
