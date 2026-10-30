@@ -8,6 +8,7 @@ import { notifyUsers } from './notifications'
 
 export async function getCaseAgreementData(caseId: string): Promise<{
   clientName: string | null
+  clientEmail?: string | null
   serviceName: string | null
   totalPrice: number | null
   steps: string[]
@@ -27,14 +28,16 @@ export async function getCaseAgreementData(caseId: string): Promise<{
   if (!caseData) return { clientName: null, serviceName: null, totalPrice: null, steps: [], date: null, error: 'Case not found' }
 
   let clientName: string | null = null
+  let clientEmail: string | null = null
   if (caseData.client_id) {
     const { data: client } = await supabase
       .from('clients')
-      .select('first_name, last_name')
+      .select('first_name, last_name, contact_email')
       .eq('id', caseData.client_id)
       .single()
     if (client) {
       clientName = [client.first_name, client.last_name].filter(Boolean).join(' ')
+      clientEmail = client.contact_email || null
     }
   }
 
@@ -63,6 +66,7 @@ export async function getCaseAgreementData(caseId: string): Promise<{
 
   return {
     clientName,
+    clientEmail,
     serviceName,
     totalPrice,
     steps,

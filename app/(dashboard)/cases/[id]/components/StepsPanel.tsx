@@ -10,7 +10,6 @@ import {
   completeAction,
   updateAction,
   openQuery,
-  logAgreementDownload,
   type CaseStep,
   type CaseEntry,
   type CaseQuery,
@@ -31,7 +30,7 @@ import {
   MessageSquare,
   ShieldCheck,
   FileCheck,
-  Download,
+  FileSignature,
 } from 'lucide-react'
 import { Modal } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
@@ -56,6 +55,7 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
   const touchStartX = useRef<number | null>(null)
   const slideRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
+  const paneNav = usePaneNavigate()
 
   const { data, isLoading, error: queryError } = useQuery({
     queryKey: queryKeys.workflow(caseId),
@@ -262,17 +262,13 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
 
           {isActive && <EntryComposer caseId={caseId} onAdded={refresh} />}
 
-          {s.step_type === 'presale' && serviceId && (
+          {s.step_type === 'presale' && (
             <button
-              onClick={async () => {
-                await logAgreementDownload(caseId)
-                refresh()
-                window.open(`/cases/${caseId}/agreement`, '_blank')
-              }}
+              onClick={() => paneNav(`/cases/${caseId}/agreement`)}
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--color-text-primary))] hover:bg-[hsl(var(--color-surface-hover))] transition-colors"
             >
-              <Download className="w-4 h-4" />
-              Download service agreement
+              <FileSignature className="w-4 h-4" />
+              Service agreement
             </button>
           )}
 
