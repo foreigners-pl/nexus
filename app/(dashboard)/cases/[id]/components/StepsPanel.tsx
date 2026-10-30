@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   getCaseWorkflow,
   moveToStep,
@@ -56,6 +57,7 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
   const slideRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
   const paneNav = usePaneNavigate()
+  const router = useRouter()
 
   const { data, isLoading, error: queryError } = useQuery({
     queryKey: queryKeys.workflow(caseId),
@@ -264,7 +266,7 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
 
           {s.step_type === 'presale' && (
             <button
-              onClick={() => paneNav(`/cases/${caseId}/agreement`)}
+              onClick={() => { if (!paneNav(`/cases/${caseId}/agreement`)) router.push(`/cases/${caseId}/agreement`) }}
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--color-text-primary))] hover:bg-[hsl(var(--color-surface-hover))] transition-colors"
             >
               <FileSignature className="w-4 h-4" />
