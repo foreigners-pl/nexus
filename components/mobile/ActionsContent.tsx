@@ -7,7 +7,7 @@ import type { MyAction, MissingActionCase } from '@/app/actions/workflow'
 import { fetchMyOpenActions, fetchCasesMissingActions } from '@/lib/data'
 import { MobileBackHeader } from '@/components/mobile/MobileBackHeader'
 import { usePaneLink } from '@/lib/panes'
-import { usePrefetchEntry, usePrefetchWorkflow } from '@/lib/query'
+import { usePrefetchWorkflow } from '@/lib/query'
 import { ChevronRight, AlertTriangle, Loader2 } from 'lucide-react'
 
 function formatDeadline(dateStr: string) {
@@ -56,15 +56,15 @@ function MissingActionRow({ item }: { item: MissingActionCase }) {
 }
 
 function ActionRow({ action }: { action: MyAction }) {
-  const prefetchEntry = usePrefetchEntry()
-  const paneLink = usePaneLink(`/cases/${action.case_id}/progress/${action.id}`)
+  const prefetchWorkflow = usePrefetchWorkflow()
+  const paneLink = usePaneLink(`/cases/${action.case_id}/progress${action.step_id ? `?s=${action.step_id}` : ''}`)
   const deadline = formatDeadline(action.due_date!)
   return (
     <li>
       <Link
         {...paneLink}
-        onMouseEnter={() => prefetchEntry(action.id)}
-        onTouchStart={() => prefetchEntry(action.id)}
+        onMouseEnter={() => prefetchWorkflow(action.case_id)}
+        onTouchStart={() => prefetchWorkflow(action.case_id)}
         className="flex items-center gap-3 px-4 py-3.5 active:bg-[hsl(var(--color-surface-hover))]"
       >
         <div className="flex-1 min-w-0">

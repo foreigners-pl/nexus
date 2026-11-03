@@ -894,6 +894,7 @@ export interface MyAction {
   case_id: string
   case_code: string | null
   client_name: string | null
+  step_id?: string | null
 }
 
 export interface MissingActionCase {
@@ -957,7 +958,7 @@ export async function getMyOpenActions(): Promise<{ actions: MyAction[]; error?:
 
   const { data, error } = await supabase
     .from('case_entries')
-    .select('id, body, due_date, waiting_on, case_id, cases!inner(case_code, assigned_to, csr_id, clients(first_name, last_name))')
+    .select('id, body, due_date, waiting_on, case_id, step_id, cases!inner(case_code, assigned_to, csr_id, clients(first_name, last_name))')
     .eq('kind', 'action')
     .is('completed_at', null)
     .or(`assigned_to.eq.${user.id},csr_id.eq.${user.id}`, { foreignTable: 'cases' })
@@ -972,6 +973,7 @@ export async function getMyOpenActions(): Promise<{ actions: MyAction[]; error?:
       due_date: a.due_date,
       waiting_on: a.waiting_on,
       case_id: a.case_id,
+      step_id: a.step_id ?? null,
       case_code: a.cases?.case_code ?? null,
       client_name: a.cases?.clients
         ? [a.cases.clients.first_name, a.cases.clients.last_name].filter(Boolean).join(' ')

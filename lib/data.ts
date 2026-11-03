@@ -497,7 +497,7 @@ export async function fetchMyOpenActions() {
 
   const { data } = await supabase
     .from('case_entries')
-    .select('id, body, due_date, waiting_on, case_id, cases!inner(case_code, assigned_to, csr_id, clients(first_name, last_name))')
+    .select('id, body, due_date, waiting_on, case_id, step_id, cases!inner(case_code, assigned_to, csr_id, clients(first_name, last_name))')
     .eq('kind', 'action')
     .is('completed_at', null)
     .or(`assigned_to.eq.${me},csr_id.eq.${me}`, { foreignTable: 'cases' })
@@ -510,6 +510,7 @@ export async function fetchMyOpenActions() {
       due_date: a.due_date,
       waiting_on: a.waiting_on,
       case_id: a.case_id,
+      step_id: a.step_id ?? null,
       case_code: a.cases?.case_code ?? null,
       client_name: a.cases?.clients
         ? [a.cases.clients.first_name, a.cases.clients.last_name].filter(Boolean).join(' ')

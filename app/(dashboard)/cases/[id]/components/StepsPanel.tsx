@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   getCaseWorkflow,
   moveToStep,
@@ -58,6 +58,8 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
   const queryClient = useQueryClient()
   const paneNav = usePaneNavigate()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const focusStepId = searchParams.get('s')
 
   const { data, isLoading, error: queryError } = useQuery({
     queryKey: queryKeys.workflow(caseId),
@@ -75,11 +77,13 @@ export function StepsPanel({ caseId }: StepsPanelProps) {
     setEligibility(data.eligibility)
     setEligibilityItems(data.eligibilityItems)
     if (!didInit.current) {
-      const idx = data.steps.findIndex(s => s.id === data.currentStepId)
+      // Deep-linked step (e.g. ?s=<step_id> from an action row) wins over current step
+      const focusIdx = focusStepId ? data.steps.findIndex(s => s.id === focusStepId) : -1
+      const idx = focusIdx >= 0 ? focusIdx : data.steps.findIndex(s => s.id === data.currentStepId)
       setViewIdx(idx >= 0 ? idx : 0)
       didInit.current = true
     }
-  }, [])
+  }, [focusStepId])
 
   useEffect(() => {
     if (data) applyData(data)
