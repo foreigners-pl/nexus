@@ -219,10 +219,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     if (!user) return
     
     const { count } = await supabase
-      .from('activity_log')
+      .from('user_alerts')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
-      .eq('is_read', false)
+      .is('read_at', null)
     
     const newCount = count || 0
     
@@ -261,7 +261,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         {
           event: '*',
           schema: 'public',
-          table: 'activity_log',
+          table: 'user_alerts',
           filter: `user_id=eq.${userId}`
         },
         () => {
