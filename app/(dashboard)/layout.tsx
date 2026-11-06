@@ -11,6 +11,7 @@ import { ChatProvider } from '@/lib/chat/ChatContext'
 import { QueryProvider } from '@/lib/query'
 import { PaneProvider } from '@/lib/panes'
 import MiniChat from '@/app/(dashboard)/chat/components/MiniChat'
+import { LastSeenHeartbeat } from '@/components/LastSeenHeartbeat'
 import { cn } from '@/lib/utils'
 
 export default function DashboardLayout({
@@ -75,6 +76,7 @@ export default function DashboardLayout({
               <PaneProvider>{children}</PaneProvider>
             </main>
             <MobileBottomNav />
+            <LastSeenHeartbeat />
             {/* MiniChat hidden for now */}
             {/* <MiniChat /> */}
           </div>

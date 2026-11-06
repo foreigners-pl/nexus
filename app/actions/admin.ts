@@ -410,3 +410,109 @@ export async function saveServiceProtocol(
 
   return { success: true }
 }
+
+// ============================================================
+// Usage overview
+// ============================================================
+
+/** Heartbeat — bumps users.last_seen_at, throttled to one write per 5 min. */
+export async function touchLastSeen() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+
+  const { data: me } = await supabase
+    .from('users')
+    .select('last_seen_at')
+    .eq('id', user.id)
+    .single()
+
+  const stale = !me?.last_seen_at ||
+    Date.now() - new Date(me.last_seen_at).getTime() > 5 * 60 * 1000
+  if (stale) {
+    await supabase
+      .from('users')
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq('id', user.id)
+  }
+}
+
+export interface UsageRow {
+  userId: string
+  name: string
+  role: string | null
+  lastSeenAt: string | null
+  requestsNew: number
+  requestsLate: number
+  actionsUpcoming: number
+  actionsLate: number
+  neglected: number
+}
+
+export async function getUsageOverview(): Promise<{ users: UsageRow[]; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { users: [], error: 'Not authenticated' }
+
+  const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  const today = new Date().toISOString().slice(0, 10)
+
+  const [usersRes, queriesRes, actionsRes, casesRes] = await Promise.all([
+    supabase.from('users').select('id, display_name, email, role, last_seen_at'),
+    supabase.from('case_queries').select('assigned_to, created_at').eq('status', 'open'),
+    supabase
+      .from('case_entries')
+      .select('case_id, due_date, cases!inner(csr_id, assigned_to)')
+      .eq('kind', 'action')
+      .is('completed_at', null),
+    supabase
+      .from('cases')
+      .select('id, csr_id, assigned_to, status:status_id(name), step:case_steps!cases_current_step_id_fkey(step_type)'),
+  ])
+
+  const requests: Record<string, { new: number; late: number }> = {}
+  for (const q of queriesRes.data || []) {
+    if (!q.assigned_to) continue
+    const bucket = (requests[q.assigned_to] ??= { new: 0, late: 0 })
+    if ((q.created_at || '') >= cutoff24h) bucket.new++
+    else bucket.late++
+  }
+
+  const openActionCaseIds = new Set<string>()
+  const actionCounts: Record<string, { upcoming: number; late: number }> = {}
+  for (const a of (actionsRes.data || []) as any[]) {
+    openActionCaseIds.add(a.case_id)
+    const isLate = !!a.due_date && a.due_date < today
+    for (const uid of [a.cases?.csr_id, a.cases?.assigned_to].filter(Boolean) as string[]) {
+      const bucket = (actionCounts[uid] ??= { upcoming: 0, late: 0 })
+      if (isLate) bucket.late++
+      else bucket.upcoming++
+    }
+  }
+
+  const neglected: Record<string, number> = {}
+  for (const c of (casesRes.data || []) as any[]) {
+    if (!c.step) continue
+    if (c.step.step_type === 'presale' || c.step.step_type === 'consultation') continue
+    if ((c.status?.name || '').toLowerCase().startsWith('complet')) continue
+    if (openActionCaseIds.has(c.id)) continue
+    for (const uid of [c.csr_id, c.assigned_to].filter(Boolean) as string[]) {
+      neglected[uid] = (neglected[uid] || 0) + 1
+    }
+  }
+
+  const users: UsageRow[] = (usersRes.data || []).map((u: any) => ({
+    userId: u.id,
+    name: u.display_name || u.email || 'User',
+    role: u.role ?? null,
+    lastSeenAt: u.last_seen_at ?? null,
+    requestsNew: requests[u.id]?.new ?? 0,
+    requestsLate: requests[u.id]?.late ?? 0,
+    actionsUpcoming: actionCounts[u.id]?.upcoming ?? 0,
+    actionsLate: actionCounts[u.id]?.late ?? 0,
+    neglected: neglected[u.id] ?? 0,
+  }))
+
+  users.sort((a, b) => a.name.localeCompare(b.name))
+  return { users }
+}
