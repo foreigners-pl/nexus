@@ -437,6 +437,15 @@ export async function touchLastSeen() {
   }
 }
 
+export interface UsageItem {
+  id: string
+  title: string
+  subtitle: string
+  date: string | null
+  tag: 'new' | 'late' | 'upcoming' | 'reply' | 'review' | 'neglected'
+  href: string
+}
+
 export interface UsageRow {
   userId: string
   name: string
@@ -447,6 +456,9 @@ export interface UsageRow {
   actionsUpcoming: number
   actionsLate: number
   neglected: number
+  requests: UsageItem[]
+  actions: UsageItem[]
+  neglectedCases: UsageItem[]
 }
 
 export async function getUsageOverview(): Promise<{ users: UsageRow[]; error?: string }> {
@@ -459,59 +471,116 @@ export async function getUsageOverview(): Promise<{ users: UsageRow[]; error?: s
 
   const [usersRes, queriesRes, actionsRes, casesRes] = await Promise.all([
     supabase.from('users').select('id, display_name, email, role, last_seen_at'),
-    supabase.from('case_queries').select('assigned_to, created_at').eq('status', 'open'),
+    supabase
+      .from('case_queries')
+      .select(`
+        id, case_id, status, created_at, opened_by, assigned_to,
+        case_steps(name),
+        cases(case_code, clients(first_name, last_name)),
+        case_query_messages(body, created_at)
+      `)
+      .in('status', ['open', 'answered'])
+      .order('created_at', { ascending: false }),
     supabase
       .from('case_entries')
-      .select('case_id, due_date, cases!inner(csr_id, assigned_to)')
+      .select('id, body, due_date, case_id, step_id, cases!inner(case_code, csr_id, assigned_to, clients(first_name, last_name))')
       .eq('kind', 'action')
-      .is('completed_at', null),
+      .is('completed_at', null)
+      .order('due_date', { ascending: true, nullsFirst: false }),
     supabase
       .from('cases')
-      .select('id, csr_id, assigned_to, status:status_id(name), step:case_steps!cases_current_step_id_fkey(step_type)'),
+      .select('id, case_code, csr_id, assigned_to, status:status_id(name), clients(first_name, last_name), step:case_steps!cases_current_step_id_fkey(name, step_type)'),
   ])
 
-  const requests: Record<string, { new: number; late: number }> = {}
-  for (const q of queriesRes.data || []) {
-    if (!q.assigned_to) continue
-    const bucket = (requests[q.assigned_to] ??= { new: 0, late: 0 })
-    if ((q.created_at || '') >= cutoff24h) bucket.new++
-    else bucket.late++
+  // entry_id for each query so request rows deep-link to the thread entry
+  const queryIds = ((queriesRes.data || []) as any[]).map(q => q.id)
+  const { data: queryEntries } = queryIds.length
+    ? await supabase.from('case_entries').select('id, query_id').in('query_id', queryIds)
+    : { data: [] }
+  const entryByQuery = new Map((queryEntries || []).map((e: any) => [e.query_id, e.id]))
+
+  const caseLabel = (c: any) =>
+    c?.clients ? [c.clients.first_name, c.clients.last_name].filter(Boolean).join(' ') : null
+
+  const requestsByUser: Record<string, UsageItem[]> = {}
+  for (const q of (queriesRes.data || []) as any[]) {
+    // assigned + open → they must respond; opened + answered → they must review
+    const owner = q.status === 'open' ? q.assigned_to : q.opened_by
+    if (!owner) continue
+    const entryId = entryByQuery.get(q.id) as string | undefined
+    const msgs = (q.case_query_messages || []).sort(
+      (a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    )
+    const isNew = (q.created_at || '') >= cutoff24h
+    const item: UsageItem = {
+      id: q.id,
+      title: msgs[0]?.body || 'Request',
+      subtitle: [caseLabel(q.cases) || q.cases?.case_code, q.case_steps?.name].filter(Boolean).join(' · '),
+      date: q.created_at,
+      tag: q.status === 'open' ? (isNew ? 'new' : 'late') : 'review',
+      href: entryId
+        ? `/cases/${q.case_id}/progress/${entryId}`
+        : `/cases/${q.case_id}/progress?q=${q.id}`,
+    }
+    ;(requestsByUser[owner] ??= []).push(item)
   }
 
   const openActionCaseIds = new Set<string>()
-  const actionCounts: Record<string, { upcoming: number; late: number }> = {}
+  const actionsByUser: Record<string, UsageItem[]> = {}
   for (const a of (actionsRes.data || []) as any[]) {
     openActionCaseIds.add(a.case_id)
     const isLate = !!a.due_date && a.due_date < today
+    const item: UsageItem = {
+      id: a.id,
+      title: a.body || 'Action',
+      subtitle: [caseLabel(a.cases) || a.cases?.case_code].filter(Boolean).join(' · '),
+      date: a.due_date,
+      tag: isLate ? 'late' : 'upcoming',
+      href: `/cases/${a.case_id}/progress${a.step_id ? `?s=${a.step_id}` : ''}`,
+    }
     for (const uid of [a.cases?.csr_id, a.cases?.assigned_to].filter(Boolean) as string[]) {
-      const bucket = (actionCounts[uid] ??= { upcoming: 0, late: 0 })
-      if (isLate) bucket.late++
-      else bucket.upcoming++
+      ;(actionsByUser[uid] ??= []).push(item)
     }
   }
 
-  const neglected: Record<string, number> = {}
+  const neglectedByUser: Record<string, UsageItem[]> = {}
   for (const c of (casesRes.data || []) as any[]) {
     if (!c.step) continue
     if (c.step.step_type === 'presale' || c.step.step_type === 'consultation') continue
     if ((c.status?.name || '').toLowerCase().startsWith('complet')) continue
     if (openActionCaseIds.has(c.id)) continue
+    const item: UsageItem = {
+      id: c.id,
+      title: caseLabel(c) || c.case_code || 'Case',
+      subtitle: c.step.name || 'In service',
+      date: null,
+      tag: 'neglected',
+      href: `/cases/${c.id}/progress`,
+    }
     for (const uid of [c.csr_id, c.assigned_to].filter(Boolean) as string[]) {
-      neglected[uid] = (neglected[uid] || 0) + 1
+      ;(neglectedByUser[uid] ??= []).push(item)
     }
   }
 
-  const users: UsageRow[] = (usersRes.data || []).map((u: any) => ({
-    userId: u.id,
-    name: u.display_name || u.email || 'User',
-    role: u.role ?? null,
-    lastSeenAt: u.last_seen_at ?? null,
-    requestsNew: requests[u.id]?.new ?? 0,
-    requestsLate: requests[u.id]?.late ?? 0,
-    actionsUpcoming: actionCounts[u.id]?.upcoming ?? 0,
-    actionsLate: actionCounts[u.id]?.late ?? 0,
-    neglected: neglected[u.id] ?? 0,
-  }))
+  const users: UsageRow[] = (usersRes.data || []).map((u: any) => {
+    const reqs = requestsByUser[u.id] || []
+    const acts = actionsByUser[u.id] || []
+    const neg = neglectedByUser[u.id] || []
+    return {
+      userId: u.id,
+      name: u.display_name || u.email || 'User',
+      role: u.role ?? null,
+      lastSeenAt: u.last_seen_at ?? null,
+      requestsNew: reqs.filter(r => r.tag === 'new').length,
+      requestsLate: reqs.filter(r => r.tag === 'late').length,
+      actionsUpcoming: acts.filter(a => a.tag === 'upcoming').length,
+      actionsLate: acts.filter(a => a.tag === 'late').length,
+      neglected: neg.length,
+      requests: reqs,
+      actions: acts,
+      neglectedCases: neg,
+    }
+  })
 
   users.sort((a, b) => a.name.localeCompare(b.name))
   return { users }
