@@ -101,7 +101,12 @@ export function ActionsContent() {
   const actions = data?.actions ?? null
   const missing = data?.missing ?? []
 
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const todayMs = today.getTime()
   const withDates = (actions || []).filter(a => a.due_date)
+  const late = withDates.filter(a => new Date(a.due_date!).getTime() < todayMs)
+  const upcoming = withDates.filter(a => new Date(a.due_date!).getTime() >= todayMs)
   const empty = withDates.length === 0 && missing.length === 0
 
   return (
@@ -128,13 +133,23 @@ export function ActionsContent() {
               </ul>
             </section>
           )}
-          {withDates.length > 0 && (
+          {late.length > 0 && (
             <section>
-              <p className="text-xs font-semibold uppercase tracking-wide mb-2 px-1 text-[hsl(var(--color-text-muted))]">
-                Due · {withDates.length}
+              <p className="text-xs font-semibold uppercase tracking-wide mb-2 px-1 text-red-400">
+                Late · {late.length}
               </p>
               <ul className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl divide-y divide-[hsl(var(--color-border))] overflow-hidden">
-                {withDates.map(a => <ActionRow key={a.id} action={a} />)}
+                {late.map(a => <ActionRow key={a.id} action={a} />)}
+              </ul>
+            </section>
+          )}
+          {upcoming.length > 0 && (
+            <section>
+              <p className="text-xs font-semibold uppercase tracking-wide mb-2 px-1 text-[hsl(var(--color-text-muted))]">
+                Upcoming · {upcoming.length}
+              </p>
+              <ul className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl divide-y divide-[hsl(var(--color-border))] overflow-hidden">
+                {upcoming.map(a => <ActionRow key={a.id} action={a} />)}
               </ul>
             </section>
           )}

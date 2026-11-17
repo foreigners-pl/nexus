@@ -155,6 +155,9 @@ export function RequestsContent() {
   const cutoff = Date.now() - DAY_MS
   const late = tasks.filter(t => new Date(t.created_at).getTime() < cutoff)
   const fresh = tasks.filter(t => new Date(t.created_at).getTime() >= cutoff)
+  const pendingSince = (q: MyQuery) => new Date(q.pending_since ?? q.created_at).getTime()
+  const lateQueries = queries.filter(q => pendingSince(q) < cutoff)
+  const freshQueries = queries.filter(q => pendingSince(q) >= cutoff)
   const empty = tasks.length === 0 && queries.length === 0
 
   return (
@@ -167,13 +170,23 @@ export function RequestsContent() {
         </div>
       ) : (
         <>
-          {queries.length > 0 && (
+          {lateQueries.length > 0 && (
             <section>
-              <p className="text-xs font-semibold uppercase tracking-wide mb-2 px-1 text-blue-400">
-                Requests · {queries.length}
+              <p className="text-xs font-semibold uppercase tracking-wide mb-2 px-1 text-red-400">
+                Late requests · {lateQueries.length}
               </p>
               <ul className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl divide-y divide-[hsl(var(--color-border))] overflow-hidden">
-                {queries.map(q => <QueryRow key={q.id} query={q} />)}
+                {lateQueries.map(q => <QueryRow key={q.id} query={q} />)}
+              </ul>
+            </section>
+          )}
+          {freshQueries.length > 0 && (
+            <section>
+              <p className="text-xs font-semibold uppercase tracking-wide mb-2 px-1 text-blue-400">
+                New requests · {freshQueries.length}
+              </p>
+              <ul className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl divide-y divide-[hsl(var(--color-border))] overflow-hidden">
+                {freshQueries.map(q => <QueryRow key={q.id} query={q} />)}
               </ul>
             </section>
           )}
