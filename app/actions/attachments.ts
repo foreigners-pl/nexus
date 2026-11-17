@@ -4,45 +4,30 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { logActivityForUsers } from './dashboard'
 
-export async function uploadAttachment(caseId: string, formData: FormData) {
+/**
+ * Saves attachment metadata after the file was uploaded directly to Storage
+ * by the browser. Keeping the file upload client-side avoids the server-action
+ * request body limit that rejected larger files.
+ */
+export async function saveAttachment(caseId: string, meta: {
+  file_name: string
+  file_path: string
+  file_size: number
+  file_type: string
+}) {
   const supabase = await createClient()
-  const file = formData.get('file') as File
-  
-  if (!file) {
-    return { error: 'No file provided' }
-  }
 
   try {
-    // Generate unique file path
-    const fileExt = file.name.split('.').pop()
-    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
-    const filePath = `${caseId}/${fileName}`
-
-    // Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('case_attachments')
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: false
-      })
-
-    if (uploadError) {
-      console.error('Upload error:', uploadError)
-      return { error: 'Failed to upload file' }
-    }
-
-    // Get current user
     const { data: { user } } = await supabase.auth.getUser()
 
-    // Save metadata to database
     const { data: attachment, error: dbError } = await supabase
       .from('case_attachments')
       .insert({
         case_id: caseId,
-        file_name: file.name,
-        file_path: uploadData.path,
-        file_size: file.size,
-        file_type: file.type,
+        file_name: meta.file_name,
+        file_path: meta.file_path,
+        file_size: meta.file_size,
+        file_type: meta.file_type,
         uploaded_by: user?.id
       })
       .select()
@@ -50,16 +35,8 @@ export async function uploadAttachment(caseId: string, formData: FormData) {
 
     if (dbError) {
       console.error('Database error details:', dbError)
-      console.error('Attempted insert:', {
-        case_id: caseId,
-        file_name: file.name,
-        file_path: uploadData.path,
-        file_size: file.size,
-        file_type: file.type,
-        uploaded_by: user?.id
-      })
       // Clean up uploaded file
-      await supabase.storage.from('case_attachments').remove([filePath])
+      await supabase.storage.from('case_attachments').remove([meta.file_path])
       return { error: `Failed to save attachment metadata: ${dbError.message}` }
     }
 
@@ -91,10 +68,10 @@ export async function uploadAttachment(caseId: string, formData: FormData) {
         actionType: 'case_attachment_added',
         entityType: 'case',
         entityId: caseId,
-        message: `${actorName} added attachment "${file.name}" to case ${caseData?.case_code || ''}`,
+        message: `${actorName} added attachment "${meta.file_name}" to case ${caseData?.case_code || ''}`,
         metadata: {
           case_code: caseData?.case_code,
-          file_name: file.name,
+          file_name: meta.file_name,
           actor_name: actorName,
         }
       })

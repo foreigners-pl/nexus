@@ -4,7 +4,8 @@ import { useState, useRef, DragEvent } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui'
 import { Eye, Download, Trash2 } from 'lucide-react'
-import { uploadAttachment, deleteAttachment, getAttachmentUrl } from '@/app/actions/attachments'
+import { saveAttachment, deleteAttachment, getAttachmentUrl } from '@/app/actions/attachments'
+import { createClient } from '@/lib/supabase/client'
 import type { CaseAttachment } from '@/types/database'
 
 interface AttachmentsSectionProps {
@@ -28,16 +29,38 @@ export function AttachmentsSection({ caseId, attachments, onUpdate, onAddClick }
 
     setUploading(true)
     
-    // Upload files one by one
+    const supabase = createClient()
+
+    // Upload files one by one — straight to Storage from the browser so
+    // large files aren't limited by the server-action request body size.
     for (let i = 0; i < files.length; i++) {
-      const formData = new FormData()
-      formData.append('file', files[i])
-      
-      const result = await uploadAttachment(caseId, formData)
-      
-      if (result.error) {
-        console.error('Upload failed:', result.error)
-        alert(`Failed to upload ${files[i].name}: ${result.error}`)
+      const file = files[i]
+      try {
+        const fileExt = file.name.split('.').pop()
+        const filePath = `${caseId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('case_attachments')
+          .upload(filePath, file, { cacheControl: '3600', upsert: false })
+
+        if (uploadError) {
+          alert(`Failed to upload ${file.name}: ${uploadError.message}`)
+          continue
+        }
+
+        const result = await saveAttachment(caseId, {
+          file_name: file.name,
+          file_path: uploadData.path,
+          file_size: file.size,
+          file_type: file.type,
+        })
+
+        if (result.error) {
+          alert(`Failed to upload ${file.name}: ${result.error}`)
+        }
+      } catch (e) {
+        console.error('Upload failed:', e)
+        alert(`Failed to upload ${file.name}`)
       }
     }
 

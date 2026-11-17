@@ -69,12 +69,12 @@ export default function MobileHomePage() {
 
   const newTasks = requestsData == null ? null : (() => {
     const cutoff = Date.now() - DAY_MS
-    const all = [...requestsData.tasks.map(t => t.created_at), ...requestsData.queries.map(q => q.created_at)]
+    const all = [...requestsData.tasks.map(t => t.created_at), ...requestsData.queries.map(q => q.pending_since ?? q.created_at)]
     return all.filter(d => new Date(d).getTime() >= cutoff).length
   })()
   const lateTasks = requestsData == null ? null : (() => {
     const cutoff = Date.now() - DAY_MS
-    const all = [...requestsData.tasks.map(t => t.created_at), ...requestsData.queries.map(q => q.created_at)]
+    const all = [...requestsData.tasks.map(t => t.created_at), ...requestsData.queries.map(q => q.pending_since ?? q.created_at)]
     return all.filter(d => new Date(d).getTime() < cutoff).length
   })()
   const neglectedCount = actionsData == null ? null : actionsData.missing.length

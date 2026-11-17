@@ -466,7 +466,7 @@ export async function getUsageOverview(): Promise<{ users: UsageRow[]; error?: s
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { users: [], error: 'Not authenticated' }
 
-  const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  const cutoff24hMs = Date.now() - 24 * 60 * 60 * 1000
   const today = new Date().toISOString().slice(0, 10)
 
   const [usersRes, queriesRes, actionsRes, casesRes] = await Promise.all([
@@ -511,7 +511,13 @@ export async function getUsageOverview(): Promise<{ users: UsageRow[]; error?: s
     const msgs = (q.case_query_messages || []).sort(
       (a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     )
-    const isNew = (q.created_at || '') >= cutoff24h
+    // The 24h clock starts when the ball entered the owner's court — the
+    // query's creation for open ones, the answer's arrival for ones awaiting
+    // review. Otherwise a long thread that was just answered shows "late".
+    const pendingSince = q.status === 'answered'
+      ? (msgs[msgs.length - 1]?.created_at ?? q.created_at)
+      : q.created_at
+    const isNew = new Date(pendingSince || 0).getTime() >= cutoff24hMs
     const item: UsageItem = {
       id: q.id,
       title: msgs[0]?.body || 'Request',
@@ -546,7 +552,7 @@ export async function getUsageOverview(): Promise<{ users: UsageRow[]; error?: s
   const neglectedByUser: Record<string, UsageItem[]> = {}
   for (const c of (casesRes.data || []) as any[]) {
     if (!c.step) continue
-    if (c.step.step_type === 'presale' || c.step.step_type === 'consultation') continue
+    if (c.step.step_type === 'eligibility' || c.step.step_type === 'presale') continue
     if ((c.status?.name || '').toLowerCase().startsWith('complet')) continue
     if (openActionCaseIds.has(c.id)) continue
     const item: UsageItem = {

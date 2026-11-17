@@ -922,8 +922,10 @@ export async function getCasesMissingActions(): Promise<{ cases: MissingActionCa
 
   const eligible = (rows || []).filter((c: any) =>
     c.step &&
+    // Eligibility and Pre-sale can't hold actions — flagging them as
+    // neglected is noise. Consultation onward can, so it counts.
+    c.step.step_type !== 'eligibility' &&
     c.step.step_type !== 'presale' &&
-    c.step.step_type !== 'consultation' &&
     !(c.status?.name || '').toLowerCase().startsWith('complet')
   )
   if (eligible.length === 0) return { cases: [] }
@@ -1172,6 +1174,11 @@ export interface MyQuery {
   status: 'open' | 'answered' | 'closed'
   direction: 'csr_to_legal' | 'legal_to_csr'
   created_at: string
+  /** When the ball entered my court — query creation for open ones I must
+   *  answer, the answer's arrival for ones awaiting my review. Drives the
+   *  24h new→late threshold so a long thread that was just answered isn't
+   *  instantly "late". */
+  pending_since: string
   needs_me: 'respond' | 'review'
   preview: string | null
   case_code: string | null
@@ -1213,6 +1220,9 @@ export async function getMyQueries(): Promise<{ queries: MyQuery[]; error?: stri
       const msgs = (q.case_query_messages || []).sort(
         (a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       )
+      const pending_since = q.status === 'answered'
+        ? (msgs[msgs.length - 1]?.created_at ?? q.created_at)
+        : q.created_at
       return {
         id: q.id,
         case_id: q.case_id,
@@ -1220,6 +1230,7 @@ export async function getMyQueries(): Promise<{ queries: MyQuery[]; error?: stri
         status: q.status,
         direction: q.direction,
         created_at: q.created_at,
+        pending_since,
         needs_me: q.assigned_to === user.id && q.status === 'open' ? 'respond' : 'review',
         preview: msgs[0]?.body ?? null,
         case_code: q.cases?.case_code ?? null,
