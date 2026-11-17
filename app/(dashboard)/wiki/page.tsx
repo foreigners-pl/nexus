@@ -14,19 +14,22 @@ import { DocumentViewer } from './components/DocumentViewer'
 import { useWikiFoldersCache } from '@/lib/query'
 import { cn } from '@/lib/utils'
 import {
-  getWikiFolders,
   createWikiFolder,
   updateWikiFolderPosition,
   updateWikiFolderName,
   deleteWikiFolder,
-  getWikiDocuments,
   createWikiDocument,
   updateWikiDocument,
   deleteWikiDocument,
   updateWikiDocumentPosition,
   moveDocumentToFolder,
-  getUserFolderAccess
 } from '@/app/actions/wiki'
+import {
+  fetchWikiFolders,
+  fetchWikiDocuments,
+  fetchWikiDocumentsMap,
+  fetchUserFolderAccess,
+} from '@/lib/data'
 import type { WikiFolder, WikiDocument } from '@/types/database'
 
 export default function WikiPage() {
@@ -139,7 +142,7 @@ export default function WikiPage() {
       setFolders(cached)
       setLoading(false)
       // Refresh in background
-      getWikiFolders(isShared).then(data => {
+      fetchWikiFolders(isShared).then(data => {
         console.log('[Wiki] Background refresh done, folders:', data.length)
         setFolders(data)
         setCachedFolders(data)
@@ -152,7 +155,7 @@ export default function WikiPage() {
     console.log('[Wiki] No cache, loading...')
     setLoading(true)
     try {
-      const data = await getWikiFolders(isShared)
+      const data = await fetchWikiFolders(isShared)
       setFolders(data)
       setCachedFolders(data)
       setLoading(false) // Show folders immediately
@@ -166,25 +169,17 @@ export default function WikiPage() {
   }
   
   async function preloadDocuments(foldersToPreload: WikiFolder[]) {
-    const documentsMap: Record<string, WikiDocument[]> = {}
-    await Promise.all(
-      foldersToPreload.map(async (folder) => {
-        try {
-          const docs = await getWikiDocuments(folder.id)
-          documentsMap[folder.id] = docs
-        } catch (error) {
-          console.error(`Failed to preload documents for folder ${folder.id}:`, error)
-          documentsMap[folder.id] = []
-        }
-      })
-    )
-    // Single state update with all documents
-    setAllDocuments(prev => ({ ...prev, ...documentsMap }))
+    try {
+      const documentsMap = await fetchWikiDocumentsMap(foldersToPreload.map(f => f.id))
+      setAllDocuments(prev => ({ ...prev, ...documentsMap }))
+    } catch (error) {
+      console.error('Failed to preload documents:', error)
+    }
   }
 
   async function loadDocuments(folderId: string) {
     try {
-      const data = await getWikiDocuments(folderId)
+      const data = await fetchWikiDocuments(folderId)
       setDocuments(data)
       setAllDocuments(prev => ({ ...prev, [folderId]: data }))
     } catch (error) {
@@ -193,7 +188,7 @@ export default function WikiPage() {
   }
 
   async function loadUserAccess(folderId: string) {
-    const access = await getUserFolderAccess(folderId)
+    const access = await fetchUserFolderAccess(folderId)
     setUserAccess(access)
   }
 

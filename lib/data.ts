@@ -613,3 +613,95 @@ export async function fetchMyOpenTasks() {
       })),
   }
 }
+
+// ============================================================
+// Wiki — same filters as app/actions/wiki.ts, minus the Vercel hop.
+// Fetching all folders' documents in ONE query replaces the old
+// per-folder server actions.
+// ============================================================
+
+export async function fetchWikiFolders(isShared: boolean) {
+  const me = await meId()
+  if (!me) return []
+
+  if (isShared) {
+    const { data: accessRecords } = await supabase
+      .from('wiki_folder_access')
+      .select('folder_id')
+      .eq('user_id', me)
+
+    const accessIds = (accessRecords || []).map(r => r.folder_id)
+
+    let query = supabase.from('wiki_folders').select('*')
+    if (accessIds.length > 0) {
+      query = query.or(`id.in.(${accessIds.join(',')}),and(owner_id.eq.${me},is_shared.eq.true)`)
+    } else {
+      query = query.eq('owner_id', me).eq('is_shared', true)
+    }
+
+    const { data } = await query
+      .order('position', { ascending: true })
+      .order('created_at', { ascending: false })
+    return data || []
+  }
+
+  const { data } = await supabase
+    .from('wiki_folders')
+    .select('*')
+    .eq('owner_id', me)
+    .eq('is_shared', false)
+    .order('position', { ascending: true })
+    .order('created_at', { ascending: false })
+  return data || []
+}
+
+/** Documents for many folders in a single query, grouped by folder_id. */
+export async function fetchWikiDocumentsMap(folderIds: string[]) {
+  const map: Record<string, any[]> = Object.fromEntries(folderIds.map(id => [id, []]))
+  if (folderIds.length === 0) return map
+
+  const { data } = await supabase
+    .from('wiki_documents')
+    .select('*')
+    .in('folder_id', folderIds)
+    .order('position', { ascending: true })
+    .order('created_at', { ascending: false })
+
+  for (const d of data || []) {
+    if (map[d.folder_id]) map[d.folder_id].push(d)
+  }
+  return map
+}
+
+export async function fetchWikiDocuments(folderId: string) {
+  const { data } = await supabase
+    .from('wiki_documents')
+    .select('*')
+    .eq('folder_id', folderId)
+    .order('position', { ascending: true })
+    .order('created_at', { ascending: false })
+  return data || []
+}
+
+export async function fetchUserFolderAccess(folderId: string): Promise<'owner' | 'editor' | 'viewer' | null> {
+  const me = await meId()
+  if (!me) return null
+
+  const { data: folder } = await supabase
+    .from('wiki_folders')
+    .select('owner_id')
+    .eq('id', folderId)
+    .single()
+
+  if (!folder) return null
+  if (folder.owner_id === me) return 'owner'
+
+  const { data: access } = await supabase
+    .from('wiki_folder_access')
+    .select('access_level')
+    .eq('folder_id', folderId)
+    .eq('user_id', me)
+    .single()
+
+  return (access?.access_level as 'editor' | 'viewer') ?? null
+}
