@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys, fetchBillingQuery } from '@/lib/query'
 import { SubPageHeader } from '@/components/shared/SubPageHeader'
 import { PaymentPanel } from '../components/PaymentPanel'
+import { MrcSection } from '../components/MrcSection'
 import { Loader2, Receipt } from 'lucide-react'
 
 interface BillingPageProps {
@@ -136,6 +137,8 @@ export default function CaseBillingPage({ params }: BillingPageProps) {
             onUpdate={reload}
           />
         </div>
+
+        <MrcSection caseId={caseData.id} />
       </div>
     </div>
   )

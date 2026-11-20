@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { SubPageHeader } from '@/components/shared/SubPageHeader'
 import { ContactInfo } from '../components/ContactInfo'
 import { IdentificationInfo } from '../components/IdentificationInfo'
+import { BillingInfo } from '../components/BillingInfo'
 import { LocationInfo } from '../components/LocationInfo'
 import { Loader2, User } from 'lucide-react'
 import type { Client, ContactNumber } from '@/types/database'
@@ -85,6 +86,7 @@ export default function ClientInfoPage({ params }: ClientInfoPageProps) {
       <div className="space-y-6">
         <ContactInfo client={client} phoneNumbers={phoneNumbers} onUpdate={handleContactUpdate} />
         <IdentificationInfo client={client} onUpdate={handleLocationUpdate} />
+        <BillingInfo client={client} onUpdate={handleLocationUpdate} />
         <LocationInfo client={client} countryName={countryName} cityName={cityName} onUpdate={handleLocationUpdate} />
       </div>
     </div>

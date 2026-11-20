@@ -68,6 +68,9 @@ export async function updateClient(id: string, formData: FormData) {
     passportNumber: 'passport_number',
     pesel: 'pesel',
     trcCaseNumber: 'trc_case_number',
+    billingCompany: 'billing_company',
+    nip: 'nip',
+    billingAddress: 'billing_address',
   }
   const data: Record<string, string | null> = {}
   for (const [key, column] of Object.entries(fieldMap)) {
