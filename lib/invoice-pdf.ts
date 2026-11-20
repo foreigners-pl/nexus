@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf'
+import { INVOICE_LOGO_DATA_URI, INVOICE_LOGO_RATIO } from './invoice-logo'
 
 export interface InvoiceBillTo {
   name?: string | null
@@ -14,6 +15,8 @@ export interface InvoicePdfInput {
   itemName: string
   serviceNames?: string
   amount: number
+  discountAmount?: number | null
+  discountNotes?: string | null
   issueDate: string
   dueDate: string
   company: {
@@ -25,6 +28,9 @@ export interface InvoicePdfInput {
     bankName?: string | null
     bankAccount?: string | null
     swift?: string | null
+    krs?: string | null
+    regon?: string | null
+    accountHolder?: string | null
   }
   billTo: InvoiceBillTo
   paymentMethod?: string | null
@@ -34,62 +40,85 @@ export interface InvoicePdfInput {
 }
 
 const PAGE_W = 210 // A4 mm
-const MARGIN = 20
+const PAGE_H = 297
+const MARGIN = 18
 const RIGHT = PAGE_W - MARGIN
 
 export function buildInvoicePdf(input: InvoicePdfInput): ArrayBuffer {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const { company: c, billTo: b, isReceipt } = input
 
-  const gray = (v: number) => { doc.setTextColor(v, v, v) }
-  const black = () => { doc.setTextColor(17, 24, 39) }
-  const muted = () => gray(107)
-  const money = (n: number) => `${Math.abs(n).toFixed(2)} PLN`
-
-  let y = 28
-
-  // ---- Header: company block (left) + doc meta (right)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(20)
-  black()
-  doc.text(c.name || 'Company', MARGIN, y)
-
-  doc.setFontSize(9)
-  doc.setFont('helvetica', 'normal')
-  muted()
-  let cy = y + 6
-  const companyLines = [c.address, c.taxId ? `Tax ID: ${c.taxId}` : null, c.email, c.phone].filter(Boolean) as string[]
-  for (const line of companyLines) {
-    const wrapped = doc.splitTextToSize(line, 85)
-    doc.text(wrapped, MARGIN, cy)
-    cy += wrapped.length * 4.2
+  const black = () => doc.setTextColor(17, 24, 39)
+  const muted = () => doc.setTextColor(107, 114, 128)
+  const pln = (n: number) => `PLN ${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const rule = (y: number, w = 0.4, color: [number, number, number] = [209, 213, 219]) => {
+    doc.setDrawColor(...color); doc.setLineWidth(w); doc.line(MARGIN, y, RIGHT, y)
   }
 
-  doc.setFontSize(22)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(37, 99, 235)
-  doc.text(isReceipt ? 'PAYMENT RECEIPT' : 'INVOICE', RIGHT, y, { align: 'right' })
+  const method = input.paymentMethod || ''
+  const methodLabel = method === 'bank_transfer' ? 'Bank Transfer'
+    : method === 'cash' || method === 'manual' ? 'Cash'
+    : method === 'online' ? 'Online' : method || '—'
+  const showBank = !isReceipt && method !== 'cash' && method !== 'manual' && !!c.bankAccount
+  const discount = input.discountAmount || 0
+  const original = input.amount + discount
 
-  doc.setFontSize(10)
-  black()
-  doc.text(input.docNumber, RIGHT, y + 7, { align: 'right' })
-  doc.setFontSize(9)
+  let y = 20
+
+  // ---- Header: logo left, doc title right
+  const logoW = 52
+  const logoH = logoW * INVOICE_LOGO_RATIO
+  doc.addImage(INVOICE_LOGO_DATA_URI, 'PNG', MARGIN, y - 4, logoW, logoH)
+
   doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
   muted()
-  doc.text(`Issued: ${input.issueDate}`, RIGHT, y + 12.5, { align: 'right' })
-  if (isReceipt) {
-    doc.text(`Paid: ${input.paidDate || '—'}`, RIGHT, y + 17.5, { align: 'right' })
-  } else {
-    doc.text(`Due: ${input.dueDate}`, RIGHT, y + 17.5, { align: 'right' })
+  doc.text(isReceipt ? 'P A Y M E N T   R E C E I P T' : 'I N V O I C E', RIGHT, y, { align: 'right' })
+  doc.setFontSize(14)
+  doc.setFont('helvetica', 'bold')
+  black()
+  const titleLines = doc.splitTextToSize(input.itemName, 100)
+  doc.text(titleLines, RIGHT, y + 6, { align: 'right' })
+  let ty = y + 6 + titleLines.length * 6
+  if (input.serviceNames && input.serviceNames !== 'Services') {
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    muted()
+    doc.text(input.serviceNames, RIGHT, ty, { align: 'right' })
+    ty += 5
   }
 
-  y = Math.max(cy, y + 24) + 10
+  y = Math.max(y + logoH, ty) + 6
+  rule(y, 0.5)
+  y += 8
+
+  // ---- Meta grid (2 cols x 2 rows)
+  const meta: [string, string][] = [
+    [isReceipt ? 'RECEIPT NO.' : 'INVOICE NO.', input.docNumber],
+    [isReceipt ? 'PAID DATE' : 'DUE DATE', isReceipt ? (input.paidDate || '—') : input.dueDate],
+    ['CLIENT', b.company || b.name || '—'],
+    ['METHOD', methodLabel],
+  ]
+  const colW = (RIGHT - MARGIN) / 2
+  meta.forEach(([label, value], i) => {
+    const x = MARGIN + (i % 2) * colW
+    const yy = y + Math.floor(i / 2) * 11
+    doc.setFontSize(7)
+    muted()
+    doc.text(label, x, yy)
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    black()
+    doc.text(doc.splitTextToSize(value, colW - 8), x, yy + 4.5)
+    doc.setFont('helvetica', 'normal')
+  })
+  y += 24
 
   // ---- Bill to
-  doc.setFontSize(8)
+  doc.setFontSize(7)
   muted()
   doc.text('BILL TO', MARGIN, y)
-  y += 5
+  y += 4.5
   doc.setFontSize(11)
   doc.setFont('helvetica', 'bold')
   black()
@@ -106,101 +135,100 @@ export function buildInvoicePdf(input: InvoicePdfInput): ArrayBuffer {
     b.phone,
   ].filter(Boolean) as string[]
   for (const line of billLines) {
-    const wrapped = doc.splitTextToSize(line, 110)
+    const wrapped = doc.splitTextToSize(line, 120)
     doc.text(wrapped, MARGIN, y)
     y += wrapped.length * 4.5
   }
   y += 8
 
-  // ---- Line items table
-  doc.setDrawColor(229, 231, 235)
-  doc.setLineWidth(0.6)
-  doc.line(MARGIN, y, RIGHT, y)
-  y += 5
-  doc.setFontSize(8)
-  doc.setFont('helvetica', 'bold')
-  muted()
-  doc.text('DESCRIPTION', MARGIN, y)
-  doc.text('AMOUNT', RIGHT, y, { align: 'right' })
-  y += 3
-  doc.line(MARGIN, y, RIGHT, y)
-  y += 7
+  // ---- Amounts
+  const amountRow = (label: string, value: string, bold = false, isTotal = false) => {
+    doc.setFontSize(isTotal ? 12 : 10)
+    doc.setFont('helvetica', bold ? 'bold' : 'normal')
+    if (bold) black(); else muted()
+    doc.text(label, MARGIN, y)
+    doc.text(value, RIGHT, y, { align: 'right' })
+    y += isTotal ? 4 : 5
+    doc.setDrawColor(229, 231, 235)
+    doc.setLineWidth(isTotal ? 0.7 : 0.3)
+    doc.setLineDashPattern(isTotal ? [] : [1, 1.5], 0)
+    doc.line(MARGIN, y, RIGHT, y)
+    doc.setLineDashPattern([], 0)
+    y += 7
+  }
 
-  doc.setFontSize(10)
-  black()
-  doc.text(doc.splitTextToSize(input.itemName, 130), MARGIN, y)
-  doc.text(money(input.amount), RIGHT, y, { align: 'right' })
-  y += 4.5
-  if (input.serviceNames) {
+  if (discount > 0) {
+    amountRow('Original Amount', pln(original))
+    amountRow('Discount', `-${pln(discount)}`)
+    if (input.discountNotes) amountRow('Discount Notes', input.discountNotes)
+  }
+  amountRow(isReceipt ? 'Amount Received' : 'Amount Due', pln(input.amount), true, true)
+  y += 4
+
+  // ---- Payment details box
+  const payLines: [string, string][] = []
+  if (isReceipt) {
+    payLines.push(['STATUS', 'Payment received in full'])
+    payLines.push(['METHOD', methodLabel])
+  } else if (showBank) {
+    if (c.bankName) payLines.push(['BANK', c.bankName])
+    payLines.push(['ACCOUNT HOLDER', c.accountHolder || c.name || ''])
+    payLines.push(['IBAN', c.bankAccount!])
+    if (c.swift) payLines.push(['SWIFT/BIC', c.swift])
+    payLines.push(['REFERENCE', input.docNumber])
+  } else if (method === 'online' && input.paymentLink) {
+    payLines.push(['PAY ONLINE', input.paymentLink])
+  } else if (method === 'cash') {
+    payLines.push(['NOTE', 'Please pay in cash at our office.'])
+  } else {
+    payLines.push(['NOTE', 'Please contact us for payment instructions.'])
+    payLines.push(['REFERENCE', input.docNumber])
+  }
+
+  const boxH = payLines.length * 6 + 12
+  doc.setFillColor(249, 250, 251)
+  doc.setDrawColor(229, 231, 235)
+  doc.roundedRect(MARGIN, y, PAGE_W - MARGIN * 2, boxH, 2, 2, 'FD')
+  let by = y + 7
+  doc.setFontSize(7)
+  muted()
+  doc.text('PAYMENT DETAILS', MARGIN + 5, by)
+  by += 6
+  payLines.forEach(([label, value]) => {
     doc.setFontSize(8)
     doc.setFont('helvetica', 'normal')
     muted()
-    doc.text(doc.splitTextToSize(input.serviceNames, 130), MARGIN, y)
-    y += doc.splitTextToSize(input.serviceNames, 130).length * 4
-  }
-  y += 8
+    doc.text(label, MARGIN + 5, by)
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'bold')
+    black()
+    doc.text(doc.splitTextToSize(value, 125), MARGIN + 42, by)
+    by += 6
+    doc.setFont('helvetica', 'normal')
+  })
 
-  // ---- Total
-  doc.line(MARGIN, y, RIGHT, y)
-  y += 8
-  doc.setFontSize(11)
+  // ---- Legal footer pinned near the bottom
+  const legalLine = [c.taxId ? `NIP: ${c.taxId}` : null, c.krs ? `KRS: ${c.krs}` : null, c.regon ? `REGON: ${c.regon}` : null].filter(Boolean).join('  ·  ')
+  const footerLines = [
+    c.accountHolder || c.name || null,
+    legalLine || null,
+    c.address || null,
+    c.email || null,
+  ].filter(Boolean) as string[]
+
+  let fy = PAGE_H - 14 - footerLines.length * 4.5
+  rule(fy - 4, 0.5)
+  doc.setFontSize(9)
   doc.setFont('helvetica', 'bold')
   black()
-  doc.text(isReceipt ? 'Total received' : 'Total due', RIGHT - 55, y, { align: 'right' })
-  doc.text(money(input.amount), RIGHT, y, { align: 'right' })
-  y += 14
-
-  // ---- Payment details / receipt footer
-  doc.setFillColor(249, 250, 251)
-  const method = input.paymentMethod || ''
-  const showBank = !isReceipt && method !== 'cash' && method !== 'manual' && !!c.bankAccount
-  const showLink = !isReceipt && !showBank && !!input.paymentLink
-  let boxLines = 0
-  if (isReceipt) boxLines = 2
-  else if (showBank) boxLines = 1 + [c.bankName, c.bankAccount, c.swift].filter(Boolean).length + 1
-  else if (showLink) boxLines = 3
-  else boxLines = 3
-  const boxH = boxLines * 5 + 8
-  doc.roundedRect(MARGIN, y, PAGE_W - MARGIN * 2, boxH, 2, 2, 'F')
-  doc.setDrawColor(229, 231, 235)
-  doc.roundedRect(MARGIN, y, PAGE_W - MARGIN * 2, boxH, 2, 2, 'S')
-  let by = y + 6
-
+  doc.text((c.name || '').toUpperCase(), MARGIN, fy)
+  fy += 4.5
+  doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   muted()
-  doc.text('PAYMENT DETAILS', MARGIN + 4, by)
-  by += 5.5
-  doc.setFontSize(9)
-  doc.setFont('helvetica', 'normal')
-  black()
-
-  if (isReceipt) {
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(5, 150, 105)
-    doc.text('Payment received in full', MARGIN + 4, by)
-    by += 4.5
-    doc.setFont('helvetica', 'normal')
-    muted()
-    doc.text(`Method: ${(method || 'manual').replace('_', ' ')}${input.paidDate ? ` · ${input.paidDate}` : ''}`, MARGIN + 4, by)
-  } else if (showBank) {
-    if (c.bankName) { doc.text(`Bank: ${c.bankName}`, MARGIN + 4, by); by += 4.5 }
-    doc.setFont('courier', 'normal')
-    doc.text(`Account: ${c.bankAccount}`, MARGIN + 4, by)
-    doc.setFont('helvetica', 'normal')
-    by += 4.5
-    if (c.swift) { doc.text(`SWIFT: ${c.swift}`, MARGIN + 4, by); by += 4.5 }
-    muted()
-    doc.text(`Reference: ${input.docNumber}`, MARGIN + 4, by)
-  } else if (showLink) {
-    doc.text('Pay online:', MARGIN + 4, by); by += 4.5
-    doc.setFont('courier', 'normal')
-    muted()
-    doc.text(doc.splitTextToSize(input.paymentLink || '', 160), MARGIN + 4, by)
-  } else {
-    muted()
-    doc.text(method === 'cash' ? 'Please pay in cash at our office.' : 'Please contact us for payment instructions.', MARGIN + 4, by)
-    by += 4.5
-    doc.text(`Reference: ${input.docNumber}`, MARGIN + 4, by)
+  for (const line of footerLines) {
+    doc.text(line, MARGIN, fy)
+    fy += 4.5
   }
 
   return doc.output('arraybuffer')

@@ -66,12 +66,13 @@ export default async function PrintInstallmentDoc({ params, searchParams }: Prin
       itemName={itemName}
       serviceNames={serviceNames}
       amount={Math.abs(installment.amount || 0)}
+      discountAmount={invoice?.discount_amount}
+      discountNotes={invoice?.discount_notes}
       issueDate={invoice?.issued_at || invoice?.sent_at || invoice?.created_at || new Date().toISOString()}
       dueDate={invoice?.due_date || installment.due_date}
       paidDate={invoice?.paid_at || installment.updated_at}
       paymentMethod={invoice?.payment_method}
       paymentLink={invoice?.payment_link}
-      caseCode={caseRow?.case_code}
       company={company}
       billTo={billTo}
     />

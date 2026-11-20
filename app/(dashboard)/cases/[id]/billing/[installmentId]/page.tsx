@@ -48,6 +48,8 @@ export default function InstallmentPage({ params }: InstallmentPageProps) {
   const [paymentType, setPaymentType] = useState<'online' | 'bank_transfer' | 'manual'>('bank_transfer')
   const [billTo, setBillTo] = useState<{ name?: string; company?: string; email?: string; phone?: string; address?: string; nip?: string }>({})
   const [recipientEmails, setRecipientEmails] = useState<string[]>([])
+  const [discountAmount, setDiscountAmount] = useState('')
+  const [discountNotes, setDiscountNotes] = useState('')
 
   // MRC (monthly recurring charge) conversion
   const [mrcModalOpen, setMrcModalOpen] = useState(false)
@@ -112,6 +114,8 @@ export default function InstallmentPage({ params }: InstallmentPageProps) {
       nip: c?.nip || '',
     })
     setRecipientEmails(inv?.recipient_emails?.length ? inv.recipient_emails : (c?.contact_email ? [c.contact_email] : []))
+    setDiscountAmount(inv?.discount_amount ? String(inv.discount_amount) : '')
+    setDiscountNotes(inv?.discount_notes || '')
     if (inv?.payment_method === 'online' || inv?.payment_method === 'bank_transfer') setPaymentType(inv.payment_method)
     else if (inv?.payment_method === 'cash' || inv?.payment_method === 'manual') setPaymentType('manual')
     if (inst?.due_date) setMrcDay(String(new Date(inst.due_date).getDate()))
@@ -214,7 +218,9 @@ export default function InstallmentPage({ params }: InstallmentPageProps) {
         billTo,
         recipientEmails.filter(Boolean),
         paymentType === 'manual' ? 'cash' : paymentType,
-        invoice?.id
+        invoice?.id,
+        null,
+        { amount: parseFloat(discountAmount) || 0, notes: discountNotes }
       )
       if (result.error) { alert(result.error); return }
       await reload()
@@ -237,7 +243,9 @@ export default function InstallmentPage({ params }: InstallmentPageProps) {
           billTo,
           recipientEmails.filter(Boolean),
           paymentType === 'manual' ? 'cash' : paymentType,
-          inv?.id
+          inv?.id,
+          null,
+          { amount: parseFloat(discountAmount) || 0, notes: discountNotes }
         )
         if (result.error) { alert(result.error); return }
         inv = result.invoice
@@ -560,6 +568,16 @@ export default function InstallmentPage({ params }: InstallmentPageProps) {
                         <div className="font-medium text-sm">Cash</div>
                         <div className="text-xs text-[hsl(var(--color-text-secondary))]">Paid in person</div>
                       </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-1">Discount from original (PLN)</label>
+                      <Input type="number" min={0} value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} placeholder="0" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-1">Discount note (optional)</label>
+                      <Input value={discountNotes} onChange={(e) => setDiscountNotes(e.target.value)} placeholder="e.g., Goodwill discount" />
                     </div>
                   </div>
                   <div className="p-3 rounded-lg bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] text-sm flex justify-between">

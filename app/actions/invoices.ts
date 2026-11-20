@@ -102,7 +102,8 @@ export async function issueInvoice(
   recipientEmails: string[],
   paymentMethod: string,
   invoiceId?: string | null,
-  mrcChargeId?: string | null
+  mrcChargeId?: string | null,
+  discount?: { amount?: number; notes?: string } | null
 ) {
   const supabase = await createClient()
   const number = await nextInvoiceNumber(supabase)
@@ -122,6 +123,8 @@ export async function issueInvoice(
     sent_to_email: recipientEmails.filter(Boolean)[0] || null,
     payment_method: paymentMethod,
     mrc_charge_id: mrcChargeId || null,
+    discount_amount: discount?.amount || null,
+    discount_notes: discount?.amount ? (discount?.notes || null) : null,
   }
 
   const query = invoiceId
@@ -233,8 +236,13 @@ export async function sendInvoiceEmailWithClient(
       bankName: company?.bank_name,
       bankAccount: company?.bank_account,
       swift: company?.swift,
+      krs: company?.krs,
+      regon: company?.regon,
+      accountHolder: company?.account_holder,
     },
     billTo,
+    discountAmount: invoice.discount_amount,
+    discountNotes: invoice.discount_notes,
     paymentMethod: invoice.payment_method,
     paymentLink: invoice.payment_link,
   })

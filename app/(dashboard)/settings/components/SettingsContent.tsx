@@ -33,6 +33,9 @@ interface CompanySettings {
   bank_name?: string
   bank_account?: string
   swift?: string
+  krs?: string
+  regon?: string
+  account_holder?: string
 }
 
 interface SettingsContentProps {
@@ -572,6 +575,9 @@ export function SettingsContent({ initialProfile, initialPreferences, initialCom
             <Input label="Bank name" value={company.bank_name ?? ''} onChange={(e) => setCompany({ ...company, bank_name: e.target.value })} />
             <Input label="Bank account (IBAN)" value={company.bank_account ?? ''} onChange={(e) => setCompany({ ...company, bank_account: e.target.value })} />
             <Input label="SWIFT" value={company.swift ?? ''} onChange={(e) => setCompany({ ...company, swift: e.target.value })} />
+            <Input label="Account holder" value={company.account_holder ?? ''} onChange={(e) => setCompany({ ...company, account_holder: e.target.value })} />
+            <Input label="KRS" value={company.krs ?? ''} onChange={(e) => setCompany({ ...company, krs: e.target.value })} />
+            <Input label="REGON" value={company.regon ?? ''} onChange={(e) => setCompany({ ...company, regon: e.target.value })} />
           </div>
 
           {companyMessage && (

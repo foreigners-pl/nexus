@@ -27,6 +27,9 @@ export async function updateCompanySettings(fields: {
   bank_name?: string
   bank_account?: string
   swift?: string
+  krs?: string
+  regon?: string
+  account_holder?: string
 }) {
   const supabase = await createClient()
 
