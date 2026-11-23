@@ -762,13 +762,15 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
   // can anchor to the bottom of it — last message hugs the input, empty
   // space collects at the top of the chat area. Measured before paint.
   const regionRef = useRef<HTMLDivElement>(null)
+  const tailRef = useRef<HTMLDivElement>(null)
   const [regionH, setRegionH] = useState<number | null>(null)
   const [tailH, setTailH] = useState(44)
   useLayoutEffect(() => {
     const measure = () => {
       const el = regionRef.current
+      if (!el || window.innerWidth >= 768) { setRegionH(null); return }
       const composer = document.querySelector<HTMLElement>('[data-step-composer]')
-      if (!el || !composer || window.innerWidth >= 768) { setRegionH(null); return }
+      if (!composer) { requestAnimationFrame(measure); return }
       const composerTop = composer.getBoundingClientRect().top
       const docTop = el.getBoundingClientRect().top + window.scrollY
       // Fill so the region's bottom edge lands exactly on the composer's
@@ -776,9 +778,14 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
       // composerTop is viewport-space, docTop document-space — no scrollY
       // on composerTop or the region overshoots by the scroll position.
       setRegionH(Math.max(composerTop - docTop, 160))
-      // ...and tail space below = the occluded zone minus main's pb-20,
-      // so the last message scrolls clear at max scroll.
-      setTailH(Math.max(window.innerHeight - composerTop - 80, 0))
+      // Tail space below the region = the composer's occluded zone, so the
+      // anchored bottom lands flush on it and the last message can scroll
+      // clear. Measured against the REAL document — page-level padding,
+      // margins, and anything below the feed are all accounted for.
+      const docBottom = el.getBoundingClientRect().bottom + window.scrollY
+      const docH = document.documentElement.scrollHeight
+      const belowWithoutTail = docH - docBottom - (tailRef.current?.offsetHeight ?? 0)
+      setTailH(Math.max(window.innerHeight - composerTop - belowWithoutTail, 0))
     }
     measure()
     window.addEventListener('resize', measure)
@@ -852,10 +859,10 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
         </div>
       ) : feedList}
 
-      {/* Tail below the feed — pb-20 + this spacer = the zone the fixed
-          composer covers, so the anchored bottom lands flush on the input
-          and the last message can scroll clear of it */}
-      {canPost && <div className="md:hidden" style={{ height: tailH }} />}
+      {/* Tail below the feed — sized so everything below the region equals
+          the zone the fixed composer covers; the anchored bottom lands
+          flush on the input and the last message can scroll clear */}
+      {canPost && <div ref={tailRef} className="md:hidden" style={{ height: tailH }} />}
 
       {/* Composer — desktop only; mobile uses the fixed overlay at the
           panel root */}
