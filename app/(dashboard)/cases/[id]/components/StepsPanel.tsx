@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, type RefObject, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -119,8 +119,109 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusStepId])
 
+  // Swiping to another step drops any in-progress message selection — the
+  // select state belongs to the step it was started on.
+  useEffect(() => {
+    setSelect(null)
+    setSelectedIds(new Set())
+  }, [viewIdx])
+
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.workflow(caseId) })
+  }
+
+  // ---- Shared feed composer + request-select state ----
+  // Lives here (not inside each step panel) because the mobile composer is a
+  // fixed overlay rendered outside the swipe track — the track's transform
+  // would hijack position:fixed inside it.
+  const [feedText, setFeedText] = useState('')
+  const [staged, setStaged] = useState<{ id: string; name: string }[]>([])
+  const [feedBusy, setFeedBusy] = useState(false)
+  const [feedError, setFeedError] = useState<string | null>(null)
+  const [select, setSelect] = useState<null | { mode: 'request' | 'answer'; stepId: string; queryId?: string }>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const refreshAll = () => {
+    refresh()
+    queryClient.invalidateQueries({ queryKey: queryKeys.requests })
+  }
+
+  const uploadFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    setFeedBusy(true)
+    setFeedError(null)
+    const supabase = createClient()
+    for (const file of Array.from(files)) {
+      const ext = file.name.split('.').pop()
+      const path = `${caseId}/${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${ext}`
+      const { data: up, error: upErr } = await supabase.storage
+        .from('case_attachments')
+        .upload(path, file, { cacheControl: '3600', upsert: false })
+      if (upErr) { setFeedError(`Upload failed: ${file.name}`); continue }
+      const res = await saveAttachment(caseId, {
+        file_name: file.name,
+        file_path: up.path,
+        file_size: file.size,
+        file_type: file.type,
+      })
+      const savedId = (res as { data?: { id?: string } }).data?.id
+      if (savedId) setStaged(s => [...s, { id: savedId, name: file.name }])
+      else setFeedError(`Upload failed: ${file.name}`)
+    }
+    setFeedBusy(false)
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
+  const sendFeedMessage = async (stepId: string) => {
+    if (feedBusy || (!feedText.trim() && staged.length === 0)) return
+    setFeedBusy(true)
+    setFeedError(null)
+    const r = await postStepMessage(caseId, stepId, feedText, staged.map(s => s.id))
+    setFeedBusy(false)
+    if (r.error) { setFeedError(r.error); return }
+    setFeedText('')
+    setStaged([])
+    refreshAll()
+  }
+
+  const startSelect = (mode: 'request' | 'answer', stepId: string, queryId?: string) => {
+    setSelect({ mode, stepId, queryId })
+    setSelectedIds(new Set())
+  }
+
+  const cancelSelect = () => {
+    setSelect(null)
+    setSelectedIds(new Set())
+  }
+
+  const toggleSelectEntry = (entryId: string) => {
+    setSelectedIds(prev => {
+      const n = new Set(prev)
+      if (n.has(entryId)) n.delete(entryId)
+      else n.add(entryId)
+      return n
+    })
+  }
+
+  const confirmSelect = async () => {
+    if (!select || selectedIds.size === 0) return
+    setFeedBusy(true)
+    setFeedError(null)
+    const r = select.mode === 'request'
+      ? await sendStepRequest(caseId, select.stepId, [...selectedIds])
+      : await answerStepRequest(select.queryId!, [...selectedIds])
+    setFeedBusy(false)
+    if (r.error) { setFeedError(r.error); return }
+    cancelSelect()
+    refreshAll()
+  }
+
+  const markSeen = async (queryId: string) => {
+    setFeedBusy(true)
+    await markRequestSeen(queryId)
+    setFeedBusy(false)
+    refreshAll()
   }
 
   const handleMove = async (stepId: string) => {
@@ -220,6 +321,23 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
       if (q.seen_at) items.push({ kind: 'event', at: q.seen_at, key: `qs-${q.id}`, icon: 'seen', text: `${nameOf(q.seen_by)} marked the request seen` })
     }
     return items.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
+  }
+
+  const viewedStep = steps[viewIdx]
+
+  const composerProps = {
+    text: feedText,
+    setText: setFeedText,
+    staged,
+    onRemoveStaged: (id: string) => setStaged(s => s.filter(x => x.id !== id)),
+    busy: feedBusy,
+    error: feedError,
+    fileRef,
+    onUpload: uploadFiles,
+    select,
+    selectedCount: selectedIds.size,
+    onCancelSelect: cancelSelect,
+    onConfirmSelect: confirmSelect,
   }
 
   // One full step view (header + dots + board). All steps stay mounted on
@@ -338,14 +456,19 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
           )}
 
           <StepFeed
-            caseId={caseId}
             stepId={s.id}
             canPost={isActive}
             feed={feed}
             queries={queries}
             meId={meId}
             attachmentsByEntry={attachmentsByEntry}
-            onChanged={refresh}
+            select={select && select.stepId === s.id ? select : null}
+            selectedIds={selectedIds}
+            busy={feedBusy}
+            onToggleEntry={toggleSelectEntry}
+            onStartSelect={(mode, queryId) => startSelect(mode, s.id, queryId)}
+            onMarkSeen={markSeen}
+            composer={<FeedComposer stepId={s.id} {...composerProps} onSend={() => sendFeedMessage(s.id)} />}
           />
         </div>
       </div>
@@ -378,6 +501,21 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
           >
             {steps.map((_, i) => renderStep(i))}
           </div>
+        </div>
+      )}
+
+      {/* Mobile composer — a fixed overlay like the bottom nav, bound to the
+          viewed step. Lives outside the track: position:fixed inside the
+          transform would ride along with the swipe. Touch events stop at the
+          overlay so tapping/swiping it can't drag the carousel. */}
+      {viewedStep && viewedStep.id === currentStepId && (
+        <div
+          onTouchStart={e => e.stopPropagation()}
+          onTouchMove={e => e.stopPropagation()}
+          onTouchEnd={e => e.stopPropagation()}
+          className="md:hidden fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 right-0 z-40 px-4 py-2.5 border-t border-[hsl(var(--color-border))] bg-[hsl(var(--color-background))]/95 backdrop-blur"
+        >
+          <FeedComposer stepId={viewedStep.id} {...composerProps} onSend={() => sendFeedMessage(viewedStep.id)} />
         </div>
       )}
     </div>
@@ -547,116 +685,33 @@ function FeedMessage({ entry, query, attachments, mine, selectMode, selected, on
   )
 }
 
-function StepFeed({ caseId, stepId, canPost, feed, queries, meId, attachmentsByEntry, onChanged }: {
-  caseId: string
+function StepFeed({ stepId, canPost, feed, queries, meId, attachmentsByEntry, select, selectedIds, busy, onToggleEntry, onStartSelect, onMarkSeen, composer }: {
   stepId: string
   canPost: boolean
   feed: FeedItem[]
   queries: Record<string, CaseQuery>
   meId: string | null
   attachmentsByEntry: Record<string, FeedAttachment[]>
-  onChanged: () => void
+  select: { mode: 'request' | 'answer'; stepId: string; queryId?: string } | null
+  selectedIds: Set<string>
+  busy: boolean
+  onToggleEntry: (entryId: string) => void
+  onStartSelect: (mode: 'request' | 'answer', queryId?: string) => void
+  onMarkSeen: (queryId: string) => void
+  composer: ReactNode
 }) {
-  const queryClient = useQueryClient()
-  const [text, setText] = useState('')
-  const [staged, setStaged] = useState<{ id: string; name: string }[]>([])
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [selectMode, setSelectMode] = useState<'request' | 'answer' | null>(null)
-  const [selected, setSelected] = useState<Set<string>>(new Set())
-  const fileRef = useRef<HTMLInputElement>(null)
-
   const stepQueries = Object.values(queries).filter(q => q.step_id === stepId)
   const myOpen = stepQueries.find(q => q.opened_by === meId && q.status === 'open')
   const myAnswered = stepQueries.find(q => q.opened_by === meId && q.status === 'answered' && !q.seen_at)
   const toAnswer = stepQueries.find(q => q.assigned_to === meId && q.status === 'open')
 
-  const refreshAll = () => {
-    onChanged()
-    queryClient.invalidateQueries({ queryKey: queryKeys.requests })
-  }
-
-  const upload = async (files: FileList | null) => {
-    if (!files || files.length === 0) return
-    setBusy(true)
-    setError(null)
-    const supabase = createClient()
-    for (const file of Array.from(files)) {
-      const ext = file.name.split('.').pop()
-      const path = `${caseId}/${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${ext}`
-      const { data: up, error: upErr } = await supabase.storage
-        .from('case_attachments')
-        .upload(path, file, { cacheControl: '3600', upsert: false })
-      if (upErr) { setError(`Upload failed: ${file.name}`); continue }
-      const res = await saveAttachment(caseId, {
-        file_name: file.name,
-        file_path: up.path,
-        file_size: file.size,
-        file_type: file.type,
-      })
-      const savedId = (res as { data?: { id?: string } }).data?.id
-      if (savedId) setStaged(s => [...s, { id: savedId, name: file.name }])
-      else setError(`Upload failed: ${file.name}`)
-    }
-    setBusy(false)
-    if (fileRef.current) fileRef.current.value = ''
-  }
-
-  const send = async () => {
-    if (busy || (!text.trim() && staged.length === 0)) return
-    setBusy(true)
-    setError(null)
-    const r = await postStepMessage(caseId, stepId, text, staged.map(s => s.id))
-    setBusy(false)
-    if (r.error) { setError(r.error); return }
-    setText('')
-    setStaged([])
-    refreshAll()
-  }
-
-  const confirm = async () => {
-    if (!selectMode || selected.size === 0) return
-    setBusy(true)
-    setError(null)
-    const r = selectMode === 'request'
-      ? await sendStepRequest(caseId, stepId, [...selected])
-      : await answerStepRequest(toAnswer!.id, [...selected])
-    setBusy(false)
-    if (r.error) { setError(r.error); return }
-    setSelectMode(null)
-    setSelected(new Set())
-    refreshAll()
-  }
-
-  const seen = async () => {
-    if (!myAnswered) return
-    setBusy(true)
-    await markRequestSeen(myAnswered.id)
-    setBusy(false)
-    refreshAll()
-  }
-
-  // Fill the viewport so the composer lands at the bottom even on short
-  // feeds — measure the space below this block at mount (88px ≈ tab bar).
-  const wrapRef = useRef<HTMLDivElement>(null)
-  const [feedMinH, setFeedMinH] = useState(160)
-  useEffect(() => {
-    const el = wrapRef.current
-    if (!el) return
-    const measure = () =>
-      setFeedMinH(Math.max(160, window.innerHeight - el.getBoundingClientRect().top - 72))
-    measure()
-    window.addEventListener('resize', measure)
-    return () => window.removeEventListener('resize', measure)
-  }, [stepId])
-
   return (
-    <div ref={wrapRef} className="flex flex-col gap-2.5" style={canPost ? { minHeight: feedMinH } : undefined}>
+    <div className="space-y-2.5">
       {/* Request slot — above the feed. Send → waiting → mark seen, per step */}
-      {canPost && !selectMode && (
+      {canPost && !select && (
         <div className="space-y-2">
           {myAnswered ? (
-            <Button onClick={seen} disabled={busy} className="w-full gap-2 bg-green-600 hover:bg-green-700">
+            <Button onClick={() => onMarkSeen(myAnswered.id)} disabled={busy} className="w-full gap-2 bg-green-600 hover:bg-green-700">
               <CheckCheck className="w-4 h-4" />
               Mark as seen
             </Button>
@@ -665,13 +720,13 @@ function StepFeed({ caseId, stepId, canPost, feed, queries, meId, attachmentsByE
               Request sent — waiting
             </Button>
           ) : (
-            <Button variant="secondary" onClick={() => setSelectMode('request')} className="w-full gap-2">
+            <Button variant="secondary" onClick={() => onStartSelect('request')} className="w-full gap-2">
               <MessageSquare className="w-4 h-4" />
               Send Request
             </Button>
           )}
           {toAnswer && (
-            <Button onClick={() => setSelectMode('answer')} className="w-full gap-2">
+            <Button onClick={() => onStartSelect('answer', toAnswer.id)} className="w-full gap-2">
               <CornerDownRight className="w-4 h-4" />
               Close request
             </Button>
@@ -679,13 +734,14 @@ function StepFeed({ caseId, stepId, canPost, feed, queries, meId, attachmentsByE
         </div>
       )}
 
-      <div className="flex-1 space-y-2">
-        {feed.length === 0 ? (
-          <p className="text-xs text-[hsl(var(--color-text-muted))] py-6 text-center">
-            No messages in this step yet
-          </p>
-        ) : (
-          feed.map(item => item.kind === 'event' ? (
+      {/* Feed — messages oldest → newest with thin event lines between */}
+      {feed.length === 0 ? (
+        <p className="text-xs text-[hsl(var(--color-text-muted))] py-6 text-center">
+          No messages in this step yet
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {feed.map(item => item.kind === 'event' ? (
             <EventLine key={item.key} icon={item.icon} text={item.text} at={item.at} />
           ) : (
             <FeedMessage
@@ -694,89 +750,111 @@ function StepFeed({ caseId, stepId, canPost, feed, queries, meId, attachmentsByE
               query={item.entry.query_id ? queries[item.entry.query_id] : undefined}
               attachments={attachmentsByEntry[item.entry.id] || []}
               mine={item.entry.created_by === meId}
-              selectMode={selectMode !== null}
-              selected={selected.has(item.entry.id)}
-              onToggle={() => setSelected(prev => {
-                const n = new Set(prev)
-                if (n.has(item.entry.id)) n.delete(item.entry.id)
-                else n.add(item.entry.id)
-                return n
-              })}
+              selectMode={select !== null}
+              selected={selectedIds.has(item.entry.id)}
+              onToggle={() => onToggleEntry(item.entry.id)}
             />
-          ))
-        )}
-      </div>
-
-      {error && <p className="text-xs text-red-400 px-1">{error}</p>}
-
-      {canPost && (
-        <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] md:bottom-4 z-20 -mx-4 md:-mx-6 px-4 md:px-6 py-2.5 bg-[hsl(var(--color-background))]/95 backdrop-blur">
-        {selectMode ? (
-          <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-3 space-y-2.5">
-            <p className="text-xs text-[hsl(var(--color-text-secondary))]">
-              {selectMode === 'request'
-                ? 'Tap your messages to highlight what this request is about'
-                : 'Tap your messages that answer this request'}
-            </p>
-            <div className="flex gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => { setSelectMode(null); setSelected(new Set()) }}
-                disabled={busy}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button onClick={confirm} disabled={busy || selected.size === 0} className="flex-1">
-                {selectMode === 'request'
-                  ? `Send Request${selected.size ? ` (${selected.size})` : ''}`
-                  : `Close Request${selected.size ? ` (${selected.size})` : ''}`}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {staged.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {staged.map(f => (
-                  <span key={f.id} className="flex items-center gap-1.5 rounded-lg bg-[hsl(var(--color-surface-active))] px-2.5 py-1.5 text-xs text-[hsl(var(--color-text-secondary))]">
-                    <PaperclipIcon className="w-3 h-3" />
-                    <span className="max-w-[160px] truncate">{f.name}</span>
-                    <button onClick={() => setStaged(s => s.filter(x => x.id !== f.id))} className="text-[hsl(var(--color-text-muted))]">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <div className="flex gap-2 items-center">
-              <input type="file" ref={fileRef} multiple className="hidden" onChange={e => upload(e.target.files)} />
-              <button
-                onClick={() => fileRef.current?.click()}
-                disabled={busy}
-                className="w-10 h-10 rounded-xl bg-[hsl(var(--color-surface-active))] flex items-center justify-center text-[hsl(var(--color-text-secondary))] disabled:opacity-40 shrink-0"
-              >
-                <Paperclip className="w-4 h-4" />
-              </button>
-              <input
-                value={text}
-                onChange={e => setText(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), send())}
-                placeholder="Message…"
-                className="flex-1 h-10 px-3.5 rounded-xl bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] text-sm text-[hsl(var(--color-text-primary))] placeholder:text-[hsl(var(--color-text-muted))] outline-none"
-              />
-              <button
-                onClick={send}
-                disabled={busy || (!text.trim() && staged.length === 0)}
-                className="w-10 h-10 rounded-xl bg-[hsl(var(--color-primary))] text-white flex items-center justify-center disabled:opacity-40 shrink-0"
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
+          ))}
         </div>
       )}
+
+      {/* Desktop composer — sticky inside the pane/page scroll. Mobile uses
+          the fixed overlay rendered at the panel root instead. */}
+      {canPost && (
+        <div className="hidden md:block sticky bottom-4 z-20 -mx-4 md:-mx-6 px-4 md:px-6 py-2.5 bg-[hsl(var(--color-background))]/95 backdrop-blur">
+          {composer}
+        </div>
+      )}
+
+      {/* Mobile spacer — last message stays clear of the fixed composer */}
+      {canPost && <div className="h-24 md:hidden" />}
+    </div>
+  )
+}
+
+// Shared composer body — rendered inside the mobile fixed overlay and in
+// the desktop sticky slot. Switches to select-mode controls when the owner
+// step is picking request/answer messages.
+function FeedComposer({ stepId, text, setText, staged, onRemoveStaged, busy, error, fileRef, onUpload, onSend, select, selectedCount, onCancelSelect, onConfirmSelect }: {
+  stepId: string
+  text: string
+  setText: (v: string) => void
+  staged: { id: string; name: string }[]
+  onRemoveStaged: (id: string) => void
+  busy: boolean
+  error: string | null
+  fileRef: RefObject<HTMLInputElement | null>
+  onUpload: (files: FileList | null) => void
+  onSend: () => void
+  select: { mode: 'request' | 'answer'; stepId: string; queryId?: string } | null
+  selectedCount: number
+  onCancelSelect: () => void
+  onConfirmSelect: () => void
+}) {
+  const selecting = !!select && select.stepId === stepId
+
+  if (selecting) {
+    return (
+      <div className="space-y-2">
+        <p className="text-xs text-[hsl(var(--color-text-secondary))]">
+          {select!.mode === 'request'
+            ? 'Tap your messages to highlight what this request is about'
+            : 'Tap your messages that answer this request'}
+        </p>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={onCancelSelect} disabled={busy} className="flex-1">
+            Cancel
+          </Button>
+          <Button onClick={onConfirmSelect} disabled={busy || selectedCount === 0} className="flex-1">
+            {select!.mode === 'request'
+              ? `Send Request${selectedCount ? ` (${selectedCount})` : ''}`
+              : `Close Request${selectedCount ? ` (${selectedCount})` : ''}`}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      {error && <p className="text-xs text-red-400 px-1">{error}</p>}
+      {staged.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {staged.map(f => (
+            <span key={f.id} className="flex items-center gap-1.5 rounded-lg bg-[hsl(var(--color-surface-active))] px-2.5 py-1.5 text-xs text-[hsl(var(--color-text-secondary))]">
+              <PaperclipIcon className="w-3 h-3" />
+              <span className="max-w-[160px] truncate">{f.name}</span>
+              <button onClick={() => onRemoveStaged(f.id)} className="text-[hsl(var(--color-text-muted))]">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2 items-center">
+        <input type="file" ref={fileRef} multiple className="hidden" onChange={e => onUpload(e.target.files)} />
+        <button
+          onClick={() => fileRef.current?.click()}
+          disabled={busy}
+          className="w-10 h-10 rounded-xl bg-[hsl(var(--color-surface-active))] flex items-center justify-center text-[hsl(var(--color-text-secondary))] disabled:opacity-40 shrink-0"
+        >
+          <Paperclip className="w-4 h-4" />
+        </button>
+        <input
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), onSend())}
+          placeholder="Message…"
+          className="flex-1 h-10 px-3.5 rounded-xl bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] text-sm text-[hsl(var(--color-text-primary))] placeholder:text-[hsl(var(--color-text-muted))] outline-none"
+        />
+        <button
+          onClick={onSend}
+          disabled={busy || (!text.trim() && staged.length === 0)}
+          className="w-10 h-10 rounded-xl bg-[hsl(var(--color-primary))] text-white flex items-center justify-center disabled:opacity-40 shrink-0"
+        >
+          <Send className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   )
 }
