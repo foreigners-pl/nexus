@@ -772,8 +772,10 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
       const composerTop = composer.getBoundingClientRect().top
       const docTop = el.getBoundingClientRect().top + window.scrollY
       // Fill so the region's bottom edge lands exactly on the composer's
-      // top edge (auto-handles composer height + safe-area inset)...
-      setRegionH(Math.max(composerTop + window.scrollY - docTop, 160))
+      // top edge (auto-handles composer height + safe-area inset).
+      // composerTop is viewport-space, docTop document-space — no scrollY
+      // on composerTop or the region overshoots by the scroll position.
+      setRegionH(Math.max(composerTop - docTop, 160))
       // ...and tail space below = the occluded zone minus main's pb-20,
       // so the last message scrolls clear at max scroll.
       setTailH(Math.max(window.innerHeight - composerTop - 80, 0))
