@@ -761,13 +761,19 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
   // can anchor to the bottom of it — last message hugs the input, empty
   // space collects at the top of the chat area. Measured before paint.
   const regionRef = useRef<HTMLDivElement>(null)
+  const innerRef = useRef<HTMLDivElement>(null)
   const [regionH, setRegionH] = useState<number | null>(null)
+  const [needsClearance, setNeedsClearance] = useState(false)
   useLayoutEffect(() => {
     const measure = () => {
       const el = regionRef.current
-      if (!el || window.innerWidth >= 768) { setRegionH(null); return }
+      if (!el || window.innerWidth >= 768) { setRegionH(null); setNeedsClearance(false); return }
       const docTop = el.getBoundingClientRect().top + window.scrollY
-      setRegionH(Math.max(window.innerHeight - docTop - 64 - 62, 160))
+      const fill = Math.max(window.innerHeight - docTop - 64 - 62, 160)
+      setRegionH(fill)
+      // Clearance for the fixed composer is only needed when the feed
+      // actually overflows the region — a short feed already ends above it.
+      setNeedsClearance((innerRef.current?.offsetHeight ?? 0) > fill)
     }
     measure()
     window.addEventListener('resize', measure)
@@ -827,18 +833,23 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
         </div>
       )}
 
-      {/* Feed — newest first. Mobile: bounded region down to the fixed
-          composer, messages anchored to its bottom so the last one hugs
-          the input; long feeds scroll internally. Desktop: plain flow. */}
+      {/* Feed — newest first. Mobile: fills down to the fixed composer and
+          anchors messages to its bottom (last message hugs the input),
+          but scrolls with the page — no separate scroll region. Desktop:
+          plain flow. */}
       {canPost ? (
         <div
           ref={regionRef}
-          style={regionH ? { height: regionH } : undefined}
-          className="overflow-y-auto flex flex-col md:contents"
+          style={regionH ? { minHeight: regionH } : undefined}
+          className="flex flex-col md:contents"
         >
-          <div className="mt-auto">{feedList}</div>
+          <div ref={innerRef} className="mt-auto">{feedList}</div>
         </div>
       ) : feedList}
+
+      {/* Mobile scroll clearance — only when the feed overflows, so the
+          last message can scroll out from under the fixed composer */}
+      {canPost && needsClearance && <div className="h-14 md:hidden" />}
 
       {/* Composer — desktop only; mobile uses the fixed overlay at the
           panel root */}
