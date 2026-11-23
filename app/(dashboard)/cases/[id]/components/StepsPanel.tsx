@@ -363,8 +363,6 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
     return items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
   }
 
-  const viewedStep = steps[viewIdx]
-
   const composerProps = {
     text: feedText,
     setText: setFeedText,
@@ -532,8 +530,10 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
         </div>
       ) : (
         // Bleed to the screen edges; each panel carries the page padding
-        // itself so neighbors never touch during the slide.
-        <div className="-mx-4 md:-mx-6 overflow-hidden">
+        // itself so neighbors never touch during the slide. overflow-x:clip
+        // (not hidden) so it doesn't become the sticky container — the
+        // composer inside each panel must stick relative to the page scroll.
+        <div className="-mx-4 md:-mx-6 overflow-x-clip">
           <div
             className="flex items-start will-change-transform"
             style={{
@@ -546,20 +546,6 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
         </div>
       )}
 
-      {/* Mobile composer — a fixed overlay like the bottom nav, bound to the
-          viewed step. Lives outside the track: position:fixed inside the
-          transform would ride along with the swipe. Touch events stop at the
-          overlay so tapping/swiping it can't drag the carousel. */}
-      {viewedStep && viewedStep.id === currentStepId && (
-        <div
-          onTouchStart={e => e.stopPropagation()}
-          onTouchMove={e => e.stopPropagation()}
-          onTouchEnd={e => e.stopPropagation()}
-          className="md:hidden fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 right-0 z-40 px-4 py-2.5 border-t border-[hsl(var(--color-border))] bg-[hsl(var(--color-background))]/95 backdrop-blur"
-        >
-          <FeedComposer stepId={viewedStep.id} {...composerProps} onSend={() => sendFeedMessage(viewedStep.id)} />
-        </div>
-      )}
     </div>
   )
 }
@@ -812,17 +798,15 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
         </div>
       )}
 
-      {/* Desktop composer — sticky inside the pane/page scroll. Mobile uses
-          the fixed overlay rendered at the panel root instead. */}
+      {/* Composer — sticky in the page/pane scroll: hugs the last message
+          on short feeds, stays pinned above the tab bar while a long feed
+          scrolls. offset = nav height + safe-area on mobile, small pad on
+          desktop. */}
       {canPost && (
-        <div className="hidden md:block sticky bottom-4 z-20 -mx-4 md:-mx-6 px-4 md:px-6 py-2.5 bg-[hsl(var(--color-background))]/95 backdrop-blur">
+        <div className="sticky z-20 -mx-4 md:-mx-6 px-4 md:px-6 py-2.5 bottom-[calc(4rem+env(safe-area-inset-bottom))] md:bottom-4 bg-[hsl(var(--color-background))]/95 backdrop-blur">
           {composer}
         </div>
       )}
-
-      {/* Mobile spacer — just enough to scroll the last message clear of
-          the fixed composer (~61px tall) */}
-      {canPost && <div className="h-16 md:hidden" />}
     </div>
   )
 }
