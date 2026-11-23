@@ -636,8 +636,49 @@ function StepFeed({ caseId, stepId, canPost, feed, queries, meId, attachmentsByE
     refreshAll()
   }
 
+  // Fill the viewport so the composer lands at the bottom even on short
+  // feeds — measure the space below this block at mount (88px ≈ tab bar).
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const [feedMinH, setFeedMinH] = useState(160)
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const measure = () =>
+      setFeedMinH(Math.max(160, window.innerHeight - el.getBoundingClientRect().top - 88))
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [stepId])
+
   return (
-    <div className="flex min-h-[50dvh] flex-col gap-2.5">
+    <div ref={wrapRef} className="flex flex-col gap-2.5" style={canPost ? { minHeight: feedMinH } : undefined}>
+      {/* Request slot — above the feed. Send → waiting → mark seen, per step */}
+      {canPost && !selectMode && (
+        <div className="space-y-2">
+          {myAnswered ? (
+            <Button onClick={seen} disabled={busy} className="w-full gap-2 bg-green-600 hover:bg-green-700">
+              <CheckCheck className="w-4 h-4" />
+              Mark as seen
+            </Button>
+          ) : myOpen ? (
+            <Button variant="secondary" disabled className="w-full">
+              Request sent — waiting
+            </Button>
+          ) : (
+            <Button variant="secondary" onClick={() => setSelectMode('request')} className="w-full gap-2">
+              <MessageSquare className="w-4 h-4" />
+              Send Request
+            </Button>
+          )}
+          {toAnswer && (
+            <Button onClick={() => setSelectMode('answer')} className="w-full gap-2">
+              <CornerDownRight className="w-4 h-4" />
+              Close request
+            </Button>
+          )}
+        </div>
+      )}
+
       <div className="flex-1 space-y-2">
         {feed.length === 0 ? (
           <p className="text-xs text-[hsl(var(--color-text-muted))] py-6 text-center">
@@ -695,29 +736,6 @@ function StepFeed({ caseId, stepId, canPost, feed, queries, meId, attachmentsByE
           </div>
         ) : (
           <div className="space-y-2">
-            {/* The request slot: Send → waiting → mark seen, per this step */}
-            {myAnswered ? (
-              <Button onClick={seen} disabled={busy} className="w-full gap-2 bg-green-600 hover:bg-green-700">
-                <CheckCheck className="w-4 h-4" />
-                Mark as seen
-              </Button>
-            ) : myOpen ? (
-              <Button variant="secondary" disabled className="w-full">
-                Request sent — waiting
-              </Button>
-            ) : (
-              <Button variant="secondary" onClick={() => setSelectMode('request')} className="w-full gap-2">
-                <MessageSquare className="w-4 h-4" />
-                Send Request
-              </Button>
-            )}
-            {toAnswer && (
-              <Button onClick={() => setSelectMode('answer')} className="w-full gap-2">
-                <CornerDownRight className="w-4 h-4" />
-                Close request
-              </Button>
-            )}
-
             {staged.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {staged.map(f => (
