@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef, type RefObject, type ReactNode } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, type RefObject, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -363,6 +363,8 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
     return items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
   }
 
+  const viewedStep = steps[viewIdx]
+
   const composerProps = {
     text: feedText,
     setText: setFeedText,
@@ -530,9 +532,7 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
         </div>
       ) : (
         // Bleed to the screen edges; each panel carries the page padding
-        // itself so neighbors never touch during the slide. overflow-x:clip
-        // (not hidden) so it doesn't become the sticky container — the
-        // composer inside each panel must stick relative to the page scroll.
+        // itself so neighbors never touch during the slide.
         <div className="-mx-4 md:-mx-6 overflow-x-clip">
           <div
             className="flex items-start will-change-transform"
@@ -546,6 +546,19 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
         </div>
       )}
 
+      {/* Mobile composer — fixed above the tab bar like the nav overlay,
+          bound to the viewed step. Outside the transform track so it never
+          rides along with a swipe. */}
+      {viewedStep && viewedStep.id === currentStepId && (
+        <div
+          onTouchStart={e => e.stopPropagation()}
+          onTouchMove={e => e.stopPropagation()}
+          onTouchEnd={e => e.stopPropagation()}
+          className="md:hidden fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 right-0 z-40 px-4 py-2.5 bg-[hsl(var(--color-background))]"
+        >
+          <FeedComposer stepId={viewedStep.id} {...composerProps} onSend={() => sendFeedMessage(viewedStep.id)} />
+        </div>
+      )}
     </div>
   )
 }
@@ -744,6 +757,23 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
   const alignRight = (authorId: string | null) =>
     authorId === meId || (!viewerIsParty && authorId === legalId)
 
+  // Mobile: fill the space down to the fixed composer so the message column
+  // can anchor to the bottom of it — last message hugs the input, empty
+  // space collects at the top of the chat area. Measured before paint.
+  const regionRef = useRef<HTMLDivElement>(null)
+  const [regionH, setRegionH] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = regionRef.current
+      if (!el || window.innerWidth >= 768) { setRegionH(null); return }
+      const docTop = el.getBoundingClientRect().top + window.scrollY
+      setRegionH(Math.max(window.innerHeight - docTop - 64 - 62, 160))
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  })
+
   const feedList = feed.length === 0 ? (
     <p className="text-xs text-[hsl(var(--color-text-muted))] py-6 text-center">
       No messages in this step yet
@@ -797,12 +827,23 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
         </div>
       )}
 
-      {/* Feed — newest first, thin event lines inline */}
-      {feedList}
+      {/* Feed — newest first. Mobile: bounded region down to the fixed
+          composer, messages anchored to its bottom so the last one hugs
+          the input; long feeds scroll internally. Desktop: plain flow. */}
+      {canPost ? (
+        <div
+          ref={regionRef}
+          style={regionH ? { height: regionH } : undefined}
+          className="overflow-y-auto flex flex-col md:contents"
+        >
+          <div className="mt-auto">{feedList}</div>
+        </div>
+      ) : feedList}
 
-      {/* Composer — in flow at the end of the feed */}
+      {/* Composer — desktop only; mobile uses the fixed overlay at the
+          panel root */}
       {canPost && (
-        <div className="pt-1">
+        <div className="hidden md:block pt-1">
           {composer}
         </div>
       )}
