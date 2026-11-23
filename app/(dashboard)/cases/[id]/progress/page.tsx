@@ -85,7 +85,7 @@ export default function CaseProgressPage({ params, searchParams }: ProgressPageP
 
   if (redirecting || loading) {
     return (
-      <div className="max-w-3xl mx-auto pb-20">
+      <div className="max-w-3xl mx-auto">
         <div className="animate-pulse space-y-4">
           <div className="h-10 w-56 rounded-lg bg-[hsl(var(--color-surface-hover))]" />
           <div className="h-4 w-40 rounded-lg bg-[hsl(var(--color-surface-hover))]" />
@@ -106,7 +106,7 @@ export default function CaseProgressPage({ params, searchParams }: ProgressPageP
   }
 
   return (
-    <div className="max-w-3xl mx-auto pb-20">
+    <div className="max-w-3xl mx-auto">
       <SubPageHeader
         backHref={`/cases/${urlId}`}
         title={serviceName || caseCode || 'Case'}

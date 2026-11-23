@@ -390,7 +390,7 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
     const feed = feedFor(s.id)
 
     return (
-      <div key={s.id} className="w-full shrink-0 align-top px-4 md:px-6">
+      <div key={s.id} data-step-panel className="w-full shrink-0 align-top px-4 md:px-6">
         {/* Step header panel — state shown by a left accent strip */}
         <div
           className={`rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-3 py-3 flex items-center gap-2 mb-2 border-l-[3px] ${
@@ -770,7 +770,7 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
       const el = regionRef.current
       if (!el || window.innerWidth >= 768) { setRegionH(null); return }
       const composer = document.querySelector<HTMLElement>('[data-step-composer]')
-      if (!composer) { requestAnimationFrame(measure); return }
+      if (!composer) return // overlay mounts in the same commit; next render re-measures
       const composerTop = composer.getBoundingClientRect().top
       const docTop = el.getBoundingClientRect().top + window.scrollY
       // Fill so the region's bottom edge lands exactly on the composer's
@@ -778,13 +778,15 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
       // composerTop is viewport-space, docTop document-space — no scrollY
       // on composerTop or the region overshoots by the scroll position.
       setRegionH(Math.max(composerTop - docTop, 160))
-      // Tail space below the region = the composer's occluded zone, so the
+      // Tail below the region = the composer's occluded zone, so the
       // anchored bottom lands flush on it and the last message can scroll
-      // clear. Measured against the REAL document — page-level padding,
-      // margins, and anything below the feed are all accounted for.
+      // clear. Below-space is measured inside THIS step's panel only —
+      // document.scrollHeight would be contaminated by sibling panels in
+      // the swipe track. 80 = the page-level bottom padding.
       const docBottom = el.getBoundingClientRect().bottom + window.scrollY
-      const docH = document.documentElement.scrollHeight
-      const belowWithoutTail = docH - docBottom - (tailRef.current?.offsetHeight ?? 0)
+      const panel = el.closest('[data-step-panel]')
+      const panelBottom = (panel?.getBoundingClientRect().bottom ?? el.getBoundingClientRect().bottom) + window.scrollY
+      const belowWithoutTail = panelBottom - docBottom - (tailRef.current?.offsetHeight ?? 0) + 80
       setTailH(Math.max(window.innerHeight - composerTop - belowWithoutTail, 0))
     }
     measure()
