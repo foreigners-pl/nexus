@@ -644,7 +644,7 @@ function StepFeed({ caseId, stepId, canPost, feed, queries, meId, attachmentsByE
     const el = wrapRef.current
     if (!el) return
     const measure = () =>
-      setFeedMinH(Math.max(160, window.innerHeight - el.getBoundingClientRect().top - 88))
+      setFeedMinH(Math.max(160, window.innerHeight - el.getBoundingClientRect().top - 72))
     measure()
     window.addEventListener('resize', measure)
     return () => window.removeEventListener('resize', measure)
@@ -710,7 +710,7 @@ function StepFeed({ caseId, stepId, canPost, feed, queries, meId, attachmentsByE
       {error && <p className="text-xs text-red-400 px-1">{error}</p>}
 
       {canPost && (
-        <div className="sticky bottom-20 md:bottom-4 z-20 -mx-4 md:-mx-6 px-4 md:px-6 py-2.5 bg-[hsl(var(--color-background))]/95 backdrop-blur">
+        <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] md:bottom-4 z-20 -mx-4 md:-mx-6 px-4 md:px-6 py-2.5 bg-[hsl(var(--color-background))]/95 backdrop-blur">
         {selectMode ? (
           <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-3 space-y-2.5">
             <p className="text-xs text-[hsl(var(--color-text-secondary))]">
