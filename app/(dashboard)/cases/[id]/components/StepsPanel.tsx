@@ -58,6 +58,8 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
   const [eligibility, setEligibility] = useState<CaseEligibilityState>({ statusCompleted: false, documentsCompleted: false, statusAt: null, documentsAt: null })
   const [eligibilityItems, setEligibilityItems] = useState<ServiceEligibilityItem[]>([])
   const [meId, setMeId] = useState<string | null>(null)
+  const [csrId, setCsrId] = useState<string | null>(null)
+  const [legalId, setLegalId] = useState<string | null>(null)
   const [attachmentsByEntry, setAttachmentsByEntry] = useState<Record<string, FeedAttachment[]>>({})
   const [usersById, setUsersById] = useState<Record<string, { display_name: string | null; email: string }>>({})
   const [viewIdx, setViewIdx] = useState(0)
@@ -88,6 +90,8 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
     setEligibility(data.eligibility)
     setEligibilityItems(data.eligibilityItems)
     setMeId(data.meId)
+    setCsrId((data as any).csrId ?? null)
+    setLegalId((data as any).legalId ?? null)
     setAttachmentsByEntry((data as any).attachmentsByEntry || {})
     setUsersById((data as any).usersById || {})
     if (!didInit.current) {
@@ -320,7 +324,8 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
       if (q.answered_at) items.push({ kind: 'event', at: q.answered_at, key: `qa-${q.id}`, icon: 'answer', text: `${nameOf(q.answered_by)} answered the request` })
       if (q.seen_at) items.push({ kind: 'event', at: q.seen_at, key: `qs-${q.id}`, icon: 'seen', text: `${nameOf(q.seen_by)} marked the request seen` })
     }
-    return items.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
+    // Newest first — the feed reads top-down like an activity stream
+    return items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
   }
 
   const viewedStep = steps[viewIdx]
@@ -461,6 +466,8 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
             feed={feed}
             queries={queries}
             meId={meId}
+            csrId={csrId}
+            legalId={legalId}
             attachmentsByEntry={attachmentsByEntry}
             select={select && select.stepId === s.id ? select : null}
             selectedIds={selectedIds}
@@ -603,11 +610,12 @@ function EventLine({ icon, text, at }: { icon: keyof typeof EVENT_META; text: st
   )
 }
 
-function FeedMessage({ entry, query, attachments, mine, selectMode, selected, onToggle }: {
+function FeedMessage({ entry, query, attachments, mine, right, selectMode, selected, onToggle }: {
   entry: CaseEntry
   query?: CaseQuery
   attachments: FeedAttachment[]
   mine: boolean
+  right: boolean
   selectMode: boolean
   selected: boolean
   onToggle: () => void
@@ -623,9 +631,10 @@ function FeedMessage({ entry, query, attachments, mine, selectMode, selected, on
   }
 
   return (
+    <div className={`flex ${right ? 'justify-end' : 'justify-start'}`}>
     <div
       onClick={selectMode && mine ? onToggle : undefined}
-      className={`rounded-xl border px-3.5 py-2.5 transition-colors ${
+      className={`rounded-xl border px-3.5 py-2.5 transition-colors max-w-[85%] ${
         isQuestion && live
           ? 'border-amber-400/60 bg-amber-400/5'
           : isAnswer && live
@@ -635,12 +644,12 @@ function FeedMessage({ entry, query, attachments, mine, selectMode, selected, on
         selected ? 'ring-2 ring-[hsl(var(--color-primary))]' : ''
       }`}
     >
-      <div className="flex items-baseline gap-2">
+      <div className={`flex items-baseline gap-2 ${right ? 'flex-row-reverse' : ''}`}>
         <p className="text-xs font-semibold text-[hsl(var(--color-text-primary))]">{author}</p>
         <p className="text-[10px] text-[hsl(var(--color-text-muted))]">
           {new Date(entry.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
         </p>
-        <span className="ml-auto flex items-center gap-1.5 shrink-0">
+        <span className={`${right ? 'mr-auto' : 'ml-auto'} flex items-center gap-1.5 shrink-0`}>
           {isQuestion && (
             <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
               live ? 'bg-amber-400/15 text-amber-400' : 'bg-[hsl(var(--color-surface-active))] text-[hsl(var(--color-text-muted))]'
@@ -682,15 +691,18 @@ function FeedMessage({ entry, query, attachments, mine, selectMode, selected, on
         </div>
       )}
     </div>
+    </div>
   )
 }
 
-function StepFeed({ stepId, canPost, feed, queries, meId, attachmentsByEntry, select, selectedIds, busy, onToggleEntry, onStartSelect, onMarkSeen, composer }: {
+function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attachmentsByEntry, select, selectedIds, busy, onToggleEntry, onStartSelect, onMarkSeen, composer }: {
   stepId: string
   canPost: boolean
   feed: FeedItem[]
   queries: Record<string, CaseQuery>
   meId: string | null
+  csrId: string | null
+  legalId: string | null
   attachmentsByEntry: Record<string, FeedAttachment[]>
   select: { mode: 'request' | 'answer'; stepId: string; queryId?: string } | null
   selectedIds: Set<string>
@@ -704,6 +716,12 @@ function StepFeed({ stepId, canPost, feed, queries, meId, attachmentsByEntry, se
   const myOpen = stepQueries.find(q => q.opened_by === meId && q.status === 'open')
   const myAnswered = stepQueries.find(q => q.opened_by === meId && q.status === 'answered' && !q.seen_at)
   const toAnswer = stepQueries.find(q => q.assigned_to === meId && q.status === 'open')
+
+  // Bubble side: participants see their own messages right / others left.
+  // An uninvolved viewer (admin etc.) sees CSR left, legal right.
+  const viewerIsParty = meId === csrId || meId === legalId
+  const alignRight = (authorId: string | null) =>
+    authorId === meId || (!viewerIsParty && authorId === legalId)
 
   return (
     <div className="space-y-2.5">
@@ -734,7 +752,7 @@ function StepFeed({ stepId, canPost, feed, queries, meId, attachmentsByEntry, se
         </div>
       )}
 
-      {/* Feed — messages oldest → newest with thin event lines between */}
+      {/* Feed — newest first, thin event lines inline */}
       {feed.length === 0 ? (
         <p className="text-xs text-[hsl(var(--color-text-muted))] py-6 text-center">
           No messages in this step yet
@@ -750,6 +768,7 @@ function StepFeed({ stepId, canPost, feed, queries, meId, attachmentsByEntry, se
               query={item.entry.query_id ? queries[item.entry.query_id] : undefined}
               attachments={attachmentsByEntry[item.entry.id] || []}
               mine={item.entry.created_by === meId}
+              right={alignRight(item.entry.created_by)}
               selectMode={select !== null}
               selected={selectedIds.has(item.entry.id)}
               onToggle={() => onToggleEntry(item.entry.id)}

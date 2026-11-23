@@ -174,7 +174,7 @@ export async function fetchClientPageData(idOrCode: string) {
 export async function fetchCaseWorkflow(caseId: string) {
   const [me, caseRes, stepsRes, entriesRes, queriesRes, servicesRes, eligibilityRes, attachmentsRes] = await Promise.all([
     meId(),
-    supabase.from('cases').select('current_step_id').eq('id', caseId).single(),
+    supabase.from('cases').select('current_step_id, csr_id, assigned_to').eq('id', caseId).single(),
     supabase.from('case_steps').select('*').eq('case_id', caseId).order('position'),
     supabase
       .from('case_entries')
@@ -233,6 +233,8 @@ export async function fetchCaseWorkflow(caseId: string) {
     entries,
     queries,
     currentStepId: caseRes.data?.current_step_id ?? null,
+    csrId: (caseRes.data as any)?.csr_id ?? null,
+    legalId: (caseRes.data as any)?.assigned_to ?? null,
     openAction,
     meId: me,
     attachmentsByEntry,
