@@ -797,16 +797,15 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
         </div>
       )}
 
-      {/* Composer — in flow at the top of the feed: new messages land
-          directly beneath it (newest-first ordering) */}
+      {/* Feed — newest first, thin event lines inline */}
+      {feedList}
+
+      {/* Composer — in flow at the end of the feed */}
       {canPost && (
-        <div className="pb-1">
+        <div className="pt-1">
           {composer}
         </div>
       )}
-
-      {/* Feed — newest first, thin event lines inline */}
-      {feedList}
     </div>
   )
 }
