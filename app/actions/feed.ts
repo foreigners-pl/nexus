@@ -55,8 +55,6 @@ export async function postStepMessage(caseId: string, stepId: string, body: stri
     await supabase.from('case_attachments').update({ entry_id: entry.id }).in('id', attachmentIds)
   }
 
-  revalidatePath(`/cases/${caseId}`)
-
   const ctx = await getCaseContext(supabase, caseId)
   const name = await actorName(supabase, user.id)
   const recipients = [ctx.assignedTo, ctx.csrId].filter((id): id is string => !!id && id !== user.id)

@@ -179,13 +179,48 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
 
   const sendFeedMessage = async (stepId: string) => {
     if (feedBusy || (!feedText.trim() && staged.length === 0)) return
-    setFeedBusy(true)
-    setFeedError(null)
-    const r = await postStepMessage(caseId, stepId, feedText, staged.map(s => s.id))
-    setFeedBusy(false)
-    if (r.error) { setFeedError(r.error); return }
+    // Optimistic — the message renders immediately; the server action and
+    // refetch confirm it in the background. Rolled back on failure.
+    const text = feedText
+    const files = staged
+    const tempId = `temp-${Date.now()}`
+    const optimistic: CaseEntry = {
+      id: tempId,
+      case_id: caseId,
+      step_id: stepId,
+      kind: 'note',
+      body: text.trim() || null,
+      created_by: meId,
+      created_at: new Date().toISOString(),
+      due_date: null,
+      waiting_on: null,
+      completed_at: null,
+      completed_by: null,
+      query_id: null,
+      request_part: null,
+      author: meId ? usersById[meId] ?? { display_name: 'Me', email: '' } : null,
+    }
+    setEntries(prev => [...prev, optimistic])
+    if (files.length) {
+      setAttachmentsByEntry(prev => ({
+        ...prev,
+        [tempId]: files.map(f => ({ id: f.id, file_name: f.name, file_path: '', file_type: null, file_size: null })),
+      }))
+    }
     setFeedText('')
     setStaged([])
+    setFeedError(null)
+    setFeedBusy(true)
+    const r = await postStepMessage(caseId, stepId, text, files.map(f => f.id))
+    setFeedBusy(false)
+    if (r.error) {
+      setEntries(prev => prev.filter(e => e.id !== tempId))
+      setAttachmentsByEntry(prev => { const n = { ...prev }; delete n[tempId]; return n })
+      setFeedText(text)
+      setStaged(files)
+      setFeedError(r.error)
+      return
+    }
     refreshAll()
   }
 
