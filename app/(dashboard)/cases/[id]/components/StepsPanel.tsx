@@ -551,6 +551,7 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
           rides along with a swipe. */}
       {viewedStep && viewedStep.id === currentStepId && (
         <div
+          data-step-composer
           onTouchStart={e => e.stopPropagation()}
           onTouchMove={e => e.stopPropagation()}
           onTouchEnd={e => e.stopPropagation()}
@@ -761,19 +762,21 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
   // can anchor to the bottom of it — last message hugs the input, empty
   // space collects at the top of the chat area. Measured before paint.
   const regionRef = useRef<HTMLDivElement>(null)
-  const innerRef = useRef<HTMLDivElement>(null)
   const [regionH, setRegionH] = useState<number | null>(null)
-  const [needsClearance, setNeedsClearance] = useState(false)
+  const [tailH, setTailH] = useState(44)
   useLayoutEffect(() => {
     const measure = () => {
       const el = regionRef.current
-      if (!el || window.innerWidth >= 768) { setRegionH(null); setNeedsClearance(false); return }
+      const composer = document.querySelector<HTMLElement>('[data-step-composer]')
+      if (!el || !composer || window.innerWidth >= 768) { setRegionH(null); return }
+      const composerTop = composer.getBoundingClientRect().top
       const docTop = el.getBoundingClientRect().top + window.scrollY
-      const fill = Math.max(window.innerHeight - docTop - 64 - 62, 160)
-      setRegionH(fill)
-      // Clearance for the fixed composer is only needed when the feed
-      // actually overflows the region — a short feed already ends above it.
-      setNeedsClearance((innerRef.current?.offsetHeight ?? 0) > fill)
+      // Fill so the region's bottom edge lands exactly on the composer's
+      // top edge (auto-handles composer height + safe-area inset)...
+      setRegionH(Math.max(composerTop + window.scrollY - docTop, 160))
+      // ...and tail space below = the occluded zone minus main's pb-20,
+      // so the last message scrolls clear at max scroll.
+      setTailH(Math.max(window.innerHeight - composerTop - 80, 0))
     }
     measure()
     window.addEventListener('resize', measure)
@@ -843,13 +846,14 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
           style={regionH ? { minHeight: regionH } : undefined}
           className="flex flex-col md:contents"
         >
-          <div ref={innerRef} className="mt-auto">{feedList}</div>
+          <div className="mt-auto">{feedList}</div>
         </div>
       ) : feedList}
 
-      {/* Mobile scroll clearance — only when the feed overflows, so the
-          last message can scroll out from under the fixed composer */}
-      {canPost && needsClearance && <div className="h-14 md:hidden" />}
+      {/* Tail below the feed — pb-20 + this spacer = the zone the fixed
+          composer covers, so the anchored bottom lands flush on the input
+          and the last message can scroll clear of it */}
+      {canPost && <div className="md:hidden" style={{ height: tailH }} />}
 
       {/* Composer — desktop only; mobile uses the fixed overlay at the
           panel root */}
