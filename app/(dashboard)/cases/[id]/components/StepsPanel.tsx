@@ -520,7 +520,7 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
   return (
     <div
       ref={slideRef}
-      className="space-y-3 min-h-[70dvh] [touch-action:pan-y]"
+      className="space-y-3 [touch-action:pan-y]"
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
@@ -820,8 +820,9 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
         </div>
       )}
 
-      {/* Mobile spacer — last message stays clear of the fixed composer */}
-      {canPost && <div className="h-24 md:hidden" />}
+      {/* Mobile spacer — just enough to scroll the last message clear of
+          the fixed composer (~61px tall) */}
+      {canPost && <div className="h-16 md:hidden" />}
     </div>
   )
 }
