@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { searchClientsQuery, type ClientSearchResult } from '@/lib/data'
 import { fetchCurrentUser, fetchMyOpenTasks, fetchMyOpenActions, fetchCasesMissingActions } from '@/lib/data'
 import { getMyQueries } from '@/app/actions/workflow'
+import { getMyAnsweredHistory } from '@/app/actions/feed'
 import { getRecentClients, type RecentClient } from '@/lib/recent-clients'
 import { usePaneNavigate } from '@/lib/panes'
 import { usePrefetchClientPage, queryKeys } from '@/lib/query'
@@ -49,8 +50,8 @@ export default function MobileHomePage() {
   const { data: requestsData } = useQuery({
     queryKey: queryKeys.requests,
     queryFn: async () => {
-      const [tasksRes, queriesRes] = await Promise.all([fetchMyOpenTasks(), getMyQueries()])
-      return { tasks: tasksRes.tasks, queries: queriesRes.queries }
+      const [tasksRes, queriesRes, historyRes] = await Promise.all([fetchMyOpenTasks(), getMyQueries(), getMyAnsweredHistory(10)])
+      return { tasks: tasksRes.tasks, queries: queriesRes.queries, history: historyRes.queries }
     },
     staleTime: 60 * 1000,
     refetchInterval: 15 * 1000,
@@ -69,14 +70,15 @@ export default function MobileHomePage() {
 
   const newTasks = requestsData == null ? null : (() => {
     const cutoff = Date.now() - DAY_MS
-    const all = [...requestsData.tasks.map(t => t.created_at), ...requestsData.queries.map(q => q.pending_since ?? q.created_at)]
+    const all = [...requestsData.tasks.map(t => t.created_at), ...requestsData.queries.filter(q => q.needs_me === 'respond').map(q => q.pending_since ?? q.created_at)]
     return all.filter(d => new Date(d).getTime() >= cutoff).length
   })()
   const lateTasks = requestsData == null ? null : (() => {
     const cutoff = Date.now() - DAY_MS
-    const all = [...requestsData.tasks.map(t => t.created_at), ...requestsData.queries.map(q => q.pending_since ?? q.created_at)]
+    const all = [...requestsData.tasks.map(t => t.created_at), ...requestsData.queries.filter(q => q.needs_me === 'respond').map(q => q.pending_since ?? q.created_at)]
     return all.filter(d => new Date(d).getTime() < cutoff).length
   })()
+  const answeredCount = requestsData == null ? null : requestsData.queries.filter(q => q.needs_me === 'seen').length
   const neglectedCount = actionsData == null ? null : actionsData.missing.length
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -231,18 +233,24 @@ export default function MobileHomePage() {
             <p className="text-base font-semibold text-[hsl(var(--color-text-primary))] flex-1">Requests</p>
             <ChevronRight className="w-5 h-5 text-[hsl(var(--color-text-muted))]" />
           </div>
-          <div className="grid grid-cols-2 text-center mt-4">
+          <div className="grid grid-cols-3 text-center mt-4">
             <div className="border-r border-[hsl(var(--color-border))]">
               <p className={`text-4xl font-bold ${newTasks ? 'text-blue-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
                 {newTasks ?? '–'}
               </p>
               <p className="text-xs text-[hsl(var(--color-text-muted))] mt-1.5">New</p>
             </div>
-            <div>
+            <div className="border-r border-[hsl(var(--color-border))]">
               <p className={`text-4xl font-bold ${lateTasks ? 'text-red-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
                 {lateTasks ?? '–'}
               </p>
               <p className="text-xs text-[hsl(var(--color-text-muted))] mt-1.5">Late</p>
+            </div>
+            <div>
+              <p className={`text-4xl font-bold ${answeredCount ? 'text-green-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
+                {answeredCount ?? '–'}
+              </p>
+              <p className="text-xs text-[hsl(var(--color-text-muted))] mt-1.5">Answered</p>
             </div>
           </div>
         </div>

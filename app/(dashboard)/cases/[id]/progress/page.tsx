@@ -13,12 +13,12 @@ import { ListChecks, Pencil } from 'lucide-react'
 
 interface ProgressPageProps {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ q?: string; e?: string }>
+  searchParams: Promise<{ q?: string; e?: string; s?: string }>
 }
 
 export default function CaseProgressPage({ params, searchParams }: ProgressPageProps) {
   const { id: urlId } = use(params)
-  const { q: focusQueryId, e: focusEntryId } = use(searchParams)
+  const { q: focusQueryId, e: focusEntryId, s: focusStepId } = use(searchParams)
   const router = useRouter()
   const [caseId, setCaseId] = useState<string | null>(null)
   const [clientId, setClientId] = useState<string | null>(null)
@@ -120,7 +120,7 @@ export default function CaseProgressPage({ params, searchParams }: ProgressPageP
           </Button>
         }
       />
-      <StepsPanel caseId={caseId} />
+      <StepsPanel caseId={caseId} focusStepId={focusStepId} />
     </div>
   )
 }

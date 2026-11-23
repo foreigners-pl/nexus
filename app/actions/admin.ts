@@ -474,16 +474,15 @@ export async function getUsageOverview(): Promise<{ users: UsageRow[]; error?: s
     supabase
       .from('case_queries')
       .select(`
-        id, case_id, status, created_at, opened_by, assigned_to,
+        id, case_id, step_id, status, created_at, answered_at, opened_by, assigned_to,
         case_steps(name),
-        cases(case_code, clients(first_name, last_name)),
-        case_query_messages(body, created_at)
+        cases(case_code, clients(first_name, last_name))
       `)
       .in('status', ['open', 'answered'])
       .order('created_at', { ascending: false }),
     supabase
       .from('case_entries')
-      .select('id, body, due_date, case_id, step_id, cases!inner(case_code, csr_id, assigned_to, clients(first_name, last_name))')
+      .select('id, body, due_date, case_id, step_id, created_by, cases!inner(case_code, clients(first_name, last_name))')
       .eq('kind', 'action')
       .is('completed_at', null)
       .order('due_date', { ascending: true, nullsFirst: false }),
@@ -492,41 +491,40 @@ export async function getUsageOverview(): Promise<{ users: UsageRow[]; error?: s
       .select('id, case_code, csr_id, assigned_to, status:status_id(name), clients(first_name, last_name), step:case_steps!cases_current_step_id_fkey(name, step_type)'),
   ])
 
-  // entry_id for each query so request rows deep-link to the thread entry
+  // Question-entry per query — used for the preview text and deep link
   const queryIds = ((queriesRes.data || []) as any[]).map(q => q.id)
   const { data: queryEntries } = queryIds.length
-    ? await supabase.from('case_entries').select('id, query_id').in('query_id', queryIds)
+    ? await supabase
+        .from('case_entries')
+        .select('id, query_id, body')
+        .in('query_id', queryIds)
+        .eq('request_part', 'question')
     : { data: [] }
-  const entryByQuery = new Map((queryEntries || []).map((e: any) => [e.query_id, e.id]))
+  const entryByQuery = new Map((queryEntries || []).map((e: any) => [e.query_id, e]))
 
   const caseLabel = (c: any) =>
     c?.clients ? [c.clients.first_name, c.clients.last_name].filter(Boolean).join(' ') : null
 
   const requestsByUser: Record<string, UsageItem[]> = {}
   for (const q of (queriesRes.data || []) as any[]) {
-    // assigned + open → they must respond; opened + answered → they must review
+    // assigned + open → they must respond; opened + answered → they must mark seen
     const owner = q.status === 'open' ? q.assigned_to : q.opened_by
     if (!owner) continue
-    const entryId = entryByQuery.get(q.id) as string | undefined
-    const msgs = (q.case_query_messages || []).sort(
-      (a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-    )
+    const question = entryByQuery.get(q.id) as { body?: string } | undefined
     // The 24h clock starts when the ball entered the owner's court — the
-    // query's creation for open ones, the answer's arrival for ones awaiting
-    // review. Otherwise a long thread that was just answered shows "late".
+    // request's creation for open ones, the answer's arrival for ones
+    // awaiting 'mark as seen'.
     const pendingSince = q.status === 'answered'
-      ? (msgs[msgs.length - 1]?.created_at ?? q.created_at)
+      ? (q.answered_at ?? q.created_at)
       : q.created_at
     const isNew = new Date(pendingSince || 0).getTime() >= cutoff24hMs
     const item: UsageItem = {
       id: q.id,
-      title: msgs[0]?.body || 'Request',
+      title: question?.body || 'Request',
       subtitle: [caseLabel(q.cases) || q.cases?.case_code, q.case_steps?.name].filter(Boolean).join(' · '),
       date: q.created_at,
       tag: q.status === 'open' ? (isNew ? 'new' : 'late') : 'review',
-      href: entryId
-        ? `/cases/${q.case_id}/progress/${entryId}`
-        : `/cases/${q.case_id}/progress?q=${q.id}`,
+      href: `/cases/${q.case_id}/progress${q.step_id ? `?s=${q.step_id}` : ''}`,
     }
     ;(requestsByUser[owner] ??= []).push(item)
   }
@@ -544,9 +542,8 @@ export async function getUsageOverview(): Promise<{ users: UsageRow[]; error?: s
       tag: isLate ? 'late' : 'upcoming',
       href: `/cases/${a.case_id}/progress${a.step_id ? `?s=${a.step_id}` : ''}`,
     }
-    for (const uid of [a.cases?.csr_id, a.cases?.assigned_to].filter(Boolean) as string[]) {
-      ;(actionsByUser[uid] ??= []).push(item)
-    }
+    // Actions are personal reminders — they belong to whoever set them
+    if (a.created_by) (actionsByUser[a.created_by] ??= []).push(item)
   }
 
   const neglectedByUser: Record<string, UsageItem[]> = {}

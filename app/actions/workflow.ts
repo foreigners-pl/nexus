@@ -33,6 +33,8 @@ export interface CaseEntry {
   completed_at: string | null
   completed_by: string | null
   query_id: string | null
+  /** 'question' | 'answer' — highlighted context of a step request */
+  request_part?: string | null
   author?: { display_name: string | null; email: string } | null
 }
 
@@ -789,18 +791,6 @@ export async function createAction(caseId: string, body: string, dueDate: string
   if (!trimmed) return { error: 'Action description is required' }
   if (!dueDate) return { error: 'Due date is required' }
 
-  // Enforce a single open action per case
-  const { data: openActions } = await supabase
-    .from('case_entries')
-    .select('id')
-    .eq('case_id', caseId)
-    .eq('kind', 'action')
-    .is('completed_at', null)
-    .limit(1)
-  if (openActions && openActions.length > 0) {
-    return { error: 'Complete the current action first' }
-  }
-
   const { data: entry, error } = await supabase.from('case_entries').insert({
     case_id: caseId,
     step_id: await getActiveStepId(supabase, caseId),
@@ -952,7 +942,7 @@ export async function getCasesMissingActions(): Promise<{ cases: MissingActionCa
   }
 }
 
-/** Open actions on cases where the user is the lawyer or the CSR. */
+/** My open action reminders (personal — actions belong to their creator). */
 export async function getMyOpenActions(): Promise<{ actions: MyAction[]; error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -962,8 +952,8 @@ export async function getMyOpenActions(): Promise<{ actions: MyAction[]; error?:
     .from('case_entries')
     .select('id, body, due_date, waiting_on, case_id, step_id, cases!inner(case_code, assigned_to, csr_id, clients(first_name, last_name))')
     .eq('kind', 'action')
+    .eq('created_by', user.id)
     .is('completed_at', null)
-    .or(`assigned_to.eq.${user.id},csr_id.eq.${user.id}`, { foreignTable: 'cases' })
     .order('due_date', { ascending: true, nullsFirst: false })
 
   if (error) return { actions: [], error: error.message }
@@ -998,6 +988,10 @@ export interface CaseQuery {
   status: 'open' | 'answered' | 'closed'
   created_at: string
   closed_at: string | null
+  answered_at?: string | null
+  answered_by?: string | null
+  seen_at?: string | null
+  seen_by?: string | null
 }
 
 export interface QueryMessage {
@@ -1171,15 +1165,15 @@ export interface MyQuery {
   id: string
   case_id: string
   entry_id: string | null
+  step_id: string | null
   status: 'open' | 'answered' | 'closed'
   direction: 'csr_to_legal' | 'legal_to_csr'
   created_at: string
+  answered_at: string | null
   /** When the ball entered my court — query creation for open ones I must
-   *  answer, the answer's arrival for ones awaiting my review. Drives the
-   *  24h new→late threshold so a long thread that was just answered isn't
-   *  instantly "late". */
+   *  answer, the answer's arrival for ones awaiting my 'mark as seen'. */
   pending_since: string
-  needs_me: 'respond' | 'review'
+  needs_me: 'respond' | 'seen'
   preview: string | null
   case_code: string | null
   client_name: string | null
@@ -1187,9 +1181,9 @@ export interface MyQuery {
 }
 
 /**
- * Queries that currently need ME: ones assigned to me still 'open'
- * (I must respond), plus ones I opened that are 'answered'
- * (awaiting my review/close).
+ * Requests that currently need ME: ones assigned to me still 'open'
+ * (I must answer), plus ones I opened that are 'answered' and unseen
+ * (I must mark as seen after reading the answer).
  */
 export async function getMyQueries(): Promise<{ queries: MyQuery[]; error?: string }> {
   const supabase = await createClient()
@@ -1199,40 +1193,40 @@ export async function getMyQueries(): Promise<{ queries: MyQuery[]; error?: stri
   const { data, error } = await supabase
     .from('case_queries')
     .select(`
-      id, case_id, status, direction, created_at, opened_by, assigned_to,
+      id, case_id, step_id, status, direction, created_at, answered_at, seen_at, opened_by, assigned_to,
       case_steps(name),
-      cases(case_code, clients(first_name, last_name)),
-      case_query_messages(body, created_at)
+      cases(case_code, clients(first_name, last_name))
     `)
-    .or(`and(assigned_to.eq.${user.id},status.eq.open),and(opened_by.eq.${user.id},status.eq.answered)`)
+    .or(`and(assigned_to.eq.${user.id},status.eq.open),and(opened_by.eq.${user.id},status.eq.answered,seen_at.is.null)`)
     .order('created_at', { ascending: false })
 
   if (error) return { queries: [], error: error.message }
 
   const queryIds = (data || []).map((q: any) => q.id)
   const { data: entries } = queryIds.length
-    ? await supabase.from('case_entries').select('id, query_id').in('query_id', queryIds)
+    ? await supabase
+        .from('case_entries')
+        .select('id, query_id, body')
+        .in('query_id', queryIds)
+        .eq('request_part', 'question')
     : { data: [] }
-  const entryByQuery = new Map((entries || []).map((e: any) => [e.query_id, e.id]))
+  const entryByQuery = new Map((entries || []).map((e: any) => [e.query_id, e]))
 
   return {
     queries: (data || []).map((q: any) => {
-      const msgs = (q.case_query_messages || []).sort(
-        (a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-      )
-      const pending_since = q.status === 'answered'
-        ? (msgs[msgs.length - 1]?.created_at ?? q.created_at)
-        : q.created_at
+      const question = entryByQuery.get(q.id)
       return {
         id: q.id,
         case_id: q.case_id,
-        entry_id: entryByQuery.get(q.id) ?? null,
+        entry_id: question?.id ?? null,
+        step_id: q.step_id ?? null,
         status: q.status,
         direction: q.direction,
         created_at: q.created_at,
-        pending_since,
-        needs_me: q.assigned_to === user.id && q.status === 'open' ? 'respond' : 'review',
-        preview: msgs[0]?.body ?? null,
+        answered_at: q.answered_at ?? null,
+        pending_since: q.status === 'answered' ? (q.answered_at ?? q.created_at) : q.created_at,
+        needs_me: q.assigned_to === user.id && q.status === 'open' ? 'respond' : 'seen',
+        preview: question?.body ?? null,
         case_code: q.cases?.case_code ?? null,
         client_name: q.cases?.clients
           ? [q.cases.clients.first_name, q.cases.clients.last_name].filter(Boolean).join(' ')

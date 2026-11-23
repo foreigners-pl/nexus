@@ -172,7 +172,7 @@ export async function fetchClientPageData(idOrCode: string) {
 // ============================================================
 
 export async function fetchCaseWorkflow(caseId: string) {
-  const [me, caseRes, stepsRes, entriesRes, queriesRes, servicesRes, eligibilityRes] = await Promise.all([
+  const [me, caseRes, stepsRes, entriesRes, queriesRes, servicesRes, eligibilityRes, attachmentsRes] = await Promise.all([
     meId(),
     supabase.from('cases').select('current_step_id').eq('id', caseId).single(),
     supabase.from('case_steps').select('*').eq('case_id', caseId).order('position'),
@@ -180,16 +180,38 @@ export async function fetchCaseWorkflow(caseId: string) {
       .from('case_entries')
       .select('*, author:users!created_by(display_name, email)')
       .eq('case_id', caseId)
-      .order('created_at', { ascending: false }),
+      .order('created_at', { ascending: true }),
     supabase.from('case_queries').select('*').eq('case_id', caseId),
     supabase.from('case_services').select('service_id').eq('case_id', caseId).limit(1),
     supabase.from('case_eligibility').select('*').eq('case_id', caseId),
+    supabase.from('case_attachments').select('id, entry_id, file_name, file_path, file_type, file_size').eq('case_id', caseId).not('entry_id', 'is', null),
   ])
 
   const entries = (entriesRes.data || []) as any[]
   const openAction = entries.find(e => e.kind === 'action' && !e.completed_at) || null
   const queries: Record<string, any> = {}
   for (const q of queriesRes.data || []) queries[q.id] = q
+
+  const attachmentsByEntry: Record<string, any[]> = {}
+  for (const a of attachmentsRes.data || []) {
+    if (!a.entry_id) continue
+    ;(attachmentsByEntry[a.entry_id] ||= []).push(a)
+  }
+
+  // Actor names for request/action event lines — query lifecycle actors
+  // aren't covered by entry authors, so resolve them here.
+  const actorIds = new Set<string>()
+  for (const q of queriesRes.data || []) {
+    for (const id of [q.opened_by, q.assigned_to, q.answered_by, q.seen_by]) if (id) actorIds.add(id)
+  }
+  for (const e of entries) {
+    if (e.completed_by) actorIds.add(e.completed_by)
+  }
+  const usersById: Record<string, { display_name: string | null; email: string }> = {}
+  if (actorIds.size) {
+    const { data: us } = await supabase.from('users').select('id, display_name, email').in('id', [...actorIds])
+    for (const u of us || []) usersById[u.id] = u
+  }
 
   const serviceId = (servicesRes.data?.[0] as any)?.service_id ?? null
   const eligibilityRows = (eligibilityRes.data || []) as any[]
@@ -213,6 +235,8 @@ export async function fetchCaseWorkflow(caseId: string) {
     currentStepId: caseRes.data?.current_step_id ?? null,
     openAction,
     meId: me,
+    attachmentsByEntry,
+    usersById,
     serviceId,
     eligibility: {
       statusCompleted: !!statusRow?.completed_at,
@@ -453,38 +477,38 @@ export async function fetchMyQueries() {
   const { data } = await supabase
     .from('case_queries')
     .select(`
-      id, case_id, status, direction, created_at, opened_by, assigned_to,
+      id, case_id, step_id, status, direction, created_at, answered_at, seen_at, opened_by, assigned_to,
       case_steps(name),
-      cases(case_code, clients(first_name, last_name)),
-      case_query_messages(body, created_at)
+      cases(case_code, clients(first_name, last_name))
     `)
-    .or(`and(assigned_to.eq.${me},status.eq.open),and(opened_by.eq.${me},status.eq.answered)`)
+    .or(`and(assigned_to.eq.${me},status.eq.open),and(opened_by.eq.${me},status.eq.answered,seen_at.is.null)`)
     .order('created_at', { ascending: false })
 
   const queryIds = (data || []).map((q: any) => q.id)
   const { data: entries } = queryIds.length
-    ? await supabase.from('case_entries').select('id, query_id').in('query_id', queryIds)
+    ? await supabase
+        .from('case_entries')
+        .select('id, query_id, body')
+        .in('query_id', queryIds)
+        .eq('request_part', 'question')
     : { data: [] }
-  const entryByQuery = new Map((entries || []).map((e: any) => [e.query_id, e.id]))
+  const entryByQuery = new Map((entries || []).map((e: any) => [e.query_id, e]))
 
   return {
     queries: (data || []).map((q: any) => {
-      const msgs = (q.case_query_messages || []).sort(
-        (a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-      )
-      const pending_since = q.status === 'answered'
-        ? (msgs[msgs.length - 1]?.created_at ?? q.created_at)
-        : q.created_at
+      const question = entryByQuery.get(q.id)
       return {
         id: q.id,
         case_id: q.case_id,
-        entry_id: entryByQuery.get(q.id) ?? null,
+        entry_id: question?.id ?? null,
+        step_id: q.step_id ?? null,
         status: q.status,
         direction: q.direction,
         created_at: q.created_at,
-        pending_since,
-        needs_me: q.assigned_to === me && q.status === 'open' ? 'respond' : 'review',
-        preview: msgs[0]?.body ?? null,
+        answered_at: q.answered_at ?? null,
+        pending_since: q.status === 'answered' ? (q.answered_at ?? q.created_at) : q.created_at,
+        needs_me: q.assigned_to === me && q.status === 'open' ? 'respond' : 'seen',
+        preview: question?.body ?? null,
         case_code: q.cases?.case_code ?? null,
         client_name: q.cases?.clients
           ? [q.cases.clients.first_name, q.cases.clients.last_name].filter(Boolean).join(' ')
@@ -495,16 +519,53 @@ export async function fetchMyQueries() {
   }
 }
 
+/** Last N requests I sent that got answered — includes ones already marked
+ *  seen, so accidental marks can be dug back up. */
+export async function fetchMyAnsweredHistory(limit = 10) {
+  const me = await meId()
+  if (!me) return { queries: [] as any[] }
+
+  const { data } = await supabase
+    .from('case_queries')
+    .select(`
+      id, case_id, step_id, status, direction, created_at, answered_at, seen_at, opened_by, assigned_to,
+      case_steps(name),
+      cases(case_code, clients(first_name, last_name))
+    `)
+    .eq('opened_by', me)
+    .in('status', ['answered', 'closed'])
+    .not('answered_at', 'is', null)
+    .order('answered_at', { ascending: false })
+    .limit(limit)
+
+  return {
+    queries: (data || []).map((q: any) => ({
+      id: q.id,
+      case_id: q.case_id,
+      step_id: q.step_id ?? null,
+      status: q.status,
+      created_at: q.created_at,
+      answered_at: q.answered_at ?? null,
+      seen_at: q.seen_at ?? null,
+      case_code: q.cases?.case_code ?? null,
+      client_name: q.cases?.clients
+        ? [q.cases.clients.first_name, q.cases.clients.last_name].filter(Boolean).join(' ')
+        : null,
+      step_name: q.case_steps?.name ?? null,
+    })),
+  }
+}
+
 export async function fetchMyOpenActions() {
   const me = await meId()
   if (!me) return { actions: [] as any[] }
 
   const { data } = await supabase
     .from('case_entries')
-    .select('id, body, due_date, waiting_on, case_id, step_id, cases!inner(case_code, assigned_to, csr_id, clients(first_name, last_name))')
+    .select('id, body, due_date, waiting_on, case_id, step_id, cases!inner(case_code, clients(first_name, last_name))')
     .eq('kind', 'action')
+    .eq('created_by', me)
     .is('completed_at', null)
-    .or(`assigned_to.eq.${me},csr_id.eq.${me}`, { foreignTable: 'cases' })
     .order('due_date', { ascending: true, nullsFirst: false })
 
   return {

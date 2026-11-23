@@ -1,19 +1,21 @@
 'use client'
 
 import Link from 'next/link'
-import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query'
 import type { MyQuery } from '@/app/actions/workflow'
 import { fetchMyOpenTasks } from '@/lib/data'
 import { getMyQueries } from '@/app/actions/workflow'
+import { markRequestSeen, markAllRequestsSeen, getMyAnsweredHistory } from '@/app/actions/feed'
 import { MobileBackHeader } from '@/components/mobile/MobileBackHeader'
 import { usePaneLink } from '@/lib/panes'
-import { usePrefetchEntry } from '@/lib/query'
-import { ChevronRight, MessageSquare, Loader2 } from 'lucide-react'
+import { ChevronRight, MessageSquare, Loader2, CheckCheck } from 'lucide-react'
 
 const DAY_MS = 86400000
 
 type Task = Awaited<ReturnType<typeof fetchMyOpenTasks>>['tasks'][number]
+type AnsweredHistoryItem = Awaited<ReturnType<typeof getMyAnsweredHistory>>['queries'][number]
 
 function formatDueDate(dateStr: string | null) {
   if (!dateStr) return null
@@ -75,21 +77,18 @@ function TaskRow({ task }: { task: Task }) {
 }
 
 function QueryRow({ query }: { query: MyQuery }) {
-  const prefetchEntry = usePrefetchEntry()
   const paneLink = usePaneLink(
-    query.entry_id
-      ? `/cases/${query.case_id}/progress/${query.entry_id}`
-      : `/cases/${query.case_id}/progress?q=${query.id}`
+    query.step_id
+      ? `/cases/${query.case_id}/progress?s=${query.step_id}`
+      : `/cases/${query.case_id}/progress`
   )
   return (
     <li>
       <Link
         {...paneLink}
-        onMouseEnter={() => query.entry_id && prefetchEntry(query.entry_id)}
-        onTouchStart={() => query.entry_id && prefetchEntry(query.entry_id)}
         className="flex items-center gap-3 px-4 py-3.5 active:bg-[hsl(var(--color-surface-hover))]"
       >
-        <MessageSquare className={`w-4 h-4 shrink-0 ${query.needs_me === 'respond' ? 'text-blue-400' : 'text-amber-400'}`} />
+        <MessageSquare className={`w-4 h-4 shrink-0 ${query.needs_me === 'respond' ? 'text-blue-400' : 'text-green-400'}`} />
         <div className="flex-1 min-w-0">
           <p className="text-[15px] font-medium text-[hsl(var(--color-text-primary))] truncate">
             {query.preview || 'Request'}
@@ -102,10 +101,39 @@ function QueryRow({ query }: { query: MyQuery }) {
         <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${
           query.needs_me === 'respond'
             ? 'bg-blue-400/10 text-blue-400'
-            : 'bg-amber-400/10 text-amber-400'
+            : 'bg-green-500/10 text-green-400'
         }`}>
-          {query.needs_me === 'respond' ? 'Reply needed' : 'Review answer'}
+          {query.needs_me === 'respond' ? 'Reply needed' : 'Mark as seen'}
         </span>
+        <ChevronRight className="w-4 h-4 text-[hsl(var(--color-text-muted))] shrink-0" />
+      </Link>
+    </li>
+  )
+}
+
+function HistoryRow({ item }: { item: AnsweredHistoryItem }) {
+  const paneLink = usePaneLink(
+    item.step_id
+      ? `/cases/${item.case_id}/progress?s=${item.step_id}`
+      : `/cases/${item.case_id}/progress`
+  )
+  return (
+    <li>
+      <Link
+        {...paneLink}
+        className="flex items-center gap-3 px-4 py-3 active:bg-[hsl(var(--color-surface-hover))]"
+      >
+        <CheckCheck className={`w-4 h-4 shrink-0 ${item.seen_at ? 'text-[hsl(var(--color-text-muted))]' : 'text-green-400'}`} />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-[hsl(var(--color-text-primary))] truncate">
+            {item.client_name || item.case_code || 'Case'}
+            {item.step_name && ` · ${item.step_name}`}
+          </p>
+          <p className="text-xs text-[hsl(var(--color-text-secondary))] mt-0.5">
+            Answered {item.answered_at ? new Date(item.answered_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''}
+            {item.seen_at ? ' · seen' : ' · unseen'}
+          </p>
+        </div>
         <ChevronRight className="w-4 h-4 text-[hsl(var(--color-text-muted))] shrink-0" />
       </Link>
     </li>
@@ -127,11 +155,18 @@ function TaskGroup({ title, tasks, accent }: { title: string; tasks: Task[]; acc
 }
 
 export function RequestsContent() {
+  const queryClient = useQueryClient()
+  const [showHistory, setShowHistory] = useState(false)
+  const [markingAll, setMarkingAll] = useState(false)
   const { data } = useQuery({
     queryKey: queryKeys.requests,
     queryFn: async () => {
-      const [tasksRes, queriesRes] = await Promise.all([fetchMyOpenTasks(), getMyQueries()])
-      return { tasks: tasksRes.tasks, queries: queriesRes.queries }
+      const [tasksRes, queriesRes, historyRes] = await Promise.all([
+        fetchMyOpenTasks(),
+        getMyQueries(),
+        getMyAnsweredHistory(10),
+      ])
+      return { tasks: tasksRes.tasks, queries: queriesRes.queries, history: historyRes.queries }
     },
     staleTime: 60 * 1000,
     refetchInterval: 15 * 1000,
@@ -140,6 +175,7 @@ export function RequestsContent() {
 
   const tasks = data?.tasks ?? null
   const queries = data?.queries ?? []
+  const history = data?.history ?? []
 
   if (!tasks) {
     return (
@@ -156,9 +192,18 @@ export function RequestsContent() {
   const late = tasks.filter(t => new Date(t.created_at).getTime() < cutoff)
   const fresh = tasks.filter(t => new Date(t.created_at).getTime() >= cutoff)
   const pendingSince = (q: MyQuery) => new Date(q.pending_since ?? q.created_at).getTime()
-  const lateQueries = queries.filter(q => pendingSince(q) < cutoff)
-  const freshQueries = queries.filter(q => pendingSince(q) >= cutoff)
+  const toAnswer = queries.filter(q => q.needs_me === 'respond')
+  const answered = queries.filter(q => q.needs_me === 'seen')
+  const lateQueries = toAnswer.filter(q => pendingSince(q) < cutoff)
+  const freshQueries = toAnswer.filter(q => pendingSince(q) >= cutoff)
   const empty = tasks.length === 0 && queries.length === 0
+
+  const markAll = async () => {
+    setMarkingAll(true)
+    await markAllRequestsSeen()
+    setMarkingAll(false)
+    queryClient.invalidateQueries({ queryKey: queryKeys.requests })
+  }
 
   return (
     <div className="space-y-5">
@@ -190,9 +235,50 @@ export function RequestsContent() {
               </ul>
             </section>
           )}
+          {answered.length > 0 && (
+            <section>
+              <div className="flex items-baseline justify-between mb-2 px-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-green-400">
+                  Answered · {answered.length}
+                </p>
+                <button
+                  onClick={markAll}
+                  disabled={markingAll}
+                  className="text-xs font-medium text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))] disabled:opacity-40"
+                >
+                  {markingAll ? 'Marking…' : 'Mark all as seen'}
+                </button>
+              </div>
+              <ul className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl divide-y divide-[hsl(var(--color-border))] overflow-hidden">
+                {answered.map(q => <QueryRow key={q.id} query={q} />)}
+              </ul>
+            </section>
+          )}
           <TaskGroup title="Late tasks" tasks={late} accent="text-red-400" />
           <TaskGroup title="New tasks" tasks={fresh} accent="text-blue-400" />
         </>
+      )}
+
+      {history.length > 0 && (
+        <section>
+          {!showHistory ? (
+            <button
+              onClick={() => setShowHistory(true)}
+              className="w-full text-center text-xs font-medium text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))] py-2"
+            >
+              Show last {history.length} answers
+            </button>
+          ) : (
+            <>
+              <p className="text-xs font-semibold uppercase tracking-wide mb-2 px-1 text-[hsl(var(--color-text-muted))]">
+                Last {history.length} answers
+              </p>
+              <ul className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl divide-y divide-[hsl(var(--color-border))] overflow-hidden">
+                {history.map(item => <HistoryRow key={item.id} item={item} />)}
+              </ul>
+            </>
+          )}
+        </section>
       )}
     </div>
   )
