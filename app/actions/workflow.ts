@@ -570,6 +570,64 @@ export async function toggleCaseEligibility(
   }
 }
 
+/** Single toggle for the whole eligibility step — flips status + documents together. */
+export async function toggleAllCaseEligibility(
+  caseId: string
+): Promise<{ completed: boolean; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { completed: false, error: 'Not authenticated' }
+
+    const { data: rows } = await supabase
+      .from('case_eligibility')
+      .select('id, type, completed_at')
+      .eq('case_id', caseId)
+
+    const types = ['status', 'documents'] as const
+    const allDone = types.every(t => rows?.some(r => r.type === t && r.completed_at))
+    const completed = !allDone
+    const now = new Date().toISOString()
+
+    for (const t of types) {
+      const existing = rows?.find(r => r.type === t)
+      if (existing) {
+        await supabase
+          .from('case_eligibility')
+          .update({ completed_at: completed ? now : null, completed_by: completed ? user.id : null })
+          .eq('id', existing.id)
+      } else if (completed) {
+        await supabase.from('case_eligibility').insert({
+          case_id: caseId,
+          type: t,
+          completed_at: now,
+          completed_by: user.id,
+        })
+      }
+    }
+
+    const step = await supabase
+      .from('case_steps')
+      .select('id')
+      .eq('case_id', caseId)
+      .eq('step_type', 'eligibility')
+      .single()
+
+    await supabase.from('case_entries').insert({
+      case_id: caseId,
+      step_id: step.data?.id || null,
+      kind: 'note',
+      body: `Eligibility ${completed ? 'confirmed' : 'unconfirmed'}`,
+      created_by: user.id,
+    })
+
+    revalidatePath(`/cases/${caseId}/progress`)
+    return { completed }
+  } catch (e: any) {
+    return { completed: false, error: e?.message || 'Failed to save eligibility state' }
+  }
+}
+
 export async function logAgreementDownload(caseId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

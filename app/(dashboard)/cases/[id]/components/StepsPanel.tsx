@@ -29,7 +29,6 @@ import {
   ChevronLeft,
   Zap,
   ShieldCheck,
-  FileCheck,
   FileSignature,
   Send,
   Paperclip,
@@ -335,7 +334,7 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
           )}
 
           {s.step_type === 'eligibility' && (
-            <EligibilityRows caseId={caseId} eligibility={eligibility} items={eligibilityItems} inactive={!isActive} />
+            <EligibilityButton caseId={caseId} eligibility={eligibility} inactive={!isActive} />
           )}
 
           <StepFeed
@@ -386,68 +385,46 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
 }
 
 // ============================================================
-// Eligibility rows (active eligibility step only)
+// Eligibility — one button into the combined confirm page
 // ============================================================
-function EligibilityRows({
-  caseId,
-  eligibility,
-  items,
-  inactive = false,
-}: {
+function EligibilityButton({ caseId, eligibility, inactive = false }: {
   caseId: string
   eligibility: CaseEligibilityState
-  items: ServiceEligibilityItem[]
   inactive?: boolean
 }) {
   const paneNav = usePaneNavigate()
-  const statusCount = items.filter(i => i.type === 'status').length
-  const docsCount = items.filter(i => i.type === 'documents').length
+  const doneCount = (eligibility.statusCompleted ? 1 : 0) + (eligibility.documentsCompleted ? 1 : 0)
+  const done = doneCount === 2
+  const href = `/cases/${caseId}/eligibility`
 
-  const rows: { type: 'status' | 'documents'; label: string; icon: typeof ShieldCheck; done: boolean; count: number }[] = [
-    { type: 'status', label: 'Status verification', icon: ShieldCheck, done: eligibility.statusCompleted, count: statusCount },
-    { type: 'documents', label: 'Mandatory documents', icon: FileCheck, done: eligibility.documentsCompleted, count: docsCount },
-  ]
+  const content = (
+    <>
+      <ShieldCheck className={`w-5 h-5 shrink-0 ${done ? 'text-green-500' : 'text-red-400'}`} />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Confirm eligibility</p>
+        <p className="text-xs text-[hsl(var(--color-text-secondary))] truncate mt-0.5">
+          {done ? 'Status + documents confirmed' : doneCount === 0 ? 'Status + documents' : '1 of 2 confirmed'}
+        </p>
+      </div>
+      {done ? (
+        <span className="text-xs font-medium text-green-400">Done</span>
+      ) : (
+        <ChevronRight className="w-5 h-5 text-[hsl(var(--color-text-muted))] shrink-0" />
+      )}
+    </>
+  )
 
-  return (
-    <div className={`space-y-2 ${inactive ? 'opacity-70' : ''}`}>
-      {rows.map(row => {
-        const Icon = row.icon
-        const href = `/cases/${caseId}/eligibility/${row.type}`
-        const content = (
-          <>
-            <Icon className={`w-5 h-5 shrink-0 ${row.done ? 'text-green-500' : 'text-red-400'}`} />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">{row.label}</p>
-              <p className="text-xs text-[hsl(var(--color-text-secondary))] truncate mt-0.5">
-                {row.count === 0 ? 'Nothing configured' : `${row.count} item${row.count === 1 ? '' : 's'}`}
-              </p>
-            </div>
-            {row.done ? (
-              <span className="text-xs font-medium text-green-400">Done</span>
-            ) : (
-              <ChevronRight className="w-5 h-5 text-[hsl(var(--color-text-muted))] shrink-0" />
-            )}
-          </>
-        )
-        return inactive ? (
-          <div
-            key={row.type}
-            className="flex items-center gap-3 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-4 py-3.5"
-          >
-            {content}
-          </div>
-        ) : (
-          <Link
-            key={row.type}
-            href={href}
-            onClick={(e) => { if (paneNav(href)) e.preventDefault() }}
-            className="flex items-center gap-3 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-4 py-3.5 hover:bg-[hsl(var(--color-surface-hover))] transition-colors"
-          >
-            {content}
-          </Link>
-        )
-      })}
-    </div>
+  const cls = `flex items-center gap-3 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-4 py-3.5 ${inactive ? 'opacity-70' : ''}`
+  return inactive ? (
+    <div className={cls}>{content}</div>
+  ) : (
+    <Link
+      href={href}
+      onClick={(e) => { if (paneNav(href)) e.preventDefault() }}
+      className={`${cls} hover:bg-[hsl(var(--color-surface-hover))] transition-colors`}
+    >
+      {content}
+    </Link>
   )
 }
 
@@ -660,14 +637,14 @@ function StepFeed({ caseId, stepId, canPost, feed, queries, meId, attachmentsByE
   }
 
   return (
-    <div className="space-y-2.5">
-      {feed.length === 0 ? (
-        <p className="text-xs text-[hsl(var(--color-text-muted))] py-6 text-center">
-          No messages in this step yet
-        </p>
-      ) : (
-        <div className="space-y-2">
-          {feed.map(item => item.kind === 'event' ? (
+    <div className="flex min-h-[50dvh] flex-col gap-2.5">
+      <div className="flex-1 space-y-2">
+        {feed.length === 0 ? (
+          <p className="text-xs text-[hsl(var(--color-text-muted))] py-6 text-center">
+            No messages in this step yet
+          </p>
+        ) : (
+          feed.map(item => item.kind === 'event' ? (
             <EventLine key={item.key} icon={item.icon} text={item.text} at={item.at} />
           ) : (
             <FeedMessage
@@ -685,14 +662,15 @@ function StepFeed({ caseId, stepId, canPost, feed, queries, meId, attachmentsByE
                 return n
               })}
             />
-          ))}
-        </div>
-      )}
+          ))
+        )}
+      </div>
 
       {error && <p className="text-xs text-red-400 px-1">{error}</p>}
 
       {canPost && (
-        selectMode ? (
+        <div className="sticky bottom-20 md:bottom-4 z-20 -mx-4 md:-mx-6 px-4 md:px-6 py-2.5 bg-[hsl(var(--color-background))]/95 backdrop-blur">
+        {selectMode ? (
           <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-3 space-y-2.5">
             <p className="text-xs text-[hsl(var(--color-text-secondary))]">
               {selectMode === 'request'
@@ -778,7 +756,8 @@ function StepFeed({ caseId, stepId, canPost, feed, queries, meId, attachmentsByE
               </button>
             </div>
           </div>
-        )
+        )}
+        </div>
       )}
     </div>
   )

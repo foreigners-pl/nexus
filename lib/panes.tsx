@@ -14,6 +14,7 @@ import CaseAgreementPage from '@/app/(dashboard)/cases/[id]/agreement/page'
 import CaseActionsPage from '@/app/(dashboard)/cases/[id]/actions/page'
 import WorkflowEditPage from '@/app/(dashboard)/cases/[id]/progress/edit/page'
 import EligibilityDetailPage from '@/app/(dashboard)/cases/[id]/eligibility/[type]/page'
+import EligibilityPage from '@/app/(dashboard)/cases/[id]/eligibility/page'
 import ClientPage from '@/app/(dashboard)/clients/[id]/page'
 import ClientInfoPage from '@/app/(dashboard)/clients/[id]/info/page'
 import { RequestsContent } from '@/components/mobile/RequestsContent'
@@ -25,7 +26,7 @@ import { MobileBackHeader } from '@/components/mobile/MobileBackHeader'
 /** Routes that render at pane (mobile-like) width on desktop. */
 function isPaneRoute(href: string): boolean {
   const path = href.split('?')[0]
-  return /^\/cases\/[^/]+(\/progress(\/[^/]+)?|\/billing(\/[^/]+)?|\/files|\/legacy|\/eligibility\/[^/]+|\/agreement|\/actions)?$/.test(path)
+  return /^\/cases\/[^/]+(\/progress(\/[^/]+)?|\/billing(\/[^/]+)?|\/files|\/legacy|\/eligibility(\/[^/]+)?|\/agreement|\/actions)?$/.test(path)
     || /^\/clients\/[^/]+(\/info)?$/.test(path)
     || /^\/home$/.test(path)
     || /^\/(requests|actions|search|notifications)$/.test(path)
@@ -41,6 +42,8 @@ function renderPaneRoute(href: string): React.ReactNode | null {
     return <InstallmentPage params={Promise.resolve({ id: m[1], installmentId: m[2] })} />
   if ((m = path.match(/^\/cases\/([^/]+)\/eligibility\/([^/]+)$/)))
     return <EligibilityDetailPage params={Promise.resolve({ id: m[1], type: m[2] })} />
+  if ((m = path.match(/^\/cases\/([^/]+)\/eligibility$/)))
+    return <EligibilityPage params={Promise.resolve({ id: m[1] })} />
   if ((m = path.match(/^\/cases\/([^/]+)\/progress\/edit$/)))
     return <WorkflowEditPage params={Promise.resolve({ id: m[1] })} />
   if ((m = path.match(/^\/cases\/([^/]+)\/progress\/([^/]+)$/)))
