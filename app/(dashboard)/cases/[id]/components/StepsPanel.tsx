@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useLayoutEffect, useCallback, useRef, type RefObject, type ReactNode } from 'react'
+import { useState, useEffect, useCallback, useRef, type RefObject, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -744,25 +744,6 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
   const alignRight = (authorId: string | null) =>
     authorId === meId || (!viewerIsParty && authorId === legalId)
 
-  // Mobile: bound the feed to a scroll region that ends exactly where the
-  // composer begins — fills from the feed's top down to the tab bar minus
-  // the composer height. Composer sits in flow after it, so it is always
-  // docked and never floats over messages. Layout effect re-measures every
-  // render (header/eligibility height changes) before paint.
-  const regionRef = useRef<HTMLDivElement>(null)
-  const [regionH, setRegionH] = useState<number | null>(null)
-  useLayoutEffect(() => {
-    const measure = () => {
-      const el = regionRef.current
-      if (!el || window.innerWidth >= 768) { setRegionH(null); return }
-      const docTop = el.getBoundingClientRect().top + window.scrollY
-      setRegionH(Math.max(window.innerHeight - docTop - 64 - 62, 160))
-    }
-    measure()
-    window.addEventListener('resize', measure)
-    return () => window.removeEventListener('resize', measure)
-  })
-
   const feedList = feed.length === 0 ? (
     <p className="text-xs text-[hsl(var(--color-text-muted))] py-6 text-center">
       No messages in this step yet
@@ -816,25 +797,16 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
         </div>
       )}
 
-      {/* Feed — on mobile a bounded scroll region sized to end right above
-          the composer (chat-app style); plain page flow on desktop */}
-      {canPost ? (
-        <div
-          ref={regionRef}
-          style={regionH ? { height: regionH } : undefined}
-          className="overflow-y-auto"
-        >
-          {feedList}
-        </div>
-      ) : feedList}
-
-      {/* Composer — in flow, docked by the region above. Sticky as a
-          fallback so it can never be pushed under the tab bar. */}
+      {/* Composer — in flow at the top of the feed: new messages land
+          directly beneath it (newest-first ordering) */}
       {canPost && (
-        <div className="sticky z-20 -mx-4 md:-mx-6 px-4 md:px-6 py-2.5 bottom-[calc(4rem+env(safe-area-inset-bottom))] md:bottom-4 bg-[hsl(var(--color-background))]/95 backdrop-blur">
+        <div className="pb-1">
           {composer}
         </div>
       )}
+
+      {/* Feed — newest first, thin event lines inline */}
+      {feedList}
     </div>
   )
 }
