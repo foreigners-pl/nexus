@@ -301,6 +301,9 @@ export function CasesSection({ clientId, cases, onCaseAdded }: CasesSectionProps
                   <div className="flex items-baseline justify-between gap-2">
                     <p className="text-sm font-semibold text-[hsl(var(--color-text-primary))] truncate">
                       {service || caseItem.case_code || 'Case'}
+                      {service && caseItem.case_code && (
+                        <span className="font-normal text-[hsl(var(--color-text-muted))]"> · {caseItem.case_code}</span>
+                      )}
                     </p>
                     <span className="text-xs text-[hsl(var(--color-text-muted))] shrink-0">
                       {new Date(caseItem.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
