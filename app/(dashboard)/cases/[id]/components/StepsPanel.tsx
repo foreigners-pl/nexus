@@ -996,7 +996,7 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
       {canPost && (
         <div
           ref={composerRef}
-          className="hidden md:block sticky bottom-0 z-10 -mx-6 px-6 pt-2 pb-6 bg-[hsl(var(--color-background))]"
+          className="hidden md:block sticky bottom-0 z-10 -mx-6 px-6 pt-2 pb-6 bg-[hsl(var(--color-background))] shadow-[0_24px_0_hsl(var(--color-background))]"
         >
           {composer}
         </div>

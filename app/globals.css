@@ -124,6 +124,31 @@
 }
 
 /* ========== CUSTOM UTILITIES ========== */
+@layer base {
+  /* Thin themed scrollbars on every scroll area — page, panes, lists, inputs */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--color-border)) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: hsl(var(--color-border));
+    border-radius: 4px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--color-border-hover));
+  }
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
 @layer utilities {
   /* Scrollbar styling */
   .scrollbar-thin::-webkit-scrollbar {
