@@ -29,6 +29,13 @@ function clientName(c: CaseRow | { clients?: CaseRow['clients'] }): string {
   return [cl?.first_name, cl?.last_name].filter(Boolean).join(' ') || ''
 }
 
+/** "Client Name (C0000586)" — name-first, code in brackets, code-only fallback. */
+const caseLabel = (c: any) => {
+  const n = clientName(c)
+  const code = c?.case_code ?? ''
+  return n ? (code ? `${n} (${code})` : n) : code
+}
+
 /** Resolve "C0000582", "582", or a client-name fragment to a case. */
 async function resolveCase(supabase: Supabase, ref: string): Promise<{ case?: CaseRow; candidates?: CaseRow[] }> {
   const { data } = await supabase
@@ -54,7 +61,7 @@ async function resolveCase(supabase: Supabase, ref: string): Promise<{ case?: Ca
 const notFound = (ref: string) => ({ error: `No case matching "${ref}". Try the case code (e.g. C0000582) or the client's name.` })
 const ambiguous = (rows: CaseRow[]) => ({
   error: 'Multiple cases match — be more specific',
-  candidates: rows.map(c => `${c.case_code} — ${clientName(c)}`),
+  candidates: rows.map(c => caseLabel(c)),
 })
 
 /** Resolve a team member by name/email — exact match beats fuzzy. */
@@ -108,7 +115,7 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
       const questionByQuery = new Map((entries || []).map((e: any) => [e.query_id, e.body]))
 
       const dayAgo = Date.now() - 86400000
-      const label = (q: any) => `${q.cases?.case_code ?? ''} ${clientName(q.cases)}`.trim()
+      const label = (q: any) => caseLabel(q.cases)
       // Same buckets as the Requests page: waiting >24h counts as late.
       const to_answer = (data || [])
         .filter((q: any) => q.assigned_to === me.id && q.status === 'open')
@@ -161,7 +168,7 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
         .is('completed_at', null)
         .order('due_date', { ascending: true, nullsFirst: false })
       const today = new Date(); today.setHours(0, 0, 0, 0)
-      const label = (a: any) => a.cases ? `${a.cases.case_code ?? ''} ${clientName(a.cases)}`.trim() : null
+      const label = (a: any) => a.cases ? caseLabel(a.cases) : null
       const row = (a: any) => ({ what: a.body, due: a.due_date, waiting_on: a.waiting_on ?? null, case: label(a) })
       const dated = (data || []).filter((a: any) => a.due_date)
       // Same buckets as the Actions page.
@@ -184,7 +191,7 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
           .eq('kind', 'action').is('completed_at', null).in('case_id', eligible.map((c: any) => c.id))
         const has = new Set((open || []).map(r => r.case_id))
         neglected = eligible.filter((c: any) => !has.has(c.id))
-          .map((c: any) => ({ case: `${c.case_code ?? ''} ${clientName(c)}`.trim(), step: c.step?.name ?? null }))
+          .map((c: any) => ({ case: caseLabel(c), step: c.step?.name ?? null }))
       }
       return { late, upcoming, undated, neglected_cases: neglected }
     }
@@ -227,8 +234,8 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
       }
       return {
         cases: (data || []).map((c: any) => ({
+          case: caseLabel(c),
           code: c.case_code,
-          client: clientName(c),
           current_step: stepNames[c.current_step_id] || null,
         })),
       }
@@ -243,7 +250,7 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
       const { data: openQueries } = await supabase.from('case_queries').select('id, status, opened_by, assigned_to').eq('case_id', c.id).in('status', ['open', 'answered'])
       const { data: openActions } = await supabase.from('case_entries').select('id, body, due_date, created_by').eq('case_id', c.id).eq('kind', 'action').is('completed_at', null)
       return {
-        case: { code: c.case_code, client: clientName(c), current_step: step?.name ?? null },
+        case: { ref: caseLabel(c), code: c.case_code, current_step: step?.name ?? null },
         live_requests: (openQueries || []).length,
         open_actions: (openActions || []).map((a: any) => `${a.body} (due ${a.due_date ?? 'no date'})`),
       }
@@ -282,7 +289,7 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
         if (lines.length >= limit) break
       }
       return {
-        case: `${c.case_code} — ${clientName(c)}`,
+        case: caseLabel(c),
         step_names: (steps || []).map((s: any) => s.name),
         feed: lines,
         note: 'Newest first.',
@@ -300,7 +307,7 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
         body: args.text.trim(),
         created_by: me.id,
       })
-      return error ? { error: 'Failed to post message' } : { ok: `Posted to ${r.case.case_code} (${await stepName(supabase, r.case.current_step_id)})` }
+      return error ? { error: 'Failed to post message' } : { ok: `Posted to ${caseLabel(r.case)} (${await stepName(supabase, r.case.current_step_id)})` }
     }
 
     case 'send_request': {
@@ -337,7 +344,7 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
         link: `/cases/${c.id}/progress?s=${c.current_step_id}`,
         caseId: c.id,
       })
-      return { ok: `Request sent on ${c.case_code}` }
+      return { ok: `Request sent on ${caseLabel(c)}` }
     }
 
     case 'answer_request': {
@@ -366,7 +373,7 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
         link: `/cases/${r.case.id}/progress?s=${q.step_id}`,
         caseId: r.case.id,
       })
-      return { ok: `Answer sent on ${r.case.case_code}` }
+      return { ok: `Answer sent on ${caseLabel(r.case)}` }
     }
 
     case 'mark_request_seen': {
@@ -425,7 +432,7 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
         await supabase.from('bot_pending_files').delete().eq('id', p.id)
         attached.push(p.name)
       }
-      return { ok: `Attached ${attached.join(', ')} to ${r.case.case_code} ${clientName(r.case)}`.trim() }
+      return { ok: `Attached ${attached.join(', ')} to ${caseLabel(r.case)}` }
     }
 
     case 'set_action': {
@@ -437,7 +444,7 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
         case_id: r.case.id, step_id: r.case.current_step_id, kind: 'action',
         body: args.text.trim(), due_date: args.due_date, created_by: me.id,
       })
-      return error ? { error: 'Failed to set action' } : { ok: `Action set on ${r.case.case_code} — "${args.text.trim()}" due ${args.due_date}` }
+      return error ? { error: 'Failed to set action' } : { ok: `Action set on ${caseLabel(r.case)} — "${args.text.trim()}" due ${args.due_date}` }
     }
 
     case 'complete_action': {
@@ -597,7 +604,7 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
           caseId: created.id,
         })
       }
-      const bits = [`Created case ${created.case_code} for ${full(client)}`]
+      const bits = [`Created case ${full(client)} (${created.case_code})`]
       if (serviceName) bits.push(`service: ${serviceName}`)
       if (lawyerName) bits.push(`lawyer: ${lawyerName}`)
       return { ok: bits.join(' — ') }
@@ -613,7 +620,7 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
       const isCsr = String(args.role || 'lawyer').toLowerCase() === 'csr'
       const field = isCsr ? 'csr_id' : 'assigned_to'
       const current = isCsr ? r.case.csr_id : r.case.assigned_to
-      if (current === u.user.id) return { ok: `${u.user.label} is already the ${isCsr ? 'CSR' : 'lawyer'} on ${r.case.case_code}` }
+      if (current === u.user.id) return { ok: `${u.user.label} is already the ${isCsr ? 'CSR' : 'lawyer'} on ${caseLabel(r.case)}` }
 
       await supabase.from('cases').update({ [field]: u.user.id }).eq('id', r.case.id)
       const { data: existing } = await supabase.from('case_assignees').select('id')
@@ -628,7 +635,7 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
         link: `/cases/${r.case.id}`,
         caseId: r.case.id,
       })
-      return { ok: `${u.user.label} is now the ${isCsr ? 'CSR' : 'lawyer'} on ${r.case.case_code} ${clientName(r.case)}`.trim() }
+      return { ok: `${u.user.label} is now the ${isCsr ? 'CSR' : 'lawyer'} on ${caseLabel(r.case)}` }
     }
 
     default:
