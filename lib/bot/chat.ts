@@ -7,22 +7,47 @@ import { runTool, type BotUser } from './tools'
  *   CRM user (from session) → history → Gemini w/ tools → reply
  */
 
-// Models retire/rename under us — try candidates in order, cache the
-// first that works for the life of the server instance. GEMINI_MODEL
-// pins one explicitly if set.
-const MODEL_CANDIDATES = [
-  process.env.GEMINI_MODEL,
-  'gemini-3-flash-preview',
+// Model selection: ask the API what this key can call (ListModels), prefer
+// flash-class, then verify by generation — candidates that reject with
+// model-not-found are skipped. The winner is cached per server instance.
+// GEMINI_MODEL pins one explicitly if set.
+const PREFERRED = [
   'gemini-2.5-flash-lite',
-  'gemini-2.5-flash-preview-09-2025',
+  'gemini-3-flash-preview',
+  'gemini-2.5-flash',
   'gemini-2.0-flash',
-].filter((m): m is string => !!m)
+  'gemini-2.5-pro',
+  'gemini-3-pro-preview',
+]
+const STATIC_FALLBACK = ['gemini-2.5-flash-lite', 'gemini-2.0-flash']
 let resolvedModel: string | null = null
+let listedModels: string[] | null = null
 
 const isModelGone = (e: any) => /not found|no longer|does not exist|not supported/i.test(e?.message || '')
 
+async function modelCandidates(): Promise<string[]> {
+  try {
+    const pager = await ai.models.list({ config: { pageSize: 200 } })
+    listedModels = ((pager.page || []) as any[])
+      .filter(m => {
+        const actions = m.supportedActions ?? m.supportedGenerationMethods
+        return !actions || actions.includes('generateContent')
+      })
+      .map(m => (m.name || '').replace(/^models\//, ''))
+      .filter(Boolean)
+  } catch { listedModels = null }
+
+  const listed = listedModels || []
+  return [...new Set([
+    process.env.GEMINI_MODEL,
+    ...PREFERRED.filter(p => listed.includes(p)),
+    ...listed.filter(n => n.startsWith('gemini')),
+    ...STATIC_FALLBACK,
+  ].filter((m): m is string => !!m))]
+}
+
 async function generate(contents: any[], systemInstruction: string) {
-  const order = resolvedModel ? [resolvedModel, ...MODEL_CANDIDATES.filter(m => m !== resolvedModel)] : MODEL_CANDIDATES
+  const order = resolvedModel ? [resolvedModel, ...(await modelCandidates()).filter(m => m !== resolvedModel)] : await modelCandidates()
   let lastErr: any
   for (const model of order) {
     try {
@@ -38,13 +63,7 @@ async function generate(contents: any[], systemInstruction: string) {
       lastErr = e
     }
   }
-  // All candidates rejected — ask the API what this key can actually use
-  // and surface the names so the error is self-diagnosing.
-  try {
-    const pager = await ai.models.list({ config: { pageSize: 100 } })
-    const names = (pager.page || []).map((m: any) => m.name).filter(Boolean)
-    if (names.length) lastErr = new Error(`Models available to this key: ${names.join(', ')}`)
-  } catch {}
+  if (listedModels?.length) lastErr = new Error(`Models available to this key: ${listedModels.join(', ')}`)
   throw lastErr
 }
 
@@ -214,7 +233,7 @@ export async function runBotTurn(user: BotUser, text: string): Promise<string> {
       break
     }
   } catch (e: any) {
-    reply = `Something broke on my side (${e.message?.slice(0, 80) || 'unknown error'}). Try again in a moment.`
+    reply = `Something broke on my side (${e.message?.slice(0, 300) || 'unknown error'}). Try again in a moment.`
   }
   if (!reply) reply = 'I got nothing back — try rephrasing?'
 
