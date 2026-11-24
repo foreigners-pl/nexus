@@ -16,6 +16,7 @@ import {
   Search,
   ListChecks,
   CalendarClock,
+  ChevronLeft,
   Phone,
   Clock,
   ChevronRight,
@@ -28,11 +29,13 @@ const DAY_MS = 86400000
 const DEADLINE_RANGES = [7, 30, 90] as const
 type DeadlineRange = typeof DEADLINE_RANGES[number]
 
-export default function MobileHomePage({ viewAsUserId, onOpenTab }: {
+export default function MobileHomePage({ viewAsUserId, onOpenTab, onBack }: {
   viewAsUserId?: string
   /** Mirror mode: Requests/Actions/Assistant destinations resolve to the
    *  view-as page's tabs instead of the viewer's own pages. */
   onOpenTab?: (tab: 'requests' | 'actions' | 'assistant') => void
+  /** Mirror mode: back button rendered left of the greeting. */
+  onBack?: () => void
 }) {
   const router = useRouter()
   const paneNav = usePaneNavigate()
@@ -188,11 +191,23 @@ export default function MobileHomePage({ viewAsUserId, onOpenTab }: {
 
   return (
     <div className="space-y-4">
-      {userName && (
+      {(userName || viewAsUserId) && (
         <div className="flex items-center justify-between gap-2">
-          <p className="text-sm text-[hsl(var(--color-text-secondary))]">
-            Hello, <span className="text-[hsl(var(--color-text-primary))] font-medium">{userName}</span>
-          </p>
+          <div className="flex items-center gap-1 min-w-0">
+            {onBack && (
+              <button
+                onClick={onBack}
+                aria-label="Back"
+                className="w-8 h-8 -ml-1 rounded-full flex items-center justify-center text-[hsl(var(--color-text-secondary))] active:bg-[hsl(var(--color-surface-hover))] shrink-0"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            )}
+            <p className="text-sm text-[hsl(var(--color-text-secondary))] truncate">
+              {viewAsUserId ? 'Viewing as ' : 'Hello, '}
+              <span className="text-[hsl(var(--color-text-primary))] font-medium">{userName ?? '…'}</span>
+            </p>
+          </div>
           <button
             onClick={() => go('/assistant')}
             aria-label="Open assistant"
@@ -316,13 +331,13 @@ export default function MobileHomePage({ viewAsUserId, onOpenTab }: {
             <div className="w-10 h-10 rounded-xl bg-orange-500/15 flex items-center justify-center shrink-0">
               <CalendarClock className="w-5 h-5 text-orange-400" />
             </div>
-            <p className="text-base font-semibold text-[hsl(var(--color-text-primary))] flex-1">Actions</p>
-            <div className="flex rounded-lg border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface-secondary))] p-1 shrink-0">
+            <p className="text-base font-semibold text-[hsl(var(--color-text-primary))] flex-1 min-w-0 truncate">Actions</p>
+            <div className="flex rounded-lg border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface-secondary))] p-0.5 shrink-0">
               {DEADLINE_RANGES.map(r => (
                 <button
                   key={r}
                   onClick={(e) => { e.stopPropagation(); setDeadlineRange(r) }}
-                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                  className={`px-2 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap transition-colors ${
                     deadlineRange === r
                       ? 'bg-white text-black'
                       : 'text-[hsl(var(--color-text-muted))]'

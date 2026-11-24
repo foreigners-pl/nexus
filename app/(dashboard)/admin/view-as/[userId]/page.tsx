@@ -1,15 +1,16 @@
 'use client'
 
 import { use, useEffect, useState } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { getViewAsUser, getViewAsSessions, getViewAsSession, getViewAsAudioUrl } from '@/app/actions/viewas'
 import { RequestsContent } from '@/components/mobile/RequestsContent'
 import { ActionsContent } from '@/components/mobile/ActionsContent'
 import MobileHomePage from '@/app/(dashboard)/home/page'
+import { usePaneBack } from '@/lib/panes'
 import { linkify, AudioBubble } from '@/components/mobile/AssistantContent'
-import { ChevronLeft, ChevronRight, Loader2, Eye, Bot } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, Bot } from 'lucide-react'
 
-type Tab = 'home' | 'requests' | 'actions' | 'ai'
+type View = 'home' | 'requests' | 'actions' | 'ai'
 
 const fmtDate = (key: string) => key.split('-').reverse().join('/')
 const sessionLabel = (key: string, todayKey: string) => {
@@ -19,7 +20,7 @@ const sessionLabel = (key: string, todayKey: string) => {
 }
 const fmtTokens = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`)
 
-function AiTab({ userId }: { userId: string }) {
+function AiView({ userId }: { userId: string }) {
   const [sessions, setSessions] = useState<{ date: string; count: number; tokens: number }[] | null>(null)
   const [openDate, setOpenDate] = useState<string | null>(null)
   const [messages, setMessages] = useState<any[] | null>(null)
@@ -117,68 +118,50 @@ function AiTab({ userId }: { userId: string }) {
 
 export default function ViewAsPage({ params }: { params: Promise<{ userId: string }> }) {
   const { userId } = use(params)
+  const router = useRouter()
+  const paneBack = usePaneBack()
   const [user, setUser] = useState<{ id: string; name: string; role: string | null } | null>(null)
-  const [tab, setTab] = useState<Tab>('home')
+  const [view, setView] = useState<View>('home')
 
   useEffect(() => {
     getViewAsUser(userId).then(setUser)
   }, [userId])
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: 'home', label: 'Home' },
-    { id: 'requests', label: 'Requests' },
-    { id: 'actions', label: 'Actions' },
-    { id: 'ai', label: 'AI sessions' },
-  ]
+  const exitMirror = () => (paneBack ? paneBack() : router.push('/admin/usage'))
+
+  if (view === 'home') {
+    return (
+      <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 pb-20">
+        <MobileHomePage
+          viewAsUserId={userId}
+          onBack={exitMirror}
+          onOpenTab={t => setView(t === 'assistant' ? 'ai' : t)}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 pb-20">
-      <Link
-        href="/admin/usage"
-        className="inline-flex items-center gap-1 text-sm text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))] mb-4"
-      >
-        <ChevronLeft className="w-4 h-4" /> Usage overview
-      </Link>
-
-      <div className="flex items-center gap-3 mb-1">
-        <h1 className="text-xl font-bold text-[hsl(var(--color-text-primary))] truncate">
-          {user ? `Viewing as ${user.name}` : 'Viewing as…'}
-        </h1>
-        <span className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full font-semibold uppercase tracking-wide bg-amber-400/10 text-amber-400 shrink-0">
-          <Eye className="w-3 h-3" /> View only
-        </span>
+      <div className="flex items-center gap-2 mb-4">
+        <button
+          onClick={() => setView('home')}
+          aria-label="Back"
+          className="w-9 h-9 -ml-1 rounded-full flex items-center justify-center text-[hsl(var(--color-text-secondary))] active:bg-[hsl(var(--color-surface-hover))]"
+        >
+          <ChevronLeft className="w-6 h-6" />
+        </button>
+        <p className="text-lg font-semibold text-[hsl(var(--color-text-primary))] truncate">
+          {view === 'requests' ? 'Requests' : view === 'actions' ? 'Actions' : 'Assistant'}
+          <span className="text-sm font-normal text-[hsl(var(--color-text-secondary))]"> — {user?.name ?? '…'}</span>
+        </p>
       </div>
-      <p className="text-sm text-[hsl(var(--color-text-secondary))] mb-5">
-        Their pages exactly as they see them — nothing here can be changed.
-      </p>
-
-      <div className="flex gap-1 p-1 rounded-xl bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] mb-5 w-fit">
-        {tabs.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              tab === t.id
-                ? 'bg-[hsl(var(--color-primary))] text-white'
-                : 'text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))]'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'home' ? (
-        <MobileHomePage
-          viewAsUserId={userId}
-          onOpenTab={t => setTab(t === 'assistant' ? 'ai' : t)}
-        />
-      ) : tab === 'requests' ? (
+      {view === 'requests' ? (
         <RequestsContent viewAsUserId={userId} />
-      ) : tab === 'actions' ? (
+      ) : view === 'actions' ? (
         <ActionsContent viewAsUserId={userId} />
       ) : (
-        <AiTab userId={userId} />
+        <AiView userId={userId} />
       )}
     </div>
   )
