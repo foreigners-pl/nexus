@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { sendAssistantMessage, getAssistantHistory, type StagedFile } from '@/app/actions/assistant'
 import { createClient } from '@/lib/supabase/client'
 import { usePaneLink } from '@/lib/panes'
-import { Sparkles, Send, Paperclip, Zap, X } from 'lucide-react'
+import { Sparkles, Send, Paperclip, Zap, X, History } from 'lucide-react'
 
 interface Msg {
   role: 'user' | 'model'
@@ -28,7 +28,7 @@ function BubbleLink({ href, label }: { href: string; label: string }) {
 const LINK_RE = /\[([^\]]+)\]\((\/[a-zA-Z0-9/_?=&%.-]+)\)|\b(C\d{5,6})\b/g
 
 /** Parse [label](/path) links the model emits, plus bare case codes. */
-function linkify(text: string): ReactNode[] {
+export function linkify(text: string): ReactNode[] {
   const nodes: ReactNode[] = []
   let last = 0
   for (const m of text.matchAll(LINK_RE)) {
@@ -53,9 +53,11 @@ export function AssistantContent() {
   const fileRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const meRef = useRef<string | null>(null)
+  const sessionsLink = usePaneLink('/assistant/sessions')
+  const tz = new Date().getTimezoneOffset()
 
   useEffect(() => {
-    getAssistantHistory().then(({ messages }) => {
+    getAssistantHistory(tz).then(({ messages }) => {
       setMessages(messages.map(m => ({ role: m.role === 'model' ? 'model' : 'user', text: m.text })))
     })
   }, [])
@@ -90,7 +92,7 @@ export function AssistantContent() {
     setQuickOpen(false)
     setMessages(m => [...(m || []), { role: 'user', text: value }])
     setBusy(true)
-    const { reply, error } = await sendAssistantMessage(value, staged)
+    const { reply, error } = await sendAssistantMessage(value, staged, tz)
     setMessages(m => [...(m || []), { role: 'model', text: reply || error || 'No reply' }])
     setBusy(false)
   }
@@ -200,7 +202,7 @@ export function AssistantContent() {
             <button
               onClick={() => setQuickOpen(o => !o)}
               disabled={busy}
-              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] text-xs text-[hsl(var(--color-text-secondary))] active:bg-[hsl(var(--color-surface-hover))] disabled:opacity-40"
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] text-xs text-[hsl(var(--color-text-secondary))] active:bg-[hsl(var(--color-surface-hover))] disabled:opacity-40 whitespace-nowrap"
             >
               <Zap className="w-3.5 h-3.5 text-[hsl(var(--color-primary))]" />
               Quick actions
@@ -210,11 +212,18 @@ export function AssistantContent() {
           <button
             onClick={() => fileRef.current?.click()}
             disabled={busy}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] text-xs text-[hsl(var(--color-text-secondary))] active:bg-[hsl(var(--color-surface-hover))] disabled:opacity-40"
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] text-xs text-[hsl(var(--color-text-secondary))] active:bg-[hsl(var(--color-surface-hover))] disabled:opacity-40 whitespace-nowrap"
           >
             <Paperclip className="w-3.5 h-3.5 text-[hsl(var(--color-primary))]" />
             Attach files
           </button>
+          <Link
+            {...sessionsLink}
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] text-xs text-[hsl(var(--color-text-secondary))] active:bg-[hsl(var(--color-surface-hover))] whitespace-nowrap"
+          >
+            <History className="w-3.5 h-3.5 text-[hsl(var(--color-primary))]" />
+            Sessions
+          </Link>
         </div>
 
         <div className="flex gap-2 items-end">

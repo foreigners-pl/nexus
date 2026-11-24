@@ -273,15 +273,18 @@ const FUNCTION_DECLARATIONS = [
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
 
 /** One assistant turn: history + user text → Gemini w/ tools → reply. */
-export async function runBotTurn(user: BotUser, text: string): Promise<string> {
+export async function runBotTurn(user: BotUser, text: string, sinceIso?: string): Promise<string> {
   const supabase = createAdminClient()
 
-  const { data: history } = await supabase
+  let historyQ = supabase
     .from('bot_messages')
     .select('role, text')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(14)
+  // Sessions reset daily — the model only sees today's messages.
+  if (sinceIso) historyQ = historyQ.gte('created_at', sinceIso)
+  const { data: history } = await historyQ
 
   const { data: pend } = await supabase
     .from('bot_pending_files').select('name').eq('user_id', user.id)
@@ -336,13 +339,15 @@ export async function runBotTurn(user: BotUser, text: string): Promise<string> {
 }
 
 /** Recent conversation for rendering the chat on load. */
-export async function getBotHistory(userId: string, limit = 40) {
+export async function getBotHistory(userId: string, sinceIso?: string, limit = 40) {
   const supabase = createAdminClient()
-  const { data } = await supabase
+  let q = supabase
     .from('bot_messages')
     .select('role, text, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(limit)
+  if (sinceIso) q = q.gte('created_at', sinceIso)
+  const { data } = await q
   return (data || []).reverse() as { role: string; text: string; created_at: string }[]
 }

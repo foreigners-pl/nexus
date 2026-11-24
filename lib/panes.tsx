@@ -19,6 +19,7 @@ import ClientPage from '@/app/(dashboard)/clients/[id]/page'
 import ClientInfoPage from '@/app/(dashboard)/clients/[id]/info/page'
 import { MyClientsContent } from '@/components/mobile/MyClientsContent'
 import { AssistantContent } from '@/components/mobile/AssistantContent'
+import { AssistantSessions, AssistantSessionView } from '@/components/mobile/AssistantSessions'
 import { RequestsContent } from '@/components/mobile/RequestsContent'
 import { ActionsContent } from '@/components/mobile/ActionsContent'
 import { SearchContent } from '@/components/mobile/SearchContent'
@@ -32,6 +33,7 @@ function isPaneRoute(href: string): boolean {
     || /^\/clients\/[^/]+(\/info)?$/.test(path)
     || /^\/home$/.test(path)
     || /^\/(requests|actions|search|notifications|assistant)$/.test(path)
+    || /^\/assistant\/sessions(\/[^/]+)?$/.test(path)
 }
 
 /** Routes that can render as a side pane instead of a full navigation. */
@@ -75,6 +77,10 @@ function renderPaneRoute(href: string): React.ReactNode | null {
     return <ClientInfoPage params={Promise.resolve({ id: m[1] })} />
   if ((m = path.match(/^\/clients\/([^/]+)$/)))
     return <ClientPage params={Promise.resolve({ id: m[1] })} />
+  if (path === '/assistant/sessions')
+    return <AssistantSessions />
+  if ((m = path.match(/^\/assistant\/sessions\/([^/]+)$/)))
+    return <AssistantSessionView date={m[1]} />
   if (path === '/assistant')
     return (
       <div>
