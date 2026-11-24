@@ -49,25 +49,27 @@ async function modelCandidates(): Promise<string[]> {
   ].filter((m): m is string => !!m))]
 }
 
-async function generate(contents: any[], systemInstruction: string) {
+async function generate(contents: any[], systemInstruction: string): Promise<{ res: any; calls: number }> {
   const order = resolvedModel ? [resolvedModel, ...(await modelCandidates()).filter(m => m !== resolvedModel)] : await modelCandidates()
   let lastErr: any
+  let calls = 0
   for (const model of order) {
     try {
+      calls++
       const res = await ai.models.generateContent({
         model,
         contents,
         config: { systemInstruction, tools: [{ functionDeclarations: FUNCTION_DECLARATIONS as any }] },
       })
       resolvedModel = model
-      return res
+      return { res, calls }
     } catch (e: any) {
       if (!isModelGone(e) && !isModelBusy(e)) throw e
       lastErr = e
     }
   }
   if (listedModels?.length) lastErr = new Error(`Models available to this key: ${listedModels.join(', ')}`)
-  throw lastErr
+  throw Object.assign(lastErr, { apiCalls: calls })
 }
 
 const SYSTEM_PROMPT = `You are the Nexus CRM assistant, chatting inside the CRM app with staff of a legal-services company.
@@ -294,20 +296,22 @@ export async function runBotTurn(user: BotUser, text: string, sinceIso?: string)
 
   let reply = ''
   let tokens = 0
+  let apiCalls = 0
   try {
     let emptyRetries = 0
     for (let i = 0; i < 8; i++) {
-      const res = await generate(
+      const { res, calls } = await generate(
         contents,
         `${SYSTEM_PROMPT}\n\nYou are talking to ${user.display_name || user.email}. Today is ${new Date().toDateString()}.` +
         (pend?.length ? `\nThe user staged files to attach: ${pend.map((p: any) => p.name).join(', ')} — call attach_files once they say (or you can infer) which case.` : ''),
       )
+      apiCalls += calls
       tokens += res.usageMetadata?.totalTokenCount ?? 0
 
-      const calls = res.functionCalls
-      if (calls && calls.length) {
-        contents.push(res.candidates?.[0]?.content ?? { role: 'model', parts: calls.map(c => ({ functionCall: c })) })
-        const parts = await Promise.all(calls.map(async call => ({
+      const fnCalls = res.functionCalls
+      if (fnCalls && fnCalls.length) {
+        contents.push(res.candidates?.[0]?.content ?? { role: 'model', parts: fnCalls.map((c: any) => ({ functionCall: c })) })
+        const parts = await Promise.all(fnCalls.map(async (call: any) => ({
           functionResponse: {
             name: call.name,
             response: { result: await runTool(supabase, user, call.name!, call.args ?? {}).catch((e: Error) => ({ error: e.message })) },
@@ -323,6 +327,7 @@ export async function runBotTurn(user: BotUser, text: string, sinceIso?: string)
       if (reply || ++emptyRetries >= 3) break
     }
   } catch (e: any) {
+    apiCalls += e?.apiCalls ?? 0
     const msg = e?.message || ''
     reply = e?.status === 429 || /quota|rate.?limit|RESOURCE_EXHAUSTED/i.test(msg)
       ? "I'm out of Gemini quota for now — the free tier caps requests per minute/day. Give it a minute and try again."
@@ -334,7 +339,7 @@ export async function runBotTurn(user: BotUser, text: string, sinceIso?: string)
 
   await supabase.from('bot_messages').insert([
     { user_id: user.id, role: 'user', text },
-    { user_id: user.id, role: 'model', text: reply.slice(0, 2000), tokens },
+    { user_id: user.id, role: 'model', text: reply.slice(0, 2000), tokens, calls: apiCalls },
   ]).then(() => {}, () => {})
 
   return reply

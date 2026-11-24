@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
-import { getAssistantSessions, getAssistantSession } from '@/app/actions/assistant'
+import { getAssistantSessions, getAssistantSession, getAssistantUsage } from '@/app/actions/assistant'
 import { usePaneLink } from '@/lib/panes'
 import { MobileBackHeader } from '@/components/mobile/MobileBackHeader'
 import { linkify } from '@/components/mobile/AssistantContent'
@@ -52,6 +52,33 @@ function SessionRow({ date, count, tokens, today }: { date: string; count: numbe
   )
 }
 
+// Free-tier cap for gemini-3.5-flash-lite (per project, resets midnight Pacific).
+const DAILY_CAP = 500
+
+function UsageCard() {
+  const [usage, setUsage] = useState<{ calls: number; tokens: number; messages: number } | null>(null)
+  useEffect(() => { getAssistantUsage().then(setUsage) }, [])
+  if (!usage) return null
+  const pct = Math.min(100, Math.round((usage.calls / DAILY_CAP) * 100))
+  return (
+    <div className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl px-4 py-3.5 mb-4">
+      <div className="flex items-baseline justify-between">
+        <p className="text-sm font-medium text-[hsl(var(--color-text-primary))]">
+          {usage.calls} <span className="text-[hsl(var(--color-text-muted))] font-normal">/ ~{DAILY_CAP} free requests today</span>
+        </p>
+        <p className="text-xs text-[hsl(var(--color-text-muted))]">{usage.tokens > 0 ? `${fmtTokens(usage.tokens)} tokens` : ''}</p>
+      </div>
+      <div className="h-1.5 rounded-full bg-[hsl(var(--color-surface-active))] mt-2.5 overflow-hidden">
+        <div
+          className={`h-full rounded-full ${pct >= 80 ? 'bg-red-400' : pct >= 50 ? 'bg-amber-400' : 'bg-[hsl(var(--color-primary))]'}`}
+          style={{ width: `${Math.max(pct, 2)}%` }}
+        />
+      </div>
+      <p className="text-[11px] text-[hsl(var(--color-text-muted))] mt-2">Resets midnight Pacific · whole team shares this quota</p>
+    </div>
+  )
+}
+
 /** Past assistant sessions — one per day, newest first. */
 export function AssistantSessions() {
   const [sessions, setSessions] = useState<{ date: string; count: number; tokens: number }[] | null>(null)
@@ -64,6 +91,7 @@ export function AssistantSessions() {
   return (
     <div>
       <MobileBackHeader title="Sessions" />
+      <UsageCard />
       {sessions === null ? (
         <div className="flex justify-center py-10">
           <Loader2 className="w-5 h-5 animate-spin text-[hsl(var(--color-text-muted))]" />

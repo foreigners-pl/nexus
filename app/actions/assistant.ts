@@ -79,6 +79,33 @@ export async function getAssistantSessions(tzOffset = 0): Promise<{ sessions: { 
   return { sessions: [...byDay.entries()].map(([date, v]) => ({ date, ...v })) }
 }
 
+/** UTC instant of the most recent midnight in Los Angeles (Gemini's quota reset). */
+function pacificDayStartUtc(): string {
+  const now = Date.now()
+  const laNow = new Date(now).toLocaleString('en-US', { timeZone: 'America/Los_Angeles' })
+  const offset = now - new Date(laNow).getTime()
+  const laTodayUtc = new Date(now - offset)
+  laTodayUtc.setUTCHours(0, 0, 0, 0)
+  return new Date(laTodayUtc.getTime() + offset).toISOString()
+}
+
+/** Today's assistant usage across the whole project vs the free-tier cap. */
+export async function getAssistantUsage(): Promise<{ calls: number; tokens: number; messages: number }> {
+  const user = await me()
+  if (!user) return { calls: 0, tokens: 0, messages: 0 }
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('bot_messages')
+    .select('tokens, calls')
+    .eq('role', 'model')
+    .gte('created_at', pacificDayStartUtc())
+  return {
+    calls: (data || []).reduce((s, m) => s + (m.calls ?? 0), 0),
+    tokens: (data || []).reduce((s, m) => s + (m.tokens ?? 0), 0),
+    messages: (data || []).length,
+  }
+}
+
 /** One past session's messages, oldest first. */
 export async function getAssistantSession(date: string, tzOffset = 0): Promise<{ messages: { role: string; text: string; created_at: string }[] }> {
   const user = await me()
