@@ -38,6 +38,13 @@ async function generate(contents: any[], systemInstruction: string) {
       lastErr = e
     }
   }
+  // All candidates rejected — ask the API what this key can actually use
+  // and surface the names so the error is self-diagnosing.
+  try {
+    const pager = await ai.models.list({ config: { pageSize: 100 } })
+    const names = (pager.page || []).map((m: any) => m.name).filter(Boolean)
+    if (names.length) lastErr = new Error(`Models available to this key: ${names.join(', ')}`)
+  } catch {}
   throw lastErr
 }
 
