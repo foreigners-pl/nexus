@@ -84,6 +84,7 @@ Rules:
 - For multi-part requests (e.g. create a client, then a case, then messages) work through them in order with tool calls; only stop to ask when something is genuinely ambiguous.
 - New clients/cases: create_client makes the person; create_case needs an existing client, optionally a service and a lawyer. Messages and requests go to the case's current step.
 - For write actions (messages, requests, answers, actions, cancellations), just do them — the user asked you to.
+- Follow counts and specifics literally: if they ask for N messages, send exactly N — no extra "initiated" or filler messages they didn't request. A request counts as one of the messages.
 - If a case reference is ambiguous, ask which one.
 - If the user asks for something the tools can't do, say so briefly.
 - Answer in the language the user writes in.`
