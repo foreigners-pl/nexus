@@ -885,7 +885,10 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
     measure()
     window.addEventListener('resize', measure)
     return () => window.removeEventListener('resize', measure)
-  })
+    // Deps, not every-render: a setState here must not be able to retrigger
+    // the effect (infinite-loop guard). Re-measure when the feed grows or
+    // the composer/request-slot above can change height.
+  }, [canPost, feed.length, select !== null, queries])
 
   const feedList = feed.length === 0 ? (
     <p className="text-xs text-[hsl(var(--color-text-muted))] py-6 text-center">
