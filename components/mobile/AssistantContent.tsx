@@ -53,8 +53,21 @@ export function AssistantContent() {
   const fileRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const meRef = useRef<string | null>(null)
+  const composerRef = useRef<HTMLDivElement>(null)
+  const [composerH, setComposerH] = useState(0)
   const sessionsLink = usePaneLink('/assistant/sessions')
   const tz = new Date().getTimezoneOffset()
+
+  // The composer is `fixed` on mobile — measure it so the spacer below
+  // keeps the last message scrollable clear of it.
+  useEffect(() => {
+    const el = composerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setComposerH(el.offsetHeight))
+    ro.observe(el)
+    setComposerH(el.offsetHeight)
+    return () => ro.disconnect()
+  }, [])
 
   useEffect(() => {
     getAssistantHistory(tz).then(({ messages }) => {
@@ -164,8 +177,15 @@ export function AssistantContent() {
         <div ref={scrollRef} />
       </div>
 
-      {/* Input area — sticky at the bottom of the scroll region */}
-      <div className="sticky bottom-0 -mx-4 md:-mx-6 px-4 md:px-6 pt-2 pb-2 bg-[hsl(var(--color-background))] shadow-[0_24px_0_hsl(var(--color-background))]">
+      {/* Spacer: on mobile the composer is fixed above the tab bar, so this
+          reserves the same room in the flow — desktop's sticky needs none. */}
+      <div className="md:hidden" style={{ height: composerH }} />
+
+      {/* Input area — fixed above the tab bar on mobile, sticky on desktop */}
+      <div
+        ref={composerRef}
+        className="fixed z-40 bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 right-0 px-4 pt-2 pb-2 bg-[hsl(var(--color-background))] md:sticky md:bottom-0 md:left-auto md:right-auto md:-mx-6 md:px-6 shadow-[0_24px_0_hsl(var(--color-background))]"
+      >
         {staged.length > 0 && (
           <div className="flex flex-wrap gap-1.5 pb-2">
             {staged.map(f => (
