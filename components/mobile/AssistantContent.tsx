@@ -67,7 +67,7 @@ export function linkify(text: string): ReactNode[] {
 
 /** Voice bubble — themed mini-player + collapsible transcript. Plays from
  *  initialUrl (local blob, instant) or a signed URL for stored audio. */
-export function AudioBubble({ path, transcript, initialUrl }: { path?: string | null; transcript: string; initialUrl?: string }) {
+export function AudioBubble({ path, transcript, initialUrl, fetchUrl }: { path?: string | null; transcript: string; initialUrl?: string; fetchUrl?: (path: string) => Promise<string | null> }) {
   const [url, setUrl] = useState<string | null>(initialUrl ?? null)
   const [showTx, setShowTx] = useState(false)
   const [playing, setPlaying] = useState(false)
@@ -76,8 +76,10 @@ export function AudioBubble({ path, transcript, initialUrl }: { path?: string | 
   const audioRef = useRef<HTMLAudioElement>(null)
 
   useEffect(() => {
-    if (!initialUrl && path) getAssistantAudioUrl(path).then(r => setUrl(r.url ?? null))
-  }, [path, initialUrl])
+    if (initialUrl || !path) return
+    const fetcher = fetchUrl ?? ((p: string) => getAssistantAudioUrl(p).then(r => r.url ?? null))
+    fetcher(path).then(setUrl)
+  }, [path, initialUrl, fetchUrl])
 
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
   const seek = (e: React.MouseEvent<HTMLDivElement>) => {

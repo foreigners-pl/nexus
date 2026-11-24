@@ -470,7 +470,7 @@ export async function getUsageOverview(): Promise<{ users: UsageRow[]; error?: s
   const today = new Date().toISOString().slice(0, 10)
 
   const [usersRes, queriesRes, actionsRes, casesRes] = await Promise.all([
-    supabase.from('users').select('id, display_name, email, role, last_seen_at'),
+    supabase.from('users').select('id, display_name, email, role:roles(name), last_seen_at'),
     supabase
       .from('case_queries')
       .select(`
@@ -572,7 +572,7 @@ export async function getUsageOverview(): Promise<{ users: UsageRow[]; error?: s
     return {
       userId: u.id,
       name: u.display_name || u.email || 'User',
-      role: u.role ?? null,
+      role: (u.role as any)?.name ?? null,
       lastSeenAt: u.last_seen_at ?? null,
       requestsNew: reqs.filter(r => r.tag === 'new').length,
       requestsLate: reqs.filter(r => r.tag === 'late').length,

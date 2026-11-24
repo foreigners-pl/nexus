@@ -25,6 +25,7 @@ import { ActionsContent } from '@/components/mobile/ActionsContent'
 import { SearchContent } from '@/components/mobile/SearchContent'
 import { NotificationsContent } from '@/components/notifications/NotificationsContent'
 import { MobileBackHeader } from '@/components/mobile/MobileBackHeader'
+import ViewAsPage from '@/app/(dashboard)/admin/view-as/[userId]/page'
 
 /** Routes that render at pane (mobile-like) width on desktop. */
 function isPaneRoute(href: string): boolean {
@@ -34,6 +35,7 @@ function isPaneRoute(href: string): boolean {
     || /^\/home$/.test(path)
     || /^\/(requests|actions|search|notifications|assistant)$/.test(path)
     || /^\/assistant\/sessions(\/[^/]+)?$/.test(path)
+    || /^\/admin\/view-as\/[^/]+$/.test(path)
 }
 
 /** Routes that can render as a side pane instead of a full navigation. */
@@ -88,6 +90,8 @@ function renderPaneRoute(href: string): React.ReactNode | null {
         <AssistantContent />
       </div>
     )
+  if ((m = path.match(/^\/admin\/view-as\/([^/]+)$/)))
+    return <ViewAsPage params={Promise.resolve({ userId: m[1] })} />
   if (path === '/requests') return <RequestsContent />
   if (path === '/actions') return <ActionsContent />
   if (path === '/notifications') return <NotificationsContent />

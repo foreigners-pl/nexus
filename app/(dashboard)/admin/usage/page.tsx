@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { getUsageOverview, type UsageRow, type UsageItem } from '@/app/actions/admin'
 import { usePaneLink } from '@/lib/panes'
-import { ChevronLeft, ChevronDown, Loader2, MessageSquare, Zap, AlertTriangle } from 'lucide-react'
+import { ChevronLeft, ChevronDown, Loader2, MessageSquare, Zap, AlertTriangle, Eye } from 'lucide-react'
 
 function formatLastSeen(ts: string | null) {
   if (!ts) return 'Never'
@@ -104,6 +104,7 @@ function CountChip({ n, warn }: { n: number; warn?: boolean }) {
 
 function UserRow({ row }: { row: UsageRow }) {
   const [open, setOpen] = useState(false)
+  const viewAsLink = usePaneLink(`/admin/view-as/${row.userId}`)
   const total = row.requestsNew + row.requestsLate + row.actionsUpcoming + row.actionsLate + row.neglected
 
   return (
@@ -132,6 +133,14 @@ function UserRow({ row }: { row: UsageRow }) {
             </>
           )}
           {total === 0 && <span className="text-[11px] text-[hsl(var(--color-text-muted))]">All clear</span>}
+          <Link
+            href={viewAsLink.href}
+            onClick={e => { e.stopPropagation(); viewAsLink.onClick(e) }}
+            title={`View as ${row.name}`}
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-[hsl(var(--color-text-muted))] hover:text-[hsl(var(--color-primary))] hover:bg-[hsl(var(--color-primary))]/10 transition-colors"
+          >
+            <Eye className="w-4 h-4" />
+          </Link>
           <ChevronDown className={`w-4 h-4 text-[hsl(var(--color-text-muted))] transition-transform ${open ? 'rotate-180' : ''}`} />
         </div>
       </button>

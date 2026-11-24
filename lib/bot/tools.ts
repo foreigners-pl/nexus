@@ -120,7 +120,7 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
       const to_answer = (data || [])
         .filter((q: any) => q.assigned_to === me.id && q.status === 'open')
         .map((q: any) => ({
-          case: label(q), step: q.case_steps?.name ?? null,
+          case: label(q), case_id: q.case_id, step: q.case_steps?.name ?? null,
           about: questionByQuery.get(q.id) ?? null,
           waiting_since: q.created_at,
           late: new Date(q.created_at).getTime() < dayAgo,
@@ -128,7 +128,7 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
       const answered_awaiting_seen = (data || [])
         .filter((q: any) => q.opened_by === me.id && q.status === 'answered')
         .map((q: any) => ({
-          case: label(q), step: q.case_steps?.name ?? null,
+          case: label(q), case_id: q.case_id, step: q.case_steps?.name ?? null,
           about: questionByQuery.get(q.id) ?? null,
           answered_at: q.answered_at,
         }))
@@ -152,7 +152,8 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
         }
         const finalIds = new Set((statuses || []).filter(s => (s.position ?? 0) === maxPos.get(s.board_id)).map(s => s.id))
         tasks = (cards || []).filter((t: any) => !finalIds.has(t.status_id)).map((t: any) => ({
-          title: t.title, board: t.boards?.name ?? null, column: t.board_statuses?.name ?? null,
+          title: t.title, board: t.boards?.name ?? null, board_id: t.board_id,
+          column: t.board_statuses?.name ?? null,
           due: t.due_date, late: new Date(t.created_at).getTime() < dayAgo,
         }))
       }
@@ -162,14 +163,14 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
     case 'list_actions': {
       const { data } = await supabase
         .from('case_entries')
-        .select('id, body, due_date, waiting_on, created_at, cases(case_code, clients(first_name, last_name))')
+        .select('id, body, due_date, waiting_on, created_at, case_id, cases(case_code, clients(first_name, last_name))')
         .eq('kind', 'action')
         .eq('created_by', me.id)
         .is('completed_at', null)
         .order('due_date', { ascending: true, nullsFirst: false })
       const today = new Date(); today.setHours(0, 0, 0, 0)
       const label = (a: any) => a.cases ? caseLabel(a.cases) : null
-      const row = (a: any) => ({ what: a.body, due: a.due_date, waiting_on: a.waiting_on ?? null, case: label(a) })
+      const row = (a: any) => ({ what: a.body, due: a.due_date, waiting_on: a.waiting_on ?? null, case: label(a), case_id: a.case_id })
       const dated = (data || []).filter((a: any) => a.due_date)
       // Same buckets as the Actions page.
       const late = dated.filter((a: any) => new Date(a.due_date).getTime() < today.getTime()).map(row)
@@ -191,7 +192,7 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
           .eq('kind', 'action').is('completed_at', null).in('case_id', eligible.map((c: any) => c.id))
         const has = new Set((open || []).map(r => r.case_id))
         neglected = eligible.filter((c: any) => !has.has(c.id))
-          .map((c: any) => ({ case: caseLabel(c), step: c.step?.name ?? null }))
+          .map((c: any) => ({ case: caseLabel(c), case_id: c.id, step: c.step?.name ?? null }))
       }
       return { late, upcoming, undated, neglected_cases: neglected }
     }
