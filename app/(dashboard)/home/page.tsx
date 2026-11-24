@@ -7,7 +7,7 @@ import { searchClientsQuery, type ClientSearchResult } from '@/lib/data'
 import { fetchCurrentUser, fetchMyOpenTasks, fetchMyOpenActions, fetchCasesMissingActions } from '@/lib/data'
 import { getMyQueries } from '@/app/actions/workflow'
 import { getMyAnsweredHistory } from '@/app/actions/feed'
-import { getViewAsUser, getViewAsRequests, getViewAsActionsData } from '@/app/actions/viewas'
+import { getViewAsUser, getViewAsRequests, getViewAsActionsData, getViewAsRecentClients } from '@/app/actions/viewas'
 import { getRecentClients, type RecentClient } from '@/lib/recent-clients'
 import { usePaneNavigate } from '@/lib/panes'
 import { usePrefetchClientPage, queryKeys } from '@/lib/query'
@@ -115,11 +115,12 @@ export default function MobileHomePage({ viewAsUserId, onOpenTab, onBack }: {
     90: withDates.filter(a => { const d = new Date(a.due_date!).getTime(); return d >= todayMs && d <= todayMs + 90 * DAY_MS }).length,
   }
 
-  // Load user name + recents once. Recents are device-local storage — there
-  // is nothing to mirror for another user, so the section is hidden.
+  // Load user name + recents once. Mirror mode approximates recents from
+  // the member's recently active cases (the real list is device-local).
   useEffect(() => {
     if (viewAsUserId) {
       getViewAsUser(viewAsUserId).then(u => setUserName(u?.name ?? null))
+      getViewAsRecentClients(viewAsUserId).then(({ clients }) => setRecentClients(clients))
       return
     }
     setRecentClients(getRecentClients())
@@ -371,8 +372,7 @@ export default function MobileHomePage({ viewAsUserId, onOpenTab, onBack }: {
         </div>
       </div>
 
-      {/* Recent clients — device-local, hidden in mirror mode */}
-      {!viewAsUserId && (
+      {/* Recent clients */}
       <section>
         <div className="flex items-center gap-2 mb-2 px-1">
           <Clock className="w-4 h-4 text-[hsl(var(--color-text-muted))]" />
@@ -406,7 +406,6 @@ export default function MobileHomePage({ viewAsUserId, onOpenTab, onBack }: {
           </div>
         )}
       </section>
-      )}
     </div>
   )
 }

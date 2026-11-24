@@ -178,6 +178,48 @@ export async function getViewAsActionsData(userId: string) {
   return { actions, missing }
 }
 
+/** Recent clients approximation — the real list lives in device-local
+ *  storage, so the mirror shows the clients of the target's most recently
+ *  active cases instead. */
+export async function getViewAsRecentClients(userId: string): Promise<{ clients: { id: string; name: string; viewed_at: number }[] }> {
+  if (!await assertSignedIn()) return { clients: [] }
+  const t = await loadTarget(userId)
+  if (!t) return { clients: [] }
+  const supabase = createAdminClient()
+
+  const { data: rows } = await supabase
+    .from('cases')
+    .select('id, client_id, clients(first_name, last_name)')
+    .or(`assigned_to.eq.${t.id},csr_id.eq.${t.id}`)
+  if (!rows?.length) return { clients: [] }
+
+  const { data: acts } = await supabase
+    .from('case_entries')
+    .select('case_id, created_at')
+    .in('case_id', rows.map((r: any) => r.id))
+    .order('created_at', { ascending: false })
+  const latest = new Map<string, string>()
+  for (const a of acts || []) {
+    if (!latest.has(a.case_id)) latest.set(a.case_id, a.created_at)
+  }
+
+  const seen = new Set<string>()
+  const clients = [...rows]
+    .sort((a: any, b: any) => (latest.get(b.id) ?? '').localeCompare(latest.get(a.id) ?? ''))
+    .map((r: any) => {
+      const c = Array.isArray(r.clients) ? r.clients[0] : r.clients
+      return c ? {
+        id: c.id ?? r.client_id,
+        name: [c.first_name, c.last_name].filter(Boolean).join(' '),
+        viewed_at: new Date(latest.get(r.id) ?? 0).getTime(),
+      } : null
+    })
+    .filter((c): c is { id: string; name: string; viewed_at: number } => !!c?.id && !!c.name && !seen.has(c.id) && !!seen.add(c.id))
+    .slice(0, 10)
+
+  return { clients }
+}
+
 /** YYYY-MM-DD of a timestamp in the viewer's local timezone. */
 function localDateKey(iso: string, offsetMinutes: number): string {
   return new Date(new Date(iso).getTime() - offsetMinutes * 60000).toISOString().slice(0, 10)

@@ -131,18 +131,16 @@ export default function ViewAsPage({ params }: { params: Promise<{ userId: strin
 
   if (view === 'home') {
     return (
-      <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 pb-20">
-        <MobileHomePage
-          viewAsUserId={userId}
-          onBack={exitMirror}
-          onOpenTab={t => setView(t === 'assistant' ? 'ai' : t)}
-        />
-      </div>
+      <MobileHomePage
+        viewAsUserId={userId}
+        onBack={exitMirror}
+        onOpenTab={t => setView(t === 'assistant' ? 'ai' : t)}
+      />
     )
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 pb-20">
+    <div>
       <div className="flex items-center gap-2 mb-4">
         <button
           onClick={() => setView('home')}
