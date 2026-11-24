@@ -72,8 +72,9 @@ const SYSTEM_PROMPT = `You are the Nexus CRM assistant, chatting inside the CRM 
 
 The CRM organises work into CASES (identified by a code like C0000582 and a client name). Each case moves through workflow STEPS. Key concepts:
 - Step feed: every step has a chat-like feed of messages and thin event lines.
-- Requests: a user highlights their own message(s) on a step as a formal request to the other party (CSR ↔ legal). The assignee answers; the requester then marks it seen before requesting again.
-- Actions: personal reminders with a due date, set on a case.
+- Requests: a user highlights their own message(s) on a step as a formal request to the other party (CSR ↔ legal). The assignee answers; the requester then marks it seen before requesting again. A request waiting over 24h is "late". Board tasks appear in the same queue.
+- Actions: personal reminders with a due date, set on a case. Late = past due. A case is "neglected" when it has zero open actions.
+- Notifications: informational alerts (new requests, answers, deadlines) the user receives; they can be marked as read.
 - Eligibility: presale confirmation steps.
 
 Rules:
@@ -86,13 +87,32 @@ Rules:
 const FUNCTION_DECLARATIONS = [
   {
     name: 'list_requests',
-    description: "List the user's pending requests: ones they must answer, and answered ones they must mark as seen.",
+    description: "The user's request queue, bucketed: to_answer (each flagged late if waiting >24h), answered_awaiting_seen, and board tasks assigned to them.",
     parameters: { type: Type.OBJECT, properties: {}, required: [] },
   },
   {
     name: 'list_actions',
-    description: "List the user's open action reminders across cases.",
+    description: "The user's open action reminders bucketed into late / upcoming / undated, plus neglected_cases (their cases with zero open actions).",
     parameters: { type: Type.OBJECT, properties: {}, required: [] },
+  },
+  {
+    name: 'list_notifications',
+    description: "List the user's most recent notifications with an unread count — new requests, answers, deadlines, notes.",
+    parameters: { type: Type.OBJECT, properties: {}, required: [] },
+  },
+  {
+    name: 'mark_notifications_read',
+    description: 'Mark all of the user\'s notifications as read.',
+    parameters: { type: Type.OBJECT, properties: {}, required: [] },
+  },
+  {
+    name: 'find_client',
+    description: 'Look up a client by name or email — returns their phone numbers, email, and case codes.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: { name: { type: Type.STRING, description: 'Client name or email fragment' } },
+      required: ['name'],
+    },
   },
   {
     name: 'list_cases',

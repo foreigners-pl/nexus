@@ -13,7 +13,8 @@ interface Msg {
 const SUGGESTIONS = [
   'What do I need to do today?',
   'Any requests waiting for me?',
-  'List my open actions',
+  'Check my notifications',
+  "What's late or neglected?",
   'What happened recently on my cases?',
 ]
 

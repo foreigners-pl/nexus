@@ -92,34 +92,113 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
         ? await supabase.from('case_entries').select('query_id, body').in('query_id', qids).eq('request_part', 'question')
         : { data: [] }
       const questionByQuery = new Map((entries || []).map((e: any) => [e.query_id, e.body]))
-      return {
-        requests: (data || []).map((q: any) => ({
-          id: q.id,
-          case: `${q.cases?.case_code ?? ''} ${clientName(q.cases)}`.trim(),
-          step: q.case_steps?.name ?? null,
-          you_need_to: q.assigned_to === me.id && q.status === 'open' ? 'answer it' : 'mark it as seen',
+
+      const dayAgo = Date.now() - 86400000
+      const label = (q: any) => `${q.cases?.case_code ?? ''} ${clientName(q.cases)}`.trim()
+      // Same buckets as the Requests page: waiting >24h counts as late.
+      const to_answer = (data || [])
+        .filter((q: any) => q.assigned_to === me.id && q.status === 'open')
+        .map((q: any) => ({
+          case: label(q), step: q.case_steps?.name ?? null,
           about: questionByQuery.get(q.id) ?? null,
-          since: q.status === 'answered' ? q.answered_at : q.created_at,
-        })),
+          waiting_since: q.created_at,
+          late: new Date(q.created_at).getTime() < dayAgo,
+        }))
+      const answered_awaiting_seen = (data || [])
+        .filter((q: any) => q.opened_by === me.id && q.status === 'answered')
+        .map((q: any) => ({
+          case: label(q), step: q.case_steps?.name ?? null,
+          about: questionByQuery.get(q.id) ?? null,
+          answered_at: q.answered_at,
+        }))
+
+      // Board tasks assigned to me that aren't in a final status column.
+      const { data: assigns } = await supabase.from('card_assignees').select('card_id').eq('user_id', me.id)
+      let tasks: any[] = []
+      if (assigns?.length) {
+        const { data: cards } = await supabase
+          .from('cards')
+          .select('id, title, due_date, created_at, board_id, status_id, boards(name), board_statuses(name)')
+          .in('id', assigns.map(a => a.card_id))
+        const boardIds = [...new Set((cards || []).map((t: any) => t.board_id))]
+        const { data: statuses } = boardIds.length
+          ? await supabase.from('board_statuses').select('id, board_id, position').in('board_id', boardIds)
+          : { data: [] }
+        const maxPos = new Map<string, number>()
+        for (const s of statuses || []) {
+          const prev = maxPos.get(s.board_id)
+          if (prev === undefined || (s.position ?? 0) > prev) maxPos.set(s.board_id, s.position ?? 0)
+        }
+        const finalIds = new Set((statuses || []).filter(s => (s.position ?? 0) === maxPos.get(s.board_id)).map(s => s.id))
+        tasks = (cards || []).filter((t: any) => !finalIds.has(t.status_id)).map((t: any) => ({
+          title: t.title, board: t.boards?.name ?? null, column: t.board_statuses?.name ?? null,
+          due: t.due_date, late: new Date(t.created_at).getTime() < dayAgo,
+        }))
       }
+      return { to_answer, answered_awaiting_seen, tasks }
     }
 
     case 'list_actions': {
       const { data } = await supabase
         .from('case_entries')
-        .select('id, body, due_date, created_at, cases(case_code, clients(first_name, last_name))')
+        .select('id, body, due_date, waiting_on, created_at, cases(case_code, clients(first_name, last_name))')
         .eq('kind', 'action')
         .eq('created_by', me.id)
         .is('completed_at', null)
         .order('due_date', { ascending: true, nullsFirst: false })
-      return {
-        actions: (data || []).map((a: any) => ({
-          id: a.id,
-          what: a.body,
-          due: a.due_date,
-          case: a.cases ? `${a.cases.case_code ?? ''} ${clientName(a.cases)}`.trim() : null,
-        })),
+      const today = new Date(); today.setHours(0, 0, 0, 0)
+      const label = (a: any) => a.cases ? `${a.cases.case_code ?? ''} ${clientName(a.cases)}`.trim() : null
+      const row = (a: any) => ({ what: a.body, due: a.due_date, waiting_on: a.waiting_on ?? null, case: label(a) })
+      const dated = (data || []).filter((a: any) => a.due_date)
+      // Same buckets as the Actions page.
+      const late = dated.filter((a: any) => new Date(a.due_date).getTime() < today.getTime()).map(row)
+      const upcoming = dated.filter((a: any) => new Date(a.due_date).getTime() >= today.getTime()).map(row)
+      const undated = (data || []).filter((a: any) => !a.due_date).map(row)
+
+      // Neglected = my cases (CSR or legal, past presale, not completed) with
+      // zero open actions — same definition the Actions page uses.
+      const { data: myCases } = await supabase
+        .from('cases')
+        .select('id, case_code, status:status_id(name), step:case_steps!cases_current_step_id_fkey(name, step_type), clients(first_name, last_name)')
+        .or(`assigned_to.eq.${me.id},csr_id.eq.${me.id}`)
+      const eligible = (myCases || []).filter((c: any) =>
+        c.step && c.step.step_type !== 'eligibility' && c.step.step_type !== 'presale' &&
+        !(c.status?.name || '').toLowerCase().startsWith('complet'))
+      let neglected: any[] = []
+      if (eligible.length) {
+        const { data: open } = await supabase.from('case_entries').select('case_id')
+          .eq('kind', 'action').is('completed_at', null).in('case_id', eligible.map((c: any) => c.id))
+        const has = new Set((open || []).map(r => r.case_id))
+        neglected = eligible.filter((c: any) => !has.has(c.id))
+          .map((c: any) => ({ case: `${c.case_code ?? ''} ${clientName(c)}`.trim(), step: c.step?.name ?? null }))
       }
+      return { late, upcoming, undated, neglected_cases: neglected }
+    }
+
+    case 'list_notifications': {
+      const { data } = await supabase
+        .from('user_alerts')
+        .select('id, kind, title, body, read_at, created_at, actor:users!actor_id(display_name, email)')
+        .eq('user_id', me.id)
+        .order('created_at', { ascending: false })
+        .limit(15)
+      const rows = data || []
+      return {
+        unread_count: rows.filter((n: any) => !n.read_at).length,
+        notifications: rows.map((n: any) => ({
+          kind: n.kind, title: n.title, body: n.body,
+          from: n.actor?.display_name || n.actor?.email?.split('@')[0] || null,
+          when: n.created_at, unread: !n.read_at,
+        })),
+        note: 'Only the 15 most recent. Notifications are informational — act on them via the other tools.',
+      }
+    }
+
+    case 'mark_notifications_read': {
+      await supabase.from('user_alerts')
+        .update({ read_at: new Date().toISOString() })
+        .eq('user_id', me.id).is('read_at', null)
+      return { ok: 'All notifications marked as read' }
     }
 
     case 'list_cases': {
@@ -372,6 +451,31 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
         completed_at: new Date().toISOString(), completed_by: me.id,
       }).eq('id', a.id)
       return { ok: `Done — "${a.body}"` }
+    }
+
+    case 'find_client': {
+      const q = `%${String(args.name || '').trim()}%`
+      const { data } = await supabase
+        .from('clients')
+        .select('id, first_name, last_name, contact_email, contact_numbers(number)')
+        .or(`first_name.ilike.${q},last_name.ilike.${q},contact_email.ilike.${q}`)
+        .limit(8)
+      if (!data?.length) return { error: `No client matching "${args.name}"` }
+      const ids = data.map((c: any) => c.id)
+      const { data: caseRows } = await supabase
+        .from('cases').select('case_code, client_id').in('client_id', ids).order('created_at', { ascending: false })
+      const casesByClient = new Map<string, string[]>()
+      for (const r of caseRows || []) {
+        casesByClient.set(r.client_id, [...(casesByClient.get(r.client_id) || []), r.case_code].filter(Boolean) as string[])
+      }
+      return {
+        clients: data.map((c: any) => ({
+          name: [c.first_name, c.last_name].filter(Boolean).join(' '),
+          phones: (c.contact_numbers || []).map((p: any) => p.number).filter(Boolean),
+          email: c.contact_email,
+          cases: (casesByClient.get(c.id) || []).slice(0, 5),
+        })),
+      }
     }
 
     default:
