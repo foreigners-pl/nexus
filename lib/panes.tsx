@@ -27,7 +27,7 @@ import { MobileBackHeader } from '@/components/mobile/MobileBackHeader'
 function isPaneRoute(href: string): boolean {
   const path = href.split('?')[0]
   return /^\/cases\/[^/]+(\/progress(\/[^/]+)?|\/billing(\/[^/]+)?|\/files|\/legacy|\/eligibility(\/[^/]+)?|\/agreement|\/actions)?$/.test(path)
-    || /^\/clients\/[^/]+(\/info)?$/.test(path)
+    || (/^\/clients\/[^/]+(\/info)?$/.test(path) && path !== '/clients/mine')
     || /^\/home$/.test(path)
     || /^\/(requests|actions|search|notifications)$/.test(path)
 }
@@ -62,6 +62,8 @@ function renderPaneRoute(href: string): React.ReactNode | null {
     return <CaseActionsPage params={Promise.resolve({ id: m[1] })} />
   if ((m = path.match(/^\/cases\/([^/]+)$/)))
     return <CasePage params={Promise.resolve({ id: m[1] })} />
+  // /clients/mine is a real page, not a client detail — let it navigate normally
+  if (path === '/clients/mine') return null
   if ((m = path.match(/^\/clients\/([^/]+)\/info$/)))
     return <ClientInfoPage params={Promise.resolve({ id: m[1] })} />
   if ((m = path.match(/^\/clients\/([^/]+)$/)))
