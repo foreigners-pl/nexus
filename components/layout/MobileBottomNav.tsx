@@ -1,10 +1,12 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/lib/notifications/NotificationContext'
 import { useChat } from '@/lib/chat/ChatContext'
+import { getMyAccess } from '@/app/actions/access'
 
 // Icons - same as Navbar but slightly smaller for mobile
 const icons = {
@@ -57,6 +59,9 @@ const navItems = [
 
 export function MobileBottomNav() {
   const pathname = usePathname()
+  const [canAdmin, setCanAdmin] = useState(false)
+  useEffect(() => { getMyAccess().then(a => setCanAdmin(a.canAdmin)) }, [])
+  const items = canAdmin ? navItems : navItems.filter(i => i.href !== '/admin')
 
   // Get notification count - wrapped in try/catch in case context is not available
   let notificationCount = 0
@@ -79,7 +84,7 @@ export function MobileBottomNav() {
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[hsl(var(--color-surface))] border-t border-[hsl(var(--color-border))] z-50 safe-area-bottom">
       <div className="flex items-center justify-around h-16">
-        {navItems.map((item) => {
+        {items.map((item) => {
           const isActive = pathname === item.href || 
                          (item.href !== '/' && pathname.startsWith(item.href))
           const showHomeBadge = item.href === '/home' && notificationCount > 0

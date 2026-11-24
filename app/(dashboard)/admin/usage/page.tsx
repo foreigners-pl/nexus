@@ -122,6 +122,9 @@ function UserRow({ row }: { row: UsageRow }) {
           </div>
           <p className="text-[11px] text-[hsl(var(--color-text-secondary))] mt-0.5">
             Last seen {formatLastSeen(row.lastSeenAt)}
+            {row.aiCalls > 0 && (
+              <span title={`AI today: ${row.aiCalls} calls · ${row.aiTokens.toLocaleString()} tokens`}> · AI {row.aiCalls}</span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -139,12 +142,14 @@ function UserRow({ row }: { row: UsageRow }) {
 
       {open && (
         <div className="px-4 pb-4 pt-3 border-t border-[hsl(var(--color-border))]">
-          <Link
-            {...viewAsLink}
-            className="w-full flex items-center justify-center gap-2 mb-3 py-2.5 rounded-xl bg-[hsl(var(--color-primary))]/10 text-[hsl(var(--color-primary))] text-sm font-semibold hover:bg-[hsl(var(--color-primary))]/20 transition-colors"
-          >
-            <Eye className="w-4 h-4" /> View as {row.name}
-          </Link>
+          {row.canMirror && (
+            <Link
+              {...viewAsLink}
+              className="w-full flex items-center justify-center gap-2 mb-3 py-2.5 rounded-xl bg-[hsl(var(--color-primary))]/10 text-[hsl(var(--color-primary))] text-sm font-semibold hover:bg-[hsl(var(--color-primary))]/20 transition-colors"
+            >
+              <Eye className="w-4 h-4" /> View as {row.name}
+            </Link>
+          )}
           {total === 0 ? (
             <p className="text-xs text-[hsl(var(--color-text-muted))] py-3 text-center">Nothing needs attention</p>
           ) : (
@@ -177,12 +182,14 @@ function UserRow({ row }: { row: UsageRow }) {
 
 export default function AdminUsagePage() {
   const [rows, setRows] = useState<UsageRow[] | null>(null)
+  const [canManage, setCanManage] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     getUsageOverview().then(res => {
       if (res.error) setError(res.error)
       setRows(res.users)
+      setCanManage(res.canManage)
     })
   }, [])
 
@@ -194,17 +201,38 @@ export default function AdminUsagePage() {
       >
         <ChevronLeft className="w-4 h-4" /> Admin
       </Link>
-      <h1 className="text-xl font-bold text-[hsl(var(--color-text-primary))] mb-2">Usage overview</h1>
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <h1 className="text-xl font-bold text-[hsl(var(--color-text-primary))]">Usage overview</h1>
+        {canManage && (
+          <Link
+            href="/admin/final-boss"
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[hsl(var(--color-primary))]/10 text-[hsl(var(--color-primary))] text-xs font-semibold hover:bg-[hsl(var(--color-primary))]/20 transition-colors"
+          >
+            Final boss
+          </Link>
+        )}
+      </div>
       <p className="text-sm text-[hsl(var(--color-text-secondary))] mb-6">
         Activity and workload per team member — expand a row to see their items.
       </p>
 
-      {error && <p className="text-sm text-red-400 mb-4">{error}</p>}
+      {error && error !== 'No access' && <p className="text-sm text-red-400 mb-4">{error}</p>}
+      {error === 'No access' && (
+        <p className="text-sm text-[hsl(var(--color-text-secondary))] py-10 text-center">
+          You don't have access to this page.
+        </p>
+      )}
 
       {!rows ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="w-6 h-6 animate-spin text-[hsl(var(--color-text-secondary))]" />
-        </div>
+        !error && (
+          <div className="flex justify-center py-16">
+            <Loader2 className="w-6 h-6 animate-spin text-[hsl(var(--color-text-secondary))]" />
+          </div>
+        )
+      ) : rows.length === 0 && !error ? (
+        <p className="text-sm text-[hsl(var(--color-text-secondary))] py-10 text-center">
+          No reportees yet — your final boss assigns them to you.
+        </p>
       ) : (
         <div className="space-y-2.5">
           {rows.map(r => <UserRow key={r.userId} row={r} />)}

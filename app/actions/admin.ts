@@ -1,6 +1,8 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getAccess, canMirror } from '@/lib/access'
 import mammoth from 'mammoth'
 import type { Service } from '@/types/database'
 
@@ -451,23 +453,35 @@ export interface UsageRow {
   name: string
   role: string | null
   lastSeenAt: string | null
+  canMirror: boolean
   requestsNew: number
   requestsLate: number
   actionsUpcoming: number
   actionsLate: number
   neglected: number
+  aiCalls: number
+  aiTokens: number
   requests: UsageItem[]
   actions: UsageItem[]
   neglectedCases: UsageItem[]
 }
 
-export async function getUsageOverview(): Promise<{ users: UsageRow[]; error?: string }> {
+export async function getUsageOverview(): Promise<{ users: UsageRow[]; canManage: boolean; error?: string }> {
+  const access = await getAccess()
+  if (!access || !access.canSeeUsage) return { users: [], canManage: false, error: 'No access' }
+
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { users: [], error: 'Not authenticated' }
+  const admin = createAdminClient()
 
   const cutoff24hMs = Date.now() - 24 * 60 * 60 * 1000
   const today = new Date().toISOString().slice(0, 10)
+
+  // AI usage per user since the most recent Pacific midnight (quota reset).
+  const laNow = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' })
+  const offset = Date.now() - new Date(laNow).getTime()
+  const laTodayUtc = new Date(Date.now() - offset)
+  laTodayUtc.setUTCHours(0, 0, 0, 0)
+  const pacificStart = new Date(laTodayUtc.getTime() + offset).toISOString()
 
   const [usersRes, queriesRes, actionsRes, casesRes] = await Promise.all([
     supabase.from('users').select('id, display_name, email, role:roles(name), last_seen_at'),
@@ -490,6 +504,18 @@ export async function getUsageOverview(): Promise<{ users: UsageRow[]; error?: s
       .from('cases')
       .select('id, case_code, csr_id, assigned_to, status:status_id(name), clients(first_name, last_name), step:case_steps!cases_current_step_id_fkey(name, step_type)'),
   ])
+
+  const { data: botRows } = await admin
+    .from('bot_messages')
+    .select('user_id, calls, tokens')
+    .eq('role', 'model')
+    .gte('created_at', pacificStart)
+  const aiByUser: Record<string, { calls: number; tokens: number }> = {}
+  for (const m of (botRows || []) as any[]) {
+    const agg = (aiByUser[m.user_id] ??= { calls: 0, tokens: 0 })
+    agg.calls += m.calls ?? 0
+    agg.tokens += m.tokens ?? 0
+  }
 
   // Question-entry per query — used for the preview text and deep link
   const queryIds = ((queriesRes.data || []) as any[]).map(q => q.id)
@@ -565,20 +591,30 @@ export async function getUsageOverview(): Promise<{ users: UsageRow[]; error?: s
     }
   }
 
-  const users: UsageRow[] = (usersRes.data || []).map((u: any) => {
+  // Managers (who aren't final boss/compliance) only see their reportees.
+  const usageOnlyManager = !access.canManage && access.role !== 'compliance'
+  const visible = (usersRes.data || []).filter(
+    (u: any) => !usageOnlyManager || access.reporteeIds.includes(u.id),
+  )
+
+  const users: UsageRow[] = visible.map((u: any) => {
     const reqs = requestsByUser[u.id] || []
     const acts = actionsByUser[u.id] || []
     const neg = neglectedByUser[u.id] || []
+    const ai = aiByUser[u.id] || { calls: 0, tokens: 0 }
     return {
       userId: u.id,
       name: u.display_name || u.email || 'User',
       role: (u.role as any)?.name ?? null,
       lastSeenAt: u.last_seen_at ?? null,
+      canMirror: canMirror(access, u.id),
       requestsNew: reqs.filter(r => r.tag === 'new').length,
       requestsLate: reqs.filter(r => r.tag === 'late').length,
       actionsUpcoming: acts.filter(a => a.tag === 'upcoming').length,
       actionsLate: acts.filter(a => a.tag === 'late').length,
       neglected: neg.length,
+      aiCalls: ai.calls,
+      aiTokens: ai.tokens,
       requests: reqs,
       actions: acts,
       neglectedCases: neg,
@@ -586,5 +622,5 @@ export async function getUsageOverview(): Promise<{ users: UsageRow[]; error?: s
   })
 
   users.sort((a, b) => a.name.localeCompare(b.name))
-  return { users }
+  return { users, canManage: access.canManage }
 }

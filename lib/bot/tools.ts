@@ -100,8 +100,39 @@ async function notifyUsers(supabase: Supabase, fromUserId: string, userIds: (str
   )
 }
 
-export async function runTool(supabase: Supabase, me: BotUser, name: string, args: any): Promise<any> {
+export async function runTool(supabase: Supabase, me: BotUser, name: string, args: any, ctx?: { tzOffset?: number }): Promise<any> {
   switch (name) {
+    case 'read_session': {
+      const tz = ctx?.tzOffset ?? 0
+      const localDay = (ms: number) => new Date(ms - tz * 60000).toISOString().slice(0, 10)
+      const raw = String(args.date || 'today').toLowerCase().trim()
+      const date = raw === 'today' ? localDay(Date.now())
+        : raw === 'yesterday' ? localDay(Date.now() - 86400000)
+        : raw
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return { error: 'Use YYYY-MM-DD, "today" or "yesterday"' }
+      }
+      // Local-midnight bounds expressed in UTC (tzOffset = getTimezoneOffset minutes).
+      const startMs = Date.parse(`${date}T00:00:00Z`) + tz * 60000
+      const { data } = await supabase
+        .from('bot_messages')
+        .select('role, text, created_at')
+        .eq('user_id', me.id)
+        .gte('created_at', new Date(startMs).toISOString())
+        .lt('created_at', new Date(startMs + 86400000).toISOString())
+        .order('created_at')
+      const msgs = (data || []) as any[]
+      return {
+        date,
+        count: msgs.length,
+        truncated: msgs.length > 80,
+        messages: msgs.slice(-80).map(m => {
+          const t = new Date(new Date(m.created_at).getTime() - tz * 60000).toISOString().slice(11, 16)
+          return `[${t}] ${m.role === 'user' ? 'User' : 'Assistant'}: ${String(m.text || '').slice(0, 300)}`
+        }),
+      }
+    }
+
     case 'list_requests': {
       const { data } = await supabase
         .from('case_queries')

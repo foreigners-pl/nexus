@@ -2,13 +2,13 @@
 
 import { use, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getViewAsUser, getViewAsSessions, getViewAsSession, getViewAsAudioUrl } from '@/app/actions/viewas'
+import { getViewAsUser, getViewAsSessions, getViewAsSession, getViewAsAudioUrl, nudgeUser } from '@/app/actions/viewas'
 import { RequestsContent } from '@/components/mobile/RequestsContent'
 import { ActionsContent } from '@/components/mobile/ActionsContent'
 import MobileHomePage from '@/app/(dashboard)/home/page'
 import { usePaneBack } from '@/lib/panes'
 import { linkify, AudioBubble } from '@/components/mobile/AssistantContent'
-import { ChevronLeft, ChevronRight, Loader2, Bot, History } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, Bot, History, BellRing } from 'lucide-react'
 
 type View = 'home' | 'requests' | 'actions' | 'ai'
 
@@ -185,10 +185,22 @@ export default function ViewAsPage({ params }: { params: Promise<{ userId: strin
   const paneBack = usePaneBack()
   const [user, setUser] = useState<{ id: string; name: string; role: string | null } | null>(null)
   const [view, setView] = useState<View>('home')
+  const [nudging, setNudging] = useState(false)
+  const [nudgeResult, setNudgeResult] = useState<string | null>(null)
 
   useEffect(() => {
     getViewAsUser(userId).then(setUser)
   }, [userId])
+
+  async function nudge() {
+    if (nudging) return
+    setNudging(true)
+    setNudgeResult(null)
+    const res = await nudgeUser(userId)
+    setNudging(false)
+    setNudgeResult(res.error ?? `Sent — the assistant pinged ${user?.name ?? 'them'}.`)
+    setTimeout(() => setNudgeResult(null), 4000)
+  }
 
   const exitMirror = () => (paneBack ? paneBack() : router.push('/admin/usage'))
 
@@ -212,11 +224,23 @@ export default function ViewAsPage({ params }: { params: Promise<{ userId: strin
         >
           <ChevronLeft className="w-6 h-6" />
         </button>
-        <p className="text-lg font-semibold text-[hsl(var(--color-text-primary))] truncate">
+        <p className="flex-1 text-lg font-semibold text-[hsl(var(--color-text-primary))] truncate">
           {view === 'requests' ? 'Requests' : view === 'actions' ? 'Actions' : 'Assistant'}
           <span className="text-sm font-normal text-[hsl(var(--color-text-secondary))]"> — {user?.name ?? '…'}</span>
         </p>
+        <button
+          onClick={nudge}
+          disabled={nudging}
+          title="Send them an AI nudge summarizing what's pending"
+          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-400/10 text-amber-400 text-xs font-semibold hover:bg-amber-400/20 transition-colors disabled:opacity-50"
+        >
+          {nudging ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BellRing className="w-3.5 h-3.5" />}
+          Nudge
+        </button>
       </div>
+      {nudgeResult && (
+        <p className="text-xs text-[hsl(var(--color-text-secondary))] -mt-2 mb-3 px-1">{nudgeResult}</p>
+      )}
       {view === 'requests' ? (
         <RequestsContent viewAsUserId={userId} />
       ) : view === 'actions' ? (

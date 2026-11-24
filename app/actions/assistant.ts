@@ -49,7 +49,7 @@ export async function sendAssistantMessage(text: string, staged?: StagedFile[], 
     )
   }
 
-  const reply = await runBotTurn(user, trimmed, todayStartUtc(tzOffset))
+  const reply = await runBotTurn(user, trimmed, todayStartUtc(tzOffset), { tzOffset })
   return { reply }
 }
 
@@ -79,7 +79,7 @@ export async function sendAssistantVoice(path: string, mime: string, tzOffset = 
   if (!transcript) return { error: "Couldn't make out the audio — try again?" }
 
   const reply = await runBotTurn(user, transcript, todayStartUtc(tzOffset), {
-    audioPath: path, extraCalls, extraTokens,
+    audioPath: path, extraCalls, extraTokens, tzOffset,
   })
   return { reply, transcript }
 }

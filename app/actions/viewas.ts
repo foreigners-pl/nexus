@@ -1,21 +1,18 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { BotUser } from '@/lib/bot/tools'
-
-/** Mirrors the admin pages' existing posture — any signed-in team member.
- *  Centralised so a future role gate lives in exactly one place. */
-async function assertSignedIn(): Promise<boolean> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  return !!user
-}
+import { getAccess, canMirror, type Access } from '@/lib/access'
+import { runTool, type BotUser } from '@/lib/bot/tools'
+import { sendPushToUsers } from '@/app/actions/push'
 
 type Target = BotUser & { role_name: string | null }
 
-async function loadTarget(userId: string): Promise<Target | null> {
+/** Mirror permission for a specific target — final boss mirrors anyone,
+ *  managers only their reportees. */
+async function mirrorAccess(userId: string): Promise<{ access: Access; target: Target } | null> {
   if (!/^[0-9a-f-]{36}$/i.test(userId)) return null
+  const access = await getAccess()
+  if (!access || !canMirror(access, userId)) return null
   const admin = createAdminClient()
   const { data } = await admin
     .from('users')
@@ -24,25 +21,29 @@ async function loadTarget(userId: string): Promise<Target | null> {
     .single()
   if (!data) return null
   return {
-    id: data.id,
-    display_name: data.display_name,
-    email: (data as any).email ?? '',
-    role_name: (data as any).role?.name ?? null,
+    access,
+    target: {
+      id: data.id,
+      display_name: data.display_name,
+      email: (data as any).email ?? '',
+      role_name: (data as any).role?.name ?? null,
+    },
   }
 }
 
 export async function getViewAsUser(userId: string): Promise<{ id: string; name: string; role: string | null } | null> {
-  if (!await assertSignedIn()) return null
-  const t = await loadTarget(userId)
-  return t ? { id: t.id, name: t.display_name || t.email, role: t.role_name } : null
+  const m = await mirrorAccess(userId)
+  if (!m) return null
+  const t = m.target
+  return { id: t.id, name: t.display_name || t.email, role: t.role_name }
 }
 
 /** Requests-page data for the target — the same three collections
  *  RequestsContent renders (board tasks, live queries, answer history). */
 export async function getViewAsRequests(userId: string) {
-  if (!await assertSignedIn()) return null
-  const t = await loadTarget(userId)
-  if (!t) return null
+  const m = await mirrorAccess(userId)
+  if (!m) return null
+  const t = m.target
   const supabase = createAdminClient()
 
   // Board tasks — mirrors fetchMyOpenTasks: assigned cards not in a final column.
@@ -127,9 +128,9 @@ export async function getViewAsRequests(userId: string) {
 /** Actions-page data for the target — open actions + neglected cases,
  *  identical to ActionsContent's fetch pair. */
 export async function getViewAsActionsData(userId: string) {
-  if (!await assertSignedIn()) return null
-  const t = await loadTarget(userId)
-  if (!t) return null
+  const m = await mirrorAccess(userId)
+  if (!m) return null
+  const t = m.target
   const supabase = createAdminClient()
   const clientOf = (c: any) => c?.clients ? [c.clients.first_name, c.clients.last_name].filter(Boolean).join(' ') : null
 
@@ -182,9 +183,9 @@ export async function getViewAsActionsData(userId: string) {
  *  storage, so the mirror shows the clients of the target's most recently
  *  active cases instead. */
 export async function getViewAsRecentClients(userId: string): Promise<{ clients: { id: string; name: string; viewed_at: number }[] }> {
-  if (!await assertSignedIn()) return { clients: [] }
-  const t = await loadTarget(userId)
-  if (!t) return { clients: [] }
+  const m = await mirrorAccess(userId)
+  if (!m) return { clients: [] }
+  const t = m.target
   const supabase = createAdminClient()
 
   const { data: rows } = await supabase
@@ -227,9 +228,9 @@ function localDateKey(iso: string, offsetMinutes: number): string {
 
 /** The target's assistant sessions — one per local day, newest first. */
 export async function getViewAsSessions(userId: string, tzOffset = 0): Promise<{ sessions: { date: string; count: number; tokens: number }[] }> {
-  if (!await assertSignedIn()) return { sessions: [] }
-  const t = await loadTarget(userId)
-  if (!t) return { sessions: [] }
+  const m = await mirrorAccess(userId)
+  if (!m) return { sessions: [] }
+  const t = m.target
   const admin = createAdminClient()
   const { data } = await admin
     .from('bot_messages')
@@ -250,9 +251,9 @@ export async function getViewAsSessions(userId: string, tzOffset = 0): Promise<{
 
 /** One of the target's sessions, oldest first — read-only transcript. */
 export async function getViewAsSession(userId: string, date: string, tzOffset = 0): Promise<{ messages: { role: string; text: string; created_at: string; audio_path: string | null }[] }> {
-  if (!await assertSignedIn()) return { messages: [] }
-  const t = await loadTarget(userId)
-  if (!t || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return { messages: [] }
+  const m = await mirrorAccess(userId)
+  if (!m || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return { messages: [] }
+  const t = m.target
   const admin = createAdminClient()
   const { data } = await admin
     .from('bot_messages')
@@ -268,9 +269,65 @@ export async function getViewAsSession(userId: string, date: string, tzOffset = 
 
 /** Playback URL for a voice message owned by the target user. */
 export async function getViewAsAudioUrl(userId: string, path: string): Promise<{ url?: string; error?: string }> {
-  if (!await assertSignedIn()) return { error: 'Not signed in' }
+  if (!await mirrorAccess(userId)) return { error: 'No access' }
   if (!path.startsWith(`staging/${userId}/`)) return { error: 'Invalid audio' }
   const admin = createAdminClient()
   const { data, error } = await admin.storage.from('case_attachments').createSignedUrl(path, 3600)
   return error || !data ? { error: 'No audio' } : { url: data.signedUrl }
+}
+
+/** Viewer taps "Nudge" — the assistant drops a queue summary into the
+ *  member's chat and pings them, as if the member had been reminded. */
+export async function nudgeUser(userId: string): Promise<{ ok?: boolean; summary?: string; error?: string }> {
+  const m = await mirrorAccess(userId)
+  if (!m) return { error: 'No access' }
+  const { access, target: t } = m
+  const supabase = createAdminClient()
+
+  const [req, act] = await Promise.all([
+    runTool(supabase, t, 'list_requests', {}),
+    runTool(supabase, t, 'list_actions', {}),
+  ])
+  const toAnswer = (req?.to_answer || []) as any[]
+  const lateReq = toAnswer.filter(q => q.late).length
+  const newReq = toAnswer.length - lateReq
+  const review = (req?.answered_awaiting_seen || []).length
+  const tasks = (req?.tasks || []).length
+  const lateAct = (act?.late || []).length
+  const upcoming = (act?.upcoming || []).length
+  const undated = (act?.undated || []).length
+  const neglected = (act?.neglected_cases || []).length
+  const total = newReq + lateReq + review + tasks + lateAct + upcoming + undated + neglected
+  if (!total) return { error: `${t.display_name} is all clear — nothing to nudge about` }
+
+  const n = (x: number, s: string, p?: string) => x ? `${x} ${x === 1 ? s : (p ?? s + 's')}` : null
+  const parts = [
+    n(lateReq, 'late request'),
+    n(newReq, 'new request'),
+    n(review, 'answer to review'),
+    n(tasks, 'board task'),
+    n(lateAct, 'late action'),
+    n(upcoming, 'upcoming action'),
+    n(undated, 'undated action'),
+    n(neglected, 'neglected case'),
+  ].filter(Boolean) as string[]
+  const summary = parts.join(', ')
+
+  const text = `${access.name} asked me to nudge you — here's where things stand: ${summary}. Want help clearing any of these?`
+  await supabase.from('bot_messages').insert({ user_id: t.id, role: 'model', text })
+  await supabase.from('user_alerts').insert({
+    user_id: t.id,
+    kind: 'task',
+    title: `Nudge from ${access.name}`,
+    body: summary,
+    link: '/assistant',
+    actor_id: access.userId,
+    case_id: null,
+  })
+  await sendPushToUsers([t.id], {
+    title: `Nudge from ${access.name}`,
+    body: summary,
+    url: '/assistant',
+  })
+  return { ok: true, summary }
 }

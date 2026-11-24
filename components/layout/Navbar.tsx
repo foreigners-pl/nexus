@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { useNotifications } from '@/lib/notifications/NotificationContext'
 import { useChat } from '@/lib/chat/ChatContext'
+import { getMyAccess } from '@/app/actions/access'
 import { NotificationsNavLink } from '@/components/notifications/NotificationBell'
 import type { User } from '@/types/database'
 
@@ -87,6 +88,10 @@ export function Navbar() {
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const [canAdmin, setCanAdmin] = useState(false)
+
+  useEffect(() => { getMyAccess().then(a => setCanAdmin(a.canAdmin)) }, [])
+  const items = canAdmin ? navItems : navItems.filter(i => i.href !== '/admin')
   
   // Get notification count - wrapped in try/catch in case context is not available
   let notificationCount = 0
@@ -177,7 +182,7 @@ export function Navbar() {
       {/* Navigation Links */}
       <div className="flex-1 py-6">
         <ul className={cn("space-y-1", isCollapsed ? "px-2" : "px-3")}>
-          {navItems.map((item) => {
+          {items.map((item) => {
             const isActive = pathname === item.href || 
                            (item.href !== '/' && pathname.startsWith(item.href))
             const showHomeBadge = item.href === '/home' && notificationCount > 0
