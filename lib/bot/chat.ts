@@ -293,6 +293,7 @@ export async function runBotTurn(user: BotUser, text: string, sinceIso?: string)
   contents.push({ role: 'user', parts: [{ text }] })
 
   let reply = ''
+  let tokens = 0
   try {
     let emptyRetries = 0
     for (let i = 0; i < 8; i++) {
@@ -301,6 +302,7 @@ export async function runBotTurn(user: BotUser, text: string, sinceIso?: string)
         `${SYSTEM_PROMPT}\n\nYou are talking to ${user.display_name || user.email}. Today is ${new Date().toDateString()}.` +
         (pend?.length ? `\nThe user staged files to attach: ${pend.map((p: any) => p.name).join(', ')} — call attach_files once they say (or you can infer) which case.` : ''),
       )
+      tokens += res.usageMetadata?.totalTokenCount ?? 0
 
       const calls = res.functionCalls
       if (calls && calls.length) {
@@ -332,7 +334,7 @@ export async function runBotTurn(user: BotUser, text: string, sinceIso?: string)
 
   await supabase.from('bot_messages').insert([
     { user_id: user.id, role: 'user', text },
-    { user_id: user.id, role: 'model', text: reply.slice(0, 2000) },
+    { user_id: user.id, role: 'model', text: reply.slice(0, 2000), tokens },
   ]).then(() => {}, () => {})
 
   return reply

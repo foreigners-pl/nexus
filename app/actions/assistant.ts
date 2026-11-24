@@ -58,22 +58,25 @@ export async function getAssistantHistory(tzOffset = 0): Promise<{ messages: { r
 }
 
 /** Session list — one entry per local day that has messages. */
-export async function getAssistantSessions(tzOffset = 0): Promise<{ sessions: { date: string; count: number }[] }> {
+export async function getAssistantSessions(tzOffset = 0): Promise<{ sessions: { date: string; count: number; tokens: number }[] }> {
   const user = await me()
   if (!user) return { sessions: [] }
   const supabase = await createClient()
   const { data } = await supabase
     .from('bot_messages')
-    .select('created_at')
+    .select('created_at, tokens')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(2000)
-  const byDay = new Map<string, number>()
+  const byDay = new Map<string, { count: number; tokens: number }>()
   for (const m of data || []) {
     const key = localDateKey(m.created_at, tzOffset)
-    byDay.set(key, (byDay.get(key) || 0) + 1)
+    const day = byDay.get(key) || { count: 0, tokens: 0 }
+    day.count++
+    day.tokens += m.tokens ?? 0
+    byDay.set(key, day)
   }
-  return { sessions: [...byDay.entries()].map(([date, count]) => ({ date, count })) }
+  return { sessions: [...byDay.entries()].map(([date, v]) => ({ date, ...v })) }
 }
 
 /** One past session's messages, oldest first. */

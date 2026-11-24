@@ -29,7 +29,10 @@ const todayKey = () => {
   return new Date(Date.now() - off).toISOString().slice(0, 10)
 }
 
-function SessionRow({ date, count, today }: { date: string; count: number; today: string }) {
+const fmtTokens = (n: number) =>
+  n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : `${n}`
+
+function SessionRow({ date, count, tokens, today }: { date: string; count: number; tokens: number; today: string }) {
   const paneLink = usePaneLink(`/assistant/sessions/${date}`)
   return (
     <li>
@@ -40,7 +43,7 @@ function SessionRow({ date, count, today }: { date: string; count: number; today
             {sessionLabel(date, today)}
           </p>
           <p className="text-xs text-[hsl(var(--color-text-secondary))] mt-0.5">
-            {count} message{count === 1 ? '' : 's'}
+            {count} message{count === 1 ? '' : 's'}{tokens > 0 && ` · ${fmtTokens(tokens)} tokens`}
           </p>
         </div>
         <ChevronRight className="w-4 h-4 text-[hsl(var(--color-text-muted))] shrink-0" />
@@ -51,7 +54,7 @@ function SessionRow({ date, count, today }: { date: string; count: number; today
 
 /** Past assistant sessions — one per day, newest first. */
 export function AssistantSessions() {
-  const [sessions, setSessions] = useState<{ date: string; count: number }[] | null>(null)
+  const [sessions, setSessions] = useState<{ date: string; count: number; tokens: number }[] | null>(null)
   const [today] = useState(todayKey)
 
   useEffect(() => {
@@ -71,7 +74,7 @@ export function AssistantSessions() {
         </div>
       ) : (
         <ul className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl divide-y divide-[hsl(var(--color-border))] overflow-hidden">
-          {sessions.map(s => <SessionRow key={s.date} date={s.date} count={s.count} today={today} />)}
+          {sessions.map(s => <SessionRow key={s.date} date={s.date} count={s.count} tokens={s.tokens} today={today} />)}
         </ul>
       )}
     </div>
