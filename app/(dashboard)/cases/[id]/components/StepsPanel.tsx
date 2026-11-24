@@ -115,6 +115,20 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
     }
   }, [data, queryClient])
 
+  // Live feed — new messages/requests/answers on this case (from teammates
+  // or the assistant) refresh the workflow without reopening the page.
+  useEffect(() => {
+    const supabase = createClient()
+    const invalidate = () => queryClient.invalidateQueries({ queryKey: queryKeys.workflow(caseId) })
+    const channel = supabase
+      .channel(`case-workflow-${caseId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'case_entries', filter: `case_id=eq.${caseId}` }, invalidate)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'case_queries', filter: `case_id=eq.${caseId}` }, invalidate)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'cases', filter: `id=eq.${caseId}` }, invalidate)
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [caseId, queryClient])
+
   // Re-navigation to a different ?s= after first mount (mobile keeps the
   // page mounted) — jump the carousel to that step.
   useEffect(() => {

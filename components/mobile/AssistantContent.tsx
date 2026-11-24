@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { sendAssistantMessage, getAssistantHistory, type StagedFile } from '@/app/actions/assistant'
 import { createClient } from '@/lib/supabase/client'
-import { usePaneLink } from '@/lib/panes'
+import { usePaneLink, usePaneStack } from '@/lib/panes'
 import { Sparkles, Send, Paperclip, Zap, X, History } from 'lucide-react'
 
 interface Msg {
@@ -20,22 +20,43 @@ const SUGGESTIONS = [
   'What happened recently on my cases?',
 ]
 
-function BubbleLink({ href, label }: { href: string; label: string }) {
+function BubbleLink({ href, label, stack }: { href: string; label: string; stack?: string[] }) {
   const paneLink = usePaneLink(href)
-  return <Link {...paneLink} className="text-blue-400">{label}</Link>
+  const openStack = usePaneStack()
+  return (
+    <Link
+      {...paneLink}
+      onClick={(e) => {
+        if (stack && openStack(stack)) { e.preventDefault(); return }
+        paneLink.onClick(e)
+      }}
+      className="text-blue-400"
+    >
+      {label}
+    </Link>
+  )
 }
 
 const LINK_RE = /\[([^\]]+)\]\((\/[a-zA-Z0-9/_?=&%.-]+)\)|\b(C\d{5,6})\b/g
 
-/** Parse [label](/path) links the model emits, plus bare case codes. */
+/** Parse [label](/path) links the model emits, plus bare case codes. Case
+ *  references open the case AND its progress as stacked panes on desktop;
+ *  on mobile the href itself points at /progress. */
 export function linkify(text: string): ReactNode[] {
   const nodes: ReactNode[] = []
   let last = 0
   for (const m of text.matchAll(LINK_RE)) {
     if (m.index > last) nodes.push(text.slice(last, m.index))
-    nodes.push(
-      <BubbleLink key={m.index} href={m[2] ?? `/cases/${m[3]}`} label={m[1] ?? m[3]} />
-    )
+    let href = m[2] ?? `/cases/${m[3]}/progress`
+    let stack: string[] | undefined
+    const caseMatch = href.match(/^\/cases\/([^/]+)$/)
+    if (caseMatch) {
+      href = `/cases/${caseMatch[1]}/progress`
+      stack = [`/cases/${caseMatch[1]}`, href]
+    } else if (m[3]) {
+      stack = [`/cases/${m[3]}`, href]
+    }
+    nodes.push(<BubbleLink key={m.index} href={href} label={m[1] ?? m[3]} stack={stack} />)
     last = m.index + m[0].length
   }
   if (last < text.length) nodes.push(text.slice(last))
@@ -53,6 +74,7 @@ export function AssistantContent() {
   const fileRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const meRef = useRef<string | null>(null)
+  const busyRef = useRef(false)
   const composerRef = useRef<HTMLDivElement>(null)
   const [composerH, setComposerH] = useState(0)
   const sessionsLink = usePaneLink('/assistant/sessions')
@@ -99,7 +121,10 @@ export function AssistantContent() {
 
   const send = async (raw?: string) => {
     const value = (raw ?? text).trim() || (staged.length ? 'Attach the staged file(s)' : '')
-    if (!value || busy) return
+    // busyRef (not the state) guards re-entry — two taps within one tick
+    // would otherwise both pass before setBusy commits.
+    if (!value || busyRef.current) return
+    busyRef.current = true
     setText('')
     setStaged([])
     setQuickOpen(false)
@@ -108,6 +133,7 @@ export function AssistantContent() {
     const { reply, error } = await sendAssistantMessage(value, staged, tz)
     setMessages(m => [...(m || []), { role: 'model', text: reply || error || 'No reply' }])
     setBusy(false)
+    busyRef.current = false
   }
 
   const attachFiles = async (files: FileList | null) => {

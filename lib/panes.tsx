@@ -239,6 +239,24 @@ export function usePaneNavigate() {
 }
 
 /**
+ * Open several routes as consecutive panes in one gesture (e.g. case, then
+ * its progress on top). Returns false on mobile / outside a pane context —
+ * the caller should fall back to normal navigation.
+ */
+export function usePaneStack() {
+  const level = useContext(PaneLevelContext)
+  const ctx = useContext(PaneContext)
+  return (hrefs: string[]): boolean => {
+    if (!ctx || typeof window === 'undefined' || window.innerWidth < 768) return false
+    hrefs.forEach((href, i) => {
+      const node = renderPaneRoute(href)
+      if (node) ctx.openPane(node, href, level + i)
+    })
+    return true
+  }
+}
+
+/**
  * Back-button behavior: inside a pane it closes that pane (and any deeper),
  * at the base page it returns null and normal navigation should run.
  */
