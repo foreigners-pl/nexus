@@ -179,7 +179,7 @@ export default function EligibilityPage({ params }: { params: Promise<{ id: stri
           className="w-full"
         >
           <Check className="w-4 h-4 mr-2" />
-          {confirmed ? 'Unconfirm eligibility' : 'Confirm eligibility'}
+          {confirmed ? 'Mark as not done' : 'Mark as done'}
         </Button>
       </div>
     </div>
