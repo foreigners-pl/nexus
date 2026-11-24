@@ -5,12 +5,13 @@ import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { sendAssistantMessage, sendAssistantVoice, getAssistantAudioUrl, getAssistantHistory, type StagedFile } from '@/app/actions/assistant'
 import { createClient } from '@/lib/supabase/client'
 import { usePaneLink, usePaneStack } from '@/lib/panes'
-import { Sparkles, Send, Paperclip, Zap, X, History, Mic, Square } from 'lucide-react'
+import { Sparkles, Send, Paperclip, Zap, X, History, Mic, Square, Play, Pause } from 'lucide-react'
 
 interface Msg {
   role: 'user' | 'model'
   text: string
   audioPath?: string | null
+  audioUrl?: string
 }
 
 const SUGGESTIONS = [
@@ -64,19 +65,52 @@ export function linkify(text: string): ReactNode[] {
   return nodes
 }
 
-/** Voice bubble — native player + collapsible transcript. */
-export function AudioBubble({ path, transcript }: { path: string; transcript: string }) {
-  const [url, setUrl] = useState<string | null>(null)
+/** Voice bubble — themed mini-player + collapsible transcript. Plays from
+ *  initialUrl (local blob, instant) or a signed URL for stored audio. */
+export function AudioBubble({ path, transcript, initialUrl }: { path?: string | null; transcript: string; initialUrl?: string }) {
+  const [url, setUrl] = useState<string | null>(initialUrl ?? null)
   const [showTx, setShowTx] = useState(false)
+  const [playing, setPlaying] = useState(false)
+  const [cur, setCur] = useState(0)
+  const [dur, setDur] = useState(0)
+  const audioRef = useRef<HTMLAudioElement>(null)
+
   useEffect(() => {
-    getAssistantAudioUrl(path).then(r => setUrl(r.url ?? null))
-  }, [path])
+    if (!initialUrl && path) getAssistantAudioUrl(path).then(r => setUrl(r.url ?? null))
+  }, [path, initialUrl])
+
+  const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+  const seek = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = audioRef.current
+    if (!el || !dur) return
+    const r = e.currentTarget.getBoundingClientRect()
+    el.currentTime = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * dur
+  }
+
   return (
-    <div>
-      {url
-        ? <audio controls src={url} preload="metadata" className="h-9 max-w-full" />
-        : <div className="h-9 w-44 rounded bg-white/10 animate-pulse" />}
-      <button onClick={() => setShowTx(s => !s)} className="block mt-1 text-[11px] font-medium text-blue-200/90">
+    <div className="min-w-[200px]">
+      <audio
+        ref={audioRef} src={url ?? undefined} preload="metadata"
+        onTimeUpdate={e => setCur(e.currentTarget.currentTime)}
+        onLoadedMetadata={e => setDur(e.currentTarget.duration)}
+        onEnded={() => setPlaying(false)}
+      />
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => { const el = audioRef.current; if (!el) return; playing ? el.pause() : (setPlaying(true), void el.play()) }}
+          className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0"
+          aria-label={playing ? 'Pause' : 'Play'}
+        >
+          {playing ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 ml-0.5" />}
+        </button>
+        <div className="flex-1 h-1.5 rounded-full bg-white/20 cursor-pointer" onClick={seek}>
+          <div className="h-full rounded-full bg-white" style={{ width: dur ? `${(cur / dur) * 100}%` : '0%' }} />
+        </div>
+        <span className="text-[11px] text-white/80 tabular-nums shrink-0">
+          {dur ? `${fmt(cur)} / ${fmt(dur)}` : fmt(cur)}
+        </span>
+      </div>
+      <button onClick={() => setShowTx(s => !s)} className="block mt-1.5 text-[11px] font-medium text-blue-200/90">
         {showTx ? 'Hide transcript' : 'Show transcript'}
       </button>
       {showTx && <p className="mt-1 whitespace-pre-wrap">{transcript || '…'}</p>}
@@ -227,6 +261,11 @@ export function AssistantContent() {
     if (busyRef.current) return
     busyRef.current = true
     setBusy(true)
+    // Show the bubble immediately — it plays from the local blob URL
+    // while upload + transcription happen in the background.
+    const localUrl = URL.createObjectURL(blob)
+    const idx = (messages || []).length
+    setMessages(m => [...(m || []), { role: 'user', text: '', audioUrl: localUrl }])
     try {
       const uid = await myId()
       if (!uid) { setNotice('Upload failed — not signed in'); return }
@@ -235,12 +274,11 @@ export function AssistantContent() {
       const supabase = createClient()
       const { error: upErr } = await supabase.storage.from('case_attachments').upload(path, blob, { contentType: mime })
       if (upErr) { setNotice(`Voice upload failed: ${upErr.message}`); return }
+      setMessages(m => (m || []).map((msg, i) => i === idx ? { ...msg, audioPath: path } : msg))
 
-      const idx = (messages || []).length
-      setMessages(m => [...(m || []), { role: 'user', text: '', audioPath: path }])
       const { reply, transcript, error } = await sendAssistantVoice(path, mime, tz)
       if (error || !transcript) {
-        setMessages(m => (m || []).map((msg, i) => i === idx ? { ...msg, text: `⚠ ${error || 'Transcription failed'}` } : msg))
+        setMessages(m => (m || []).map((msg, i) => i === idx ? { ...msg, text: `Couldn't transcribe — ${error || 'try again'}` } : msg))
         return
       }
       setMessages(m => (m || []).map((msg, i) => i === idx ? { ...msg, text: transcript } : msg))
@@ -278,7 +316,7 @@ export function AssistantContent() {
                       : 'bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] text-[hsl(var(--color-text-primary))] rounded-bl-md'
                   }`}
                 >
-                  {m.audioPath ? <AudioBubble path={m.audioPath} transcript={m.text} /> : linkify(m.text)}
+                  {m.audioPath || m.audioUrl ? <AudioBubble path={m.audioPath} initialUrl={m.audioUrl} transcript={m.text} /> : linkify(m.text)}
                 </div>
               </div>
             ))}
