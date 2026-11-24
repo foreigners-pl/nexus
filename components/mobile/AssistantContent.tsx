@@ -172,6 +172,8 @@ export function AssistantContent() {
 
   // Keep the newest message in view — scroll the chat's own scroller to the
   // absolute bottom so the reply rests above the sticky composer, not behind it.
+  // First populated render snaps instantly; later messages scroll smoothly.
+  const firstPopulated = useRef(true)
   useEffect(() => {
     let scroller = scrollRef.current?.parentElement ?? null
     while (scroller) {
@@ -179,8 +181,11 @@ export function AssistantContent() {
       if ((o === 'auto' || o === 'scroll') && scroller.scrollHeight > scroller.clientHeight) break
       scroller = scroller.parentElement
     }
-    if (scroller) scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' })
-    else window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' })
+    const instant = firstPopulated.current && (messages?.length ?? 0) > 0
+    if (instant) firstPopulated.current = false
+    const behavior = instant ? 'auto' : 'smooth'
+    if (scroller) scroller.scrollTo({ top: scroller.scrollHeight, behavior })
+    else window.scrollTo({ top: document.documentElement.scrollHeight, behavior })
   }, [messages, busy])
 
   const send = async (raw?: string) => {
