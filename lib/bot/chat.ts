@@ -274,8 +274,23 @@ const FUNCTION_DECLARATIONS = [
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
 
+/** Transcribe a voice message through the resolved model — no tools. */
+export async function transcribeAudio(mimeType: string, base64: string): Promise<{ text: string; calls: number; tokens: number }> {
+  const { res, calls } = await generate(
+    [{
+      role: 'user',
+      parts: [
+        { inlineData: { mimeType, data: base64 } },
+        { text: 'Transcribe this voice message verbatim, in the language spoken. Output only the transcript — no quotes, no labels.' },
+      ],
+    }],
+    'You transcribe voice messages verbatim.',
+  )
+  return { text: (res.text || '').trim(), calls, tokens: res.usageMetadata?.totalTokenCount ?? 0 }
+}
+
 /** One assistant turn: history + user text → Gemini w/ tools → reply. */
-export async function runBotTurn(user: BotUser, text: string, sinceIso?: string): Promise<string> {
+export async function runBotTurn(user: BotUser, text: string, sinceIso?: string, opts?: { audioPath?: string; extraCalls?: number; extraTokens?: number }): Promise<string> {
   const supabase = createAdminClient()
 
   let historyQ = supabase
@@ -338,8 +353,12 @@ export async function runBotTurn(user: BotUser, text: string, sinceIso?: string)
   if (!reply) reply = 'I got nothing back — try rephrasing?'
 
   await supabase.from('bot_messages').insert([
-    { user_id: user.id, role: 'user', text },
-    { user_id: user.id, role: 'model', text: reply.slice(0, 2000), tokens, calls: apiCalls },
+    { user_id: user.id, role: 'user', text, audio_path: opts?.audioPath ?? null },
+    {
+      user_id: user.id, role: 'model', text: reply.slice(0, 2000),
+      tokens: tokens + (opts?.extraTokens ?? 0),
+      calls: apiCalls + (opts?.extraCalls ?? 0),
+    },
   ]).then(() => {}, () => {})
 
   return reply
@@ -350,11 +369,11 @@ export async function getBotHistory(userId: string, sinceIso?: string, limit = 4
   const supabase = createAdminClient()
   let q = supabase
     .from('bot_messages')
-    .select('role, text, created_at')
+    .select('role, text, created_at, audio_path')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(limit)
   if (sinceIso) q = q.gte('created_at', sinceIso)
   const { data } = await q
-  return (data || []).reverse() as { role: string; text: string; created_at: string }[]
+  return (data || []).reverse() as { role: string; text: string; created_at: string; audio_path: string | null }[]
 }

@@ -1,7 +1,8 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { runBotTurn, getBotHistory } from '@/lib/bot/chat'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { runBotTurn, getBotHistory, transcribeAudio } from '@/lib/bot/chat'
 import type { BotUser } from '@/lib/bot/tools'
 
 async function me(): Promise<BotUser | null> {
@@ -38,9 +39,11 @@ export async function sendAssistantMessage(text: string, staged?: StagedFile[], 
 
   // Register staged uploads — only paths under this user's staging prefix
   // are honoured, so a client can't claim someone else's storage path.
+  // Admin client: bot_pending_files has RLS enabled with no policies
+  // (server-only table) — a session insert would be silently rejected.
   const valid = (staged || []).filter(f => f.path.startsWith(`staging/${user.id}/`))
   if (valid.length) {
-    const supabase = await createClient()
+    const supabase = createAdminClient()
     await supabase.from('bot_pending_files').insert(
       valid.map(f => ({ user_id: user.id, path: f.path, name: f.name, size: f.size, type: f.type }))
     )
@@ -50,8 +53,49 @@ export async function sendAssistantMessage(text: string, staged?: StagedFile[], 
   return { reply }
 }
 
+/** Voice message → transcript → normal turn. The audio stays attached to
+ *  the user's message row for playback. */
+export async function sendAssistantVoice(path: string, mime: string, tzOffset = 0): Promise<{ reply?: string; transcript?: string; error?: string }> {
+  const user = await me()
+  if (!user) return { error: 'Not signed in' }
+  if (!path.startsWith(`staging/${user.id}/`)) return { error: 'Invalid audio' }
+
+  const supabase = createAdminClient()
+  const { data: blob, error: dlErr } = await supabase.storage.from('case_attachments').download(path)
+  if (dlErr || !blob) return { error: 'Audio upload missing' }
+
+  const base64 = Buffer.from(await blob.arrayBuffer()).toString('base64')
+  let transcript = ''
+  let extraCalls = 0
+  let extraTokens = 0
+  try {
+    const tr = await transcribeAudio(mime, base64)
+    transcript = tr.text
+    extraCalls = tr.calls
+    extraTokens = tr.tokens
+  } catch (e: any) {
+    return { error: `Couldn't transcribe (${String(e?.message || e).slice(0, 120)})` }
+  }
+  if (!transcript) return { error: "Couldn't make out the audio — try again?" }
+
+  const reply = await runBotTurn(user, transcript, todayStartUtc(tzOffset), {
+    audioPath: path, extraCalls, extraTokens,
+  })
+  return { reply, transcript }
+}
+
+/** Short-lived playback URL for a staged voice message. */
+export async function getAssistantAudioUrl(path: string): Promise<{ url?: string; error?: string }> {
+  const user = await me()
+  if (!user) return { error: 'Not signed in' }
+  if (!path.startsWith(`staging/${user.id}/`)) return { error: 'Invalid audio' }
+  const supabase = createAdminClient()
+  const { data, error } = await supabase.storage.from('case_attachments').createSignedUrl(path, 3600)
+  return error || !data ? { error: 'No audio' } : { url: data.signedUrl }
+}
+
 /** Today's session only — older days live under Sessions. */
-export async function getAssistantHistory(tzOffset = 0): Promise<{ messages: { role: string; text: string; created_at: string }[] }> {
+export async function getAssistantHistory(tzOffset = 0): Promise<{ messages: { role: string; text: string; created_at: string; audio_path: string | null }[] }> {
   const user = await me()
   if (!user) return { messages: [] }
   return { messages: await getBotHistory(user.id, todayStartUtc(tzOffset)) }
@@ -107,14 +151,14 @@ export async function getAssistantUsage(): Promise<{ calls: number; tokens: numb
 }
 
 /** One past session's messages, oldest first. */
-export async function getAssistantSession(date: string, tzOffset = 0): Promise<{ messages: { role: string; text: string; created_at: string }[] }> {
+export async function getAssistantSession(date: string, tzOffset = 0): Promise<{ messages: { role: string; text: string; created_at: string; audio_path: string | null }[] }> {
   const user = await me()
   if (!user) return { messages: [] }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { messages: [] }
   const supabase = await createClient()
   const { data } = await supabase
     .from('bot_messages')
-    .select('role, text, created_at')
+    .select('role, text, created_at, audio_path')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(500)

@@ -2,14 +2,15 @@
 
 import Link from 'next/link'
 import { useState, useEffect, useRef, type ReactNode } from 'react'
-import { sendAssistantMessage, getAssistantHistory, type StagedFile } from '@/app/actions/assistant'
+import { sendAssistantMessage, sendAssistantVoice, getAssistantAudioUrl, getAssistantHistory, type StagedFile } from '@/app/actions/assistant'
 import { createClient } from '@/lib/supabase/client'
 import { usePaneLink, usePaneStack } from '@/lib/panes'
-import { Sparkles, Send, Paperclip, Zap, X, History } from 'lucide-react'
+import { Sparkles, Send, Paperclip, Zap, X, History, Mic, Square } from 'lucide-react'
 
 interface Msg {
   role: 'user' | 'model'
   text: string
+  audioPath?: string | null
 }
 
 const SUGGESTIONS = [
@@ -63,6 +64,26 @@ export function linkify(text: string): ReactNode[] {
   return nodes
 }
 
+/** Voice bubble — native player + collapsible transcript. */
+export function AudioBubble({ path, transcript }: { path: string; transcript: string }) {
+  const [url, setUrl] = useState<string | null>(null)
+  const [showTx, setShowTx] = useState(false)
+  useEffect(() => {
+    getAssistantAudioUrl(path).then(r => setUrl(r.url ?? null))
+  }, [path])
+  return (
+    <div>
+      {url
+        ? <audio controls src={url} preload="metadata" className="h-9 max-w-full" />
+        : <div className="h-9 w-44 rounded bg-white/10 animate-pulse" />}
+      <button onClick={() => setShowTx(s => !s)} className="block mt-1 text-[11px] font-medium text-blue-200/90">
+        {showTx ? 'Hide transcript' : 'Show transcript'}
+      </button>
+      {showTx && <p className="mt-1 whitespace-pre-wrap">{transcript || '…'}</p>}
+    </div>
+  )
+}
+
 /** In-app AI assistant chat — talks to Gemini with the CRM tools. */
 export function AssistantContent() {
   const [messages, setMessages] = useState<Msg[] | null>(null)
@@ -70,8 +91,15 @@ export function AssistantContent() {
   const [busy, setBusy] = useState(false)
   const [staged, setStaged] = useState<StagedFile[]>([])
   const [quickOpen, setQuickOpen] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [recording, setRecording] = useState(false)
+  const [recSecs, setRecSecs] = useState(0)
   const textRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const recorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+  const discardRef = useRef(false)
+  const recTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const meRef = useRef<string | null>(null)
   const busyRef = useRef(false)
@@ -93,7 +121,7 @@ export function AssistantContent() {
 
   useEffect(() => {
     getAssistantHistory(tz).then(({ messages }) => {
-      setMessages(messages.map(m => ({ role: m.role === 'model' ? 'model' : 'user', text: m.text })))
+      setMessages(messages.map(m => ({ role: m.role === 'model' ? 'model' : 'user', text: m.text, audioPath: m.audio_path })))
     })
   }, [])
 
@@ -136,19 +164,90 @@ export function AssistantContent() {
     busyRef.current = false
   }
 
-  const attachFiles = async (files: FileList | null) => {
-    if (!files?.length) return
-    const supabase = createClient()
+  const myId = async () => {
     if (!meRef.current) {
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { user } } = await createClient().auth.getUser()
       meRef.current = user?.id ?? null
     }
-    if (!meRef.current) return
+    return meRef.current
+  }
+
+  const attachFiles = async (files: FileList | null) => {
+    if (!files?.length) return
+    setNotice(null)
+    const uid = await myId()
+    if (!uid) { setNotice('Upload failed — not signed in'); return }
+    const supabase = createClient()
+    const failed: string[] = []
     for (const file of Array.from(files)) {
       const ext = file.name.split('.').pop()
-      const path = `staging/${meRef.current}/${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${ext}`
+      const path = `staging/${uid}/${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${ext}`
       const { error } = await supabase.storage.from('case_attachments').upload(path, file, { cacheControl: '3600', upsert: false })
-      if (!error) setStaged(s => [...s, { path, name: file.name, size: file.size, type: file.type }])
+      if (error) failed.push(file.name)
+      else setStaged(s => [...s, { path, name: file.name, size: file.size, type: file.type }])
+    }
+    if (failed.length) setNotice(`Couldn't upload: ${failed.join(', ')}`)
+  }
+
+  const startRecording = async () => {
+    if (busyRef.current || recording) return
+    setNotice(null)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
+        : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : ''
+      const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined)
+      chunksRef.current = []
+      discardRef.current = false
+      rec.ondataavailable = e => { if (e.data.size) chunksRef.current.push(e.data) }
+      rec.onstop = () => {
+        stream.getTracks().forEach(t => t.stop())
+        const type = rec.mimeType || 'audio/webm'
+        if (!discardRef.current) void sendVoice(new Blob(chunksRef.current, { type }), type)
+      }
+      recorderRef.current = rec
+      rec.start()
+      setRecording(true)
+      setRecSecs(0)
+      recTimer.current = setInterval(() => setRecSecs(s => s + 1), 1000)
+    } catch {
+      setNotice("Microphone isn't available — check the browser permission.")
+    }
+  }
+
+  const stopRecording = (discard: boolean) => {
+    discardRef.current = discard
+    recorderRef.current?.stop()
+    recorderRef.current = null
+    setRecording(false)
+    if (recTimer.current) { clearInterval(recTimer.current); recTimer.current = null }
+  }
+
+  const sendVoice = async (blob: Blob, mime: string) => {
+    if (busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    try {
+      const uid = await myId()
+      if (!uid) { setNotice('Upload failed — not signed in'); return }
+      const ext = mime.includes('mp4') ? 'm4a' : 'webm'
+      const path = `staging/${uid}/voice-${Date.now()}.${ext}`
+      const supabase = createClient()
+      const { error: upErr } = await supabase.storage.from('case_attachments').upload(path, blob, { contentType: mime })
+      if (upErr) { setNotice(`Voice upload failed: ${upErr.message}`); return }
+
+      const idx = (messages || []).length
+      setMessages(m => [...(m || []), { role: 'user', text: '', audioPath: path }])
+      const { reply, transcript, error } = await sendAssistantVoice(path, mime, tz)
+      if (error || !transcript) {
+        setMessages(m => (m || []).map((msg, i) => i === idx ? { ...msg, text: `⚠ ${error || 'Transcription failed'}` } : msg))
+        return
+      }
+      setMessages(m => (m || []).map((msg, i) => i === idx ? { ...msg, text: transcript } : msg))
+      setMessages(m => [...(m || []), { role: 'model', text: reply || 'No reply' }])
+    } finally {
+      setBusy(false)
+      busyRef.current = false
     }
   }
 
@@ -179,7 +278,7 @@ export function AssistantContent() {
                       : 'bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] text-[hsl(var(--color-text-primary))] rounded-bl-md'
                   }`}
                 >
-                  {linkify(m.text)}
+                  {m.audioPath ? <AudioBubble path={m.audioPath} transcript={m.text} /> : linkify(m.text)}
                 </div>
               </div>
             ))}
@@ -224,6 +323,9 @@ export function AssistantContent() {
               </span>
             ))}
           </div>
+        )}
+        {notice && (
+          <p className="pb-2 text-xs text-red-400">{notice}</p>
         )}
 
         {/* Actions row — quick actions and attach split the width */}
@@ -273,22 +375,60 @@ export function AssistantContent() {
         </div>
 
         <div className="flex gap-2 items-end">
-          <textarea
-            ref={textRef}
-            value={text}
-            onChange={e => setText(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), send())}
-            placeholder="Ask the assistant…"
-            rows={1}
-            className="flex-1 min-h-10 max-h-[110px] px-3.5 py-2.5 rounded-xl bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] text-sm text-[hsl(var(--color-text-primary))] placeholder:text-[hsl(var(--color-text-muted))] outline-none resize-none overflow-y-hidden"
-          />
-          <button
-            onClick={() => send()}
-            disabled={busy || (!text.trim() && staged.length === 0)}
-            className="w-10 h-10 rounded-xl bg-[hsl(var(--color-primary))] text-white flex items-center justify-center disabled:opacity-40 shrink-0"
-          >
-            <Send className="w-4 h-4" />
-          </button>
+          {recording ? (
+            <>
+              <div className="flex-1 min-h-10 flex items-center gap-2 px-3.5 rounded-xl bg-[hsl(var(--color-input-bg))] border border-red-400/50">
+                <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
+                <span className="text-sm text-red-400">Recording · {Math.floor(recSecs / 60)}:{String(recSecs % 60).padStart(2, '0')}</span>
+              </div>
+              <button
+                onClick={() => stopRecording(true)}
+                className="w-10 h-10 rounded-xl bg-[hsl(var(--color-surface-active))] flex items-center justify-center text-[hsl(var(--color-text-secondary))] shrink-0"
+                aria-label="Discard recording"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => stopRecording(false)}
+                className="w-10 h-10 rounded-xl bg-red-500 text-white flex items-center justify-center shrink-0"
+                aria-label="Send voice message"
+              >
+                <Square className="w-4 h-4" />
+              </button>
+            </>
+          ) : (
+            <>
+              <textarea
+                ref={textRef}
+                value={text}
+                onChange={e => setText(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), send())}
+                placeholder="Ask the assistant…"
+                rows={1}
+                disabled={busy}
+                className="flex-1 min-h-10 max-h-[110px] px-3.5 py-2.5 rounded-xl bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] text-sm text-[hsl(var(--color-text-primary))] placeholder:text-[hsl(var(--color-text-muted))] outline-none resize-none overflow-y-hidden disabled:opacity-60"
+              />
+              {text.trim() || staged.length ? (
+                <button
+                  onClick={() => send()}
+                  disabled={busy}
+                  className="w-10 h-10 rounded-xl bg-[hsl(var(--color-primary))] text-white flex items-center justify-center disabled:opacity-40 shrink-0"
+                  aria-label="Send"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  onClick={startRecording}
+                  disabled={busy}
+                  className="w-10 h-10 rounded-xl bg-[hsl(var(--color-surface-active))] flex items-center justify-center text-[hsl(var(--color-text-secondary))] disabled:opacity-40 shrink-0"
+                  aria-label="Record voice message"
+                >
+                  <Mic className="w-4 h-4" />
+                </button>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>

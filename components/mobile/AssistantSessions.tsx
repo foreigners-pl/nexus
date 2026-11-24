@@ -5,12 +5,13 @@ import { useState, useEffect } from 'react'
 import { getAssistantSessions, getAssistantSession, getAssistantUsage } from '@/app/actions/assistant'
 import { usePaneLink } from '@/lib/panes'
 import { MobileBackHeader } from '@/components/mobile/MobileBackHeader'
-import { linkify } from '@/components/mobile/AssistantContent'
+import { linkify, AudioBubble } from '@/components/mobile/AssistantContent'
 import { ChevronRight, Loader2, MessageSquare } from 'lucide-react'
 
 interface Msg {
   role: string
   text: string
+  audio_path?: string | null
 }
 
 const fmtDate = (key: string) => {
@@ -138,7 +139,7 @@ export function AssistantSessionView({ date }: { date: string }) {
                     : 'bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] text-[hsl(var(--color-text-primary))] rounded-bl-md'
                 }`}
               >
-                {linkify(m.text)}
+                {m.audio_path ? <AudioBubble path={m.audio_path} transcript={m.text} /> : linkify(m.text)}
               </div>
             </div>
           ))
