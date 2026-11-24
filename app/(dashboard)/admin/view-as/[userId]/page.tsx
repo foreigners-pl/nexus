@@ -5,10 +5,11 @@ import Link from 'next/link'
 import { getViewAsUser, getViewAsSessions, getViewAsSession, getViewAsAudioUrl } from '@/app/actions/viewas'
 import { RequestsContent } from '@/components/mobile/RequestsContent'
 import { ActionsContent } from '@/components/mobile/ActionsContent'
+import MobileHomePage from '@/app/(dashboard)/home/page'
 import { linkify, AudioBubble } from '@/components/mobile/AssistantContent'
 import { ChevronLeft, ChevronRight, Loader2, Eye, Bot } from 'lucide-react'
 
-type Tab = 'requests' | 'actions' | 'ai'
+type Tab = 'home' | 'requests' | 'actions' | 'ai'
 
 const fmtDate = (key: string) => key.split('-').reverse().join('/')
 const sessionLabel = (key: string, todayKey: string) => {
@@ -117,13 +118,14 @@ function AiTab({ userId }: { userId: string }) {
 export default function ViewAsPage({ params }: { params: Promise<{ userId: string }> }) {
   const { userId } = use(params)
   const [user, setUser] = useState<{ id: string; name: string; role: string | null } | null>(null)
-  const [tab, setTab] = useState<Tab>('requests')
+  const [tab, setTab] = useState<Tab>('home')
 
   useEffect(() => {
     getViewAsUser(userId).then(setUser)
   }, [userId])
 
   const tabs: { id: Tab; label: string }[] = [
+    { id: 'home', label: 'Home' },
     { id: 'requests', label: 'Requests' },
     { id: 'actions', label: 'Actions' },
     { id: 'ai', label: 'AI sessions' },
@@ -166,7 +168,12 @@ export default function ViewAsPage({ params }: { params: Promise<{ userId: strin
         ))}
       </div>
 
-      {tab === 'requests' ? (
+      {tab === 'home' ? (
+        <MobileHomePage
+          viewAsUserId={userId}
+          onOpenTab={t => setTab(t === 'assistant' ? 'ai' : t)}
+        />
+      ) : tab === 'requests' ? (
         <RequestsContent viewAsUserId={userId} />
       ) : tab === 'actions' ? (
         <ActionsContent viewAsUserId={userId} />

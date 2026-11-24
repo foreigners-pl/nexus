@@ -7,6 +7,7 @@ import { searchClientsQuery, type ClientSearchResult } from '@/lib/data'
 import { fetchCurrentUser, fetchMyOpenTasks, fetchMyOpenActions, fetchCasesMissingActions } from '@/lib/data'
 import { getMyQueries } from '@/app/actions/workflow'
 import { getMyAnsweredHistory } from '@/app/actions/feed'
+import { getViewAsUser, getViewAsRequests, getViewAsActionsData } from '@/app/actions/viewas'
 import { getRecentClients, type RecentClient } from '@/lib/recent-clients'
 import { usePaneNavigate } from '@/lib/panes'
 import { usePrefetchClientPage, queryKeys } from '@/lib/query'
@@ -27,13 +28,23 @@ const DAY_MS = 86400000
 const DEADLINE_RANGES = [7, 30, 90] as const
 type DeadlineRange = typeof DEADLINE_RANGES[number]
 
-export default function MobileHomePage() {
+export default function MobileHomePage({ viewAsUserId, onOpenTab }: {
+  viewAsUserId?: string
+  /** Mirror mode: Requests/Actions/Assistant destinations resolve to the
+   *  view-as page's tabs instead of the viewer's own pages. */
+  onOpenTab?: (tab: 'requests' | 'actions' | 'assistant') => void
+}) {
   const router = useRouter()
   const paneNav = usePaneNavigate()
   const prefetchClient = usePrefetchClientPage()
 
   /** On desktop opens href as a pane; otherwise navigates normally. */
   const go = (href: string) => {
+    if (viewAsUserId && onOpenTab) {
+      if (href === '/requests') return onOpenTab('requests')
+      if (href === '/actions') return onOpenTab('actions')
+      if (href === '/assistant') return onOpenTab('assistant')
+    }
     if (!paneNav(href)) router.push(href)
   }
 
@@ -50,8 +61,12 @@ export default function MobileHomePage() {
   // Same query keys as the /requests and /actions pages — counts share their
   // cache, so navigating between them is instant and only fetches once.
   const { data: requestsData } = useQuery({
-    queryKey: queryKeys.requests,
+    queryKey: viewAsUserId ? ['viewas-requests', viewAsUserId] : queryKeys.requests,
     queryFn: async () => {
+      if (viewAsUserId) {
+        const r = await getViewAsRequests(viewAsUserId)
+        return { tasks: r?.tasks ?? [], queries: r?.queries ?? [], history: r?.history ?? [] }
+      }
       const [tasksRes, queriesRes, historyRes] = await Promise.all([fetchMyOpenTasks(), getMyQueries(), getMyAnsweredHistory(10)])
       return { tasks: tasksRes.tasks, queries: queriesRes.queries, history: historyRes.queries }
     },
@@ -60,8 +75,12 @@ export default function MobileHomePage() {
     refetchIntervalInBackground: false,
   })
   const { data: actionsData } = useQuery({
-    queryKey: queryKeys.myActions,
+    queryKey: viewAsUserId ? ['viewas-actions', viewAsUserId] : queryKeys.myActions,
     queryFn: async () => {
+      if (viewAsUserId) {
+        const r = await getViewAsActionsData(viewAsUserId)
+        return { actions: r?.actions ?? [], missing: r?.missing ?? [] }
+      }
       const [actionsRes, missingRes] = await Promise.all([fetchMyOpenActions(), fetchCasesMissingActions()])
       return { actions: actionsRes.actions, missing: missingRes.cases }
     },
@@ -93,14 +112,19 @@ export default function MobileHomePage() {
     90: withDates.filter(a => { const d = new Date(a.due_date!).getTime(); return d >= todayMs && d <= todayMs + 90 * DAY_MS }).length,
   }
 
-  // Load user name + recents once
+  // Load user name + recents once. Recents are device-local storage — there
+  // is nothing to mirror for another user, so the section is hidden.
   useEffect(() => {
+    if (viewAsUserId) {
+      getViewAsUser(viewAsUserId).then(u => setUserName(u?.name ?? null))
+      return
+    }
     setRecentClients(getRecentClients())
 
     fetchCurrentUser().then(({ user }) => {
       setUserName(user?.display_name || user?.email || null)
     })
-  }, [])
+  }, [viewAsUserId])
 
   // Debounced quick search — top 5 results in a floating dropdown
   useEffect(() => {
@@ -185,20 +209,24 @@ export default function MobileHomePage() {
         <div className="flex items-center gap-2 mb-3">
           <Search className="w-5 h-5 text-[hsl(var(--color-primary))]" />
           <h2 className="font-semibold text-[hsl(var(--color-text-primary))] flex-1 whitespace-nowrap">Find a client</h2>
-          <button
-            onClick={() => go('/clients/mine')}
-            className="flex items-center gap-1 px-3 h-8 rounded-lg bg-[hsl(var(--color-surface-secondary))] border border-[hsl(var(--color-border))] text-[hsl(var(--color-text-secondary))] text-xs font-semibold whitespace-nowrap active:bg-[hsl(var(--color-surface-hover))] shrink-0"
-          >
-            <Users className="w-3.5 h-3.5" />
-            My clients
-          </button>
-          <Link
-            href="/clients?add=1"
-            className="flex items-center gap-1 px-3 h-8 rounded-lg bg-[hsl(var(--color-primary))] text-white text-xs font-semibold whitespace-nowrap active:bg-[hsl(var(--color-primary-hover))] shrink-0"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Add client
-          </Link>
+          {!viewAsUserId && (
+            <>
+              <button
+                onClick={() => go('/clients/mine')}
+                className="flex items-center gap-1 px-3 h-8 rounded-lg bg-[hsl(var(--color-surface-secondary))] border border-[hsl(var(--color-border))] text-[hsl(var(--color-text-secondary))] text-xs font-semibold whitespace-nowrap active:bg-[hsl(var(--color-surface-hover))] shrink-0"
+              >
+                <Users className="w-3.5 h-3.5" />
+                My clients
+              </button>
+              <Link
+                href="/clients?add=1"
+                className="flex items-center gap-1 px-3 h-8 rounded-lg bg-[hsl(var(--color-primary))] text-white text-xs font-semibold whitespace-nowrap active:bg-[hsl(var(--color-primary-hover))] shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add client
+              </Link>
+            </>
+          )}
         </div>
 
         <input
@@ -328,7 +356,8 @@ export default function MobileHomePage() {
         </div>
       </div>
 
-      {/* Recent clients */}
+      {/* Recent clients — device-local, hidden in mirror mode */}
+      {!viewAsUserId && (
       <section>
         <div className="flex items-center gap-2 mb-2 px-1">
           <Clock className="w-4 h-4 text-[hsl(var(--color-text-muted))]" />
@@ -362,6 +391,7 @@ export default function MobileHomePage() {
           </div>
         )}
       </section>
+      )}
     </div>
   )
 }
