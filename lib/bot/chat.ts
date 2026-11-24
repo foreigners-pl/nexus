@@ -158,6 +158,18 @@ const FUNCTION_DECLARATIONS = [
     },
   },
   {
+    name: 'attach_files',
+    description: 'Attach the user\'s staged file(s) to a case — moves them into the case files and posts a feed note. The staged names are listed in the system context when present.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        case: { type: Type.STRING },
+        file: { type: Type.STRING, description: 'Optional: only attach the staged file matching this name' },
+      },
+      required: ['case'],
+    },
+  },
+  {
     name: 'cancel_request',
     description: "Cancel the user's own open (unanswered) request on a case.",
     parameters: {
@@ -206,6 +218,9 @@ export async function runBotTurn(user: BotUser, text: string): Promise<string> {
     .order('created_at', { ascending: false })
     .limit(14)
 
+  const { data: pend } = await supabase
+    .from('bot_pending_files').select('name').eq('user_id', user.id)
+
   const contents: any[] = (history || []).reverse().map(m => ({ role: m.role, parts: [{ text: m.text }] }))
   contents.push({ role: 'user', parts: [{ text }] })
 
@@ -214,7 +229,8 @@ export async function runBotTurn(user: BotUser, text: string): Promise<string> {
     for (let i = 0; i < 8; i++) {
       const res = await generate(
         contents,
-        `${SYSTEM_PROMPT}\n\nYou are talking to ${user.display_name || user.email}. Today is ${new Date().toDateString()}.`,
+        `${SYSTEM_PROMPT}\n\nYou are talking to ${user.display_name || user.email}. Today is ${new Date().toDateString()}.` +
+        (pend?.length ? `\nThe user staged files to attach: ${pend.map((p: any) => p.name).join(', ')} — call attach_files once they say (or you can infer) which case.` : ''),
       )
 
       const calls = res.functionCalls

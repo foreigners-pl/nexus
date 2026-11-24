@@ -16,11 +16,24 @@ async function me(): Promise<BotUser | null> {
   return (data as BotUser | null) ?? null
 }
 
-export async function sendAssistantMessage(text: string): Promise<{ reply?: string; error?: string }> {
+export interface StagedFile { path: string; name: string; size: number; type: string }
+
+export async function sendAssistantMessage(text: string, staged?: StagedFile[]): Promise<{ reply?: string; error?: string }> {
   const user = await me()
   if (!user) return { error: 'Not signed in' }
   const trimmed = text.trim()
   if (!trimmed) return { error: 'Empty message' }
+
+  // Register staged uploads — only paths under this user's staging prefix
+  // are honoured, so a client can't claim someone else's storage path.
+  const valid = (staged || []).filter(f => f.path.startsWith(`staging/${user.id}/`))
+  if (valid.length) {
+    const supabase = await createClient()
+    await supabase.from('bot_pending_files').insert(
+      valid.map(f => ({ user_id: user.id, path: f.path, name: f.name, size: f.size, type: f.type }))
+    )
+  }
+
   const reply = await runBotTurn(user, trimmed)
   return { reply }
 }

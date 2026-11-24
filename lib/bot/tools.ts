@@ -297,6 +297,44 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
       return data?.length ? { ok: 'Request cancelled' } : { error: 'No open request of yours on that case' }
     }
 
+    case 'attach_files': {
+      const r = await resolveCase(supabase, args.case)
+      if (r.candidates) return ambiguous(r.candidates)
+      if (!r.case) return notFound(args.case)
+      const { data: pend } = await supabase
+        .from('bot_pending_files').select('id, path, name, size, type')
+        .eq('user_id', me.id)
+      if (!pend?.length) return { error: 'No staged files — the user has not attached anything' }
+      const targets = args.file
+        ? pend.filter((p: any) => p.name.toLowerCase().includes(String(args.file).toLowerCase()))
+        : pend
+      if (!targets.length) return { error: `No staged file matching "${args.file}" — staged: ${pend.map((p: any) => p.name).join(', ')}` }
+
+      const attached: string[] = []
+      for (const p of targets as any[]) {
+        const ext = p.name.split('.').pop()
+        const newPath = `${r.case.id}/${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${ext}`
+        const { error: mvErr } = await supabase.storage.from('case_attachments').move(p.path, newPath)
+        const { data: att } = await supabase.from('case_attachments').insert({
+          case_id: r.case.id,
+          file_name: p.name,
+          file_path: mvErr ? p.path : newPath,
+          file_size: p.size,
+          file_type: p.type,
+          uploaded_by: me.id,
+        }).select('id').single()
+        const { data: entry } = await supabase.from('case_entries').insert({
+          case_id: r.case.id, step_id: r.case.current_step_id, kind: 'note',
+          body: `Attached file: ${p.name}`, created_by: me.id,
+        }).select('id').single()
+        if (att?.id && entry?.id)
+          await supabase.from('case_attachments').update({ entry_id: entry.id }).eq('id', att.id)
+        await supabase.from('bot_pending_files').delete().eq('id', p.id)
+        attached.push(p.name)
+      }
+      return { ok: `Attached ${attached.join(', ')} to ${r.case.case_code} ${clientName(r.case)}`.trim() }
+    }
+
     case 'set_action': {
       const r = await resolveCase(supabase, args.case)
       if (r.candidates) return ambiguous(r.candidates)
