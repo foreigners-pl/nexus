@@ -23,7 +23,7 @@ import { User } from '@/types/database'
 import { createClient } from '@/lib/supabase/client'
 import { useNotifications, SOUND_TYPES, type SoundType } from '@/lib/notifications/NotificationContext'
 import { ServiceStepsEditor } from './ServiceStepsEditor'
-import { getMessengerStatus, generateMessengerCode, disconnectMessenger } from '@/app/actions/messenger'
+
 
 interface CompanySettings {
   company_name?: string
@@ -60,32 +60,6 @@ export function SettingsContent({ initialProfile, initialPreferences, initialCom
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
 
-  // Messenger bot link state
-  const [msgrLinked, setMsgrLinked] = useState(false)
-  const [msgrCode, setMsgrCode] = useState<string | null>(null)
-  const [msgrBusy, setMsgrBusy] = useState(false)
-
-  useEffect(() => {
-    getMessengerStatus().then(s => {
-      setMsgrLinked(!!s.linked)
-      setMsgrCode(s.code ?? null)
-    })
-  }, [])
-
-  const handleGenerateCode = async () => {
-    setMsgrBusy(true)
-    const r = await generateMessengerCode()
-    setMsgrBusy(false)
-    if (r.code) setMsgrCode(r.code)
-  }
-
-  const handleDisconnect = async () => {
-    setMsgrBusy(true)
-    await disconnectMessenger()
-    setMsgrLinked(false)
-    setMsgrCode(null)
-    setMsgrBusy(false)
-  }
   const [savingPassword, setSavingPassword] = useState(false)
   const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
@@ -485,51 +459,6 @@ export function SettingsContent({ initialProfile, initialPreferences, initialCom
           </div>
         </Card>
 
-        {/* Messenger bot */}
-        <Card>
-          <div className="p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500/20 to-green-600/10 border border-green-500/30 flex items-center justify-center">
-                <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-[hsl(var(--color-text-primary))]">Messenger bot</h3>
-                <p className="text-sm text-[hsl(var(--color-text-secondary))]">Chat with the CRM on Messenger</p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              {msgrLinked ? (
-                <>
-                  <div className="text-sm px-3 py-2 rounded-lg bg-green-500/10 text-green-400 border border-green-500/20">
-                    Linked — message the bot to check requests, cases and actions.
-                  </div>
-                  <Button onClick={handleDisconnect} disabled={msgrBusy} variant="secondary" className="w-full">
-                    {msgrBusy ? 'Disconnecting...' : 'Disconnect'}
-                  </Button>
-                </>
-              ) : (
-                <>
-                  {msgrCode ? (
-                    <div className="text-center space-y-1">
-                      <p className="text-xs text-[hsl(var(--color-text-secondary))]">Send this code to the bot (valid 15 min):</p>
-                      <p className="text-2xl font-mono font-bold tracking-[0.3em] text-[hsl(var(--color-text-primary))]">{msgrCode}</p>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-[hsl(var(--color-text-secondary))]">
-                      Generate a code, then send it to the bot in Messenger to link your account.
-                    </p>
-                  )}
-                  <Button onClick={handleGenerateCode} disabled={msgrBusy} className="w-full">
-                    {msgrBusy ? 'Generating...' : msgrCode ? 'New code' : 'Generate code'}
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-        </Card>
       </div>
 
       {/* Sound Settings */}

@@ -3,15 +3,13 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { runTool, type BotUser } from './tools'
 
 /**
- * Messenger bot pipeline:
- *   psid → CRM user (link code if unknown) → history → Gemini w/ tools → reply
+ * In-app assistant pipeline:
+ *   CRM user (from session) → history → Gemini w/ tools → reply
  */
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
-const PAGE_TOKEN = process.env.META_PAGE_TOKEN!
-const GRAPH = 'https://graph.facebook.com/v21.0'
 
-const SYSTEM_PROMPT = `You are the Nexus CRM assistant on Facebook Messenger, talking to staff of a legal-services company.
+const SYSTEM_PROMPT = `You are the Nexus CRM assistant, chatting inside the CRM app with staff of a legal-services company.
 
 The CRM organises work into CASES (identified by a code like C0000582 and a client name). Each case moves through workflow STEPS. Key concepts:
 - Step feed: every step has a chat-like feed of messages and thin event lines.
@@ -20,7 +18,7 @@ The CRM organises work into CASES (identified by a code like C0000582 and a clie
 - Eligibility: presale confirmation steps.
 
 Rules:
-- You act as the linked user — be concise, plain text only (Messenger), no markdown.
+- You act as the signed-in user — be concise, plain text only, no markdown.
 - For write actions (messages, requests, answers, actions, cancellations), just do them — the user asked you to.
 - If a case reference is ambiguous, ask which one.
 - If the user asks for something the tools can't do, say so briefly.
@@ -138,66 +136,17 @@ const FUNCTION_DECLARATIONS = [
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
 
-export async function sendMessenger(psid: string, text: string) {
-  // Messenger caps messages at ~2000 chars — split on newlines if needed
-  const chunks = text.match(/[\s\S]{1,1900}/g) || ['…']
-  for (const chunk of chunks) {
-    await fetch(`${GRAPH}/me/messages?access_token=${PAGE_TOKEN}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ recipient: { id: psid }, message: { text: chunk } }),
-    }).catch(() => {})
-  }
-}
-
-export async function sendTyping(psid: string) {
-  await fetch(`${GRAPH}/me/messages?access_token=${PAGE_TOKEN}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ recipient: { id: psid }, sender_action: 'typing_on' }),
-  }).catch(() => {})
-}
-
-/** Entry point for one incoming Messenger text message. */
-export async function handleMessengerMessage(psid: string, text: string) {
+/** One assistant turn: history + user text → Gemini w/ tools → reply. */
+export async function runBotTurn(user: BotUser, text: string): Promise<string> {
   const supabase = createAdminClient()
 
-  const { data: user } = await supabase
-    .from('users')
-    .select('id, display_name, email')
-    .eq('messenger_psid', psid)
-    .maybeSingle() as { data: BotUser | null }
-
-  if (!user) {
-    // Link flow: a code from Settings → Messenger (6 chars, valid 15 min)
-    const code = text.trim().toUpperCase()
-    if (/^[A-Z0-9]{6}$/.test(code)) {
-      const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString()
-      const { data: match } = await supabase
-        .from('users')
-        .select('id, display_name, email')
-        .eq('messenger_code', code)
-        .gt('messenger_code_at', cutoff)
-        .maybeSingle() as { data: BotUser | null }
-      if (match) {
-        await supabase.from('users').update({ messenger_psid: psid, messenger_code: null, messenger_code_at: null }).eq('id', match.id)
-        await sendMessenger(psid, `Linked — you're ${match.display_name || match.email}. Ask me anything: your requests, cases, actions, or tell me to post something.`)
-        return
-      }
-    }
-    await sendMessenger(psid, 'Hi! This is the Nexus CRM bot. To link your account: open the CRM → Settings → Messenger bot → Generate code, then send me the 6-character code.')
-    return
-  }
-
-  await sendTyping(psid)
-
-  // Recent history for context (kept short — Messenger chats are shallow)
   const { data: history } = await supabase
     .from('bot_messages')
     .select('role, text')
-    .eq('psid', psid)
+    .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(14)
+
   const contents: any[] = (history || []).reverse().map(m => ({ role: m.role, parts: [{ text: m.text }] }))
   contents.push({ role: 'user', parts: [{ text }] })
 
@@ -234,11 +183,22 @@ export async function handleMessengerMessage(psid: string, text: string) {
   }
   if (!reply) reply = 'I got nothing back — try rephrasing?'
 
-  await sendMessenger(psid, reply)
-
-  // Persist the turn (best-effort)
   await supabase.from('bot_messages').insert([
-    { psid, role: 'user', text },
-    { psid, role: 'model', text: reply.slice(0, 2000) },
+    { user_id: user.id, role: 'user', text },
+    { user_id: user.id, role: 'model', text: reply.slice(0, 2000) },
   ]).then(() => {}, () => {})
+
+  return reply
+}
+
+/** Recent conversation for rendering the chat on load. */
+export async function getBotHistory(userId: string, limit = 40) {
+  const supabase = createAdminClient()
+  const { data } = await supabase
+    .from('bot_messages')
+    .select('role, text, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  return (data || []).reverse() as { role: string; text: string; created_at: string }[]
 }

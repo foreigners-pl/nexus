@@ -20,6 +20,7 @@ import {
   ChevronRight,
   Plus,
   Users,
+  Sparkles,
 } from 'lucide-react'
 
 const DAY_MS = 86400000
@@ -164,9 +165,19 @@ export default function MobileHomePage() {
   return (
     <div className="space-y-4">
       {userName && (
-        <p className="text-sm text-[hsl(var(--color-text-secondary))]">
-          Hello, <span className="text-[hsl(var(--color-text-primary))] font-medium">{userName}</span>
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm text-[hsl(var(--color-text-secondary))]">
+            Hello, <span className="text-[hsl(var(--color-text-primary))] font-medium">{userName}</span>
+          </p>
+          <button
+            onClick={() => go('/assistant')}
+            aria-label="Open assistant"
+            className="flex items-center gap-1.5 px-3 h-8 rounded-lg bg-[hsl(var(--color-primary))]/15 border border-[hsl(var(--color-primary))]/30 text-[hsl(var(--color-primary))] text-xs font-semibold active:bg-[hsl(var(--color-primary))]/25 shrink-0"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Assistant
+          </button>
+        </div>
       )}
 
       {/* Search panel — results float in a dropdown so the panel never grows */}

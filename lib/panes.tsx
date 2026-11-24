@@ -18,6 +18,7 @@ import EligibilityPage from '@/app/(dashboard)/cases/[id]/eligibility/page'
 import ClientPage from '@/app/(dashboard)/clients/[id]/page'
 import ClientInfoPage from '@/app/(dashboard)/clients/[id]/info/page'
 import { MyClientsContent } from '@/components/mobile/MyClientsContent'
+import { AssistantContent } from '@/components/mobile/AssistantContent'
 import { RequestsContent } from '@/components/mobile/RequestsContent'
 import { ActionsContent } from '@/components/mobile/ActionsContent'
 import { SearchContent } from '@/components/mobile/SearchContent'
@@ -30,7 +31,7 @@ function isPaneRoute(href: string): boolean {
   return /^\/cases\/[^/]+(\/progress(\/[^/]+)?|\/billing(\/[^/]+)?|\/files|\/legacy|\/eligibility(\/[^/]+)?|\/agreement|\/actions)?$/.test(path)
     || /^\/clients\/[^/]+(\/info)?$/.test(path)
     || /^\/home$/.test(path)
-    || /^\/(requests|actions|search|notifications)$/.test(path)
+    || /^\/(requests|actions|search|notifications|assistant)$/.test(path)
 }
 
 /** Routes that can render as a side pane instead of a full navigation. */
@@ -74,6 +75,13 @@ function renderPaneRoute(href: string): React.ReactNode | null {
     return <ClientInfoPage params={Promise.resolve({ id: m[1] })} />
   if ((m = path.match(/^\/clients\/([^/]+)$/)))
     return <ClientPage params={Promise.resolve({ id: m[1] })} />
+  if (path === '/assistant')
+    return (
+      <div>
+        <MobileBackHeader title="Assistant" />
+        <AssistantContent />
+      </div>
+    )
   if (path === '/requests') return <RequestsContent />
   if (path === '/actions') return <ActionsContent />
   if (path === '/notifications') return <NotificationsContent />
