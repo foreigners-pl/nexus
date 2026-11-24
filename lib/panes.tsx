@@ -135,10 +135,16 @@ export function PaneProvider({ children }: { children: React.ReactNode }) {
     }, 320)
   }
 
-  // Scroll the newest column into view
+  // Scroll the newest column into view — on any pane change (a same-depth
+  // replacement keeps length identical) and again once the slide-in
+  // animation lands so the scroll settles on the final position.
   useEffect(() => {
     lastPaneRef.current?.scrollIntoView({ behavior: 'smooth', inline: 'end', block: 'nearest' })
-  }, [panes.length])
+    const t = setTimeout(() => {
+      lastPaneRef.current?.scrollIntoView({ behavior: 'smooth', inline: 'end', block: 'nearest' })
+    }, 320)
+    return () => clearTimeout(t)
+  }, [panes])
 
   return (
     <PaneContext.Provider value={{ openPane, closeFrom, paneCount: panes.length }}>

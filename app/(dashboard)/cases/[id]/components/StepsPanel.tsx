@@ -851,17 +851,34 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
   const alignRight = (authorId: string | null) =>
     authorId === meId || (!viewerIsParty && authorId === legalId)
 
-  // Mobile: fill the space down to the fixed composer so the message column
-  // can anchor to the bottom of it — last message hugs the input, empty
-  // space collects at the top of the chat area. Measured before paint.
+  // Fill the space down to the pinned composer so the message column can
+  // anchor to the bottom of it — last message hugs the input, empty space
+  // collects at the top of the chat area. Mobile measures against the fixed
+  // overlay + document scroll; desktop against the sticky composer inside
+  // the pane's own scroll column. Measured before paint.
   const regionRef = useRef<HTMLDivElement>(null)
   const tailRef = useRef<HTMLDivElement>(null)
+  const composerRef = useRef<HTMLDivElement>(null)
   const [regionH, setRegionH] = useState<number | null>(null)
   const [tailH, setTailH] = useState(44)
   useLayoutEffect(() => {
     const measure = () => {
       const el = regionRef.current
-      if (!el || window.innerWidth >= 768) { setRegionH(null); return }
+      if (!el) { setRegionH(null); return }
+      if (window.innerWidth >= 768) {
+        const composer = composerRef.current
+        const scroller = el.closest('.overflow-y-auto') as HTMLElement | null
+        if (!composer || !scroller) { setRegionH(null); return }
+        const sRect = scroller.getBoundingClientRect()
+        const docTop = el.getBoundingClientRect().top - sRect.top + scroller.scrollTop
+        // The sticky composer rests 24px (pane bottom padding) above the
+        // scrollport's bottom edge — fill the region so its bottom lands
+        // on the composer's natural top. Longer feeds already exceed this,
+        // so min-height is a no-op for them.
+        const target = scroller.clientHeight - 24 - composer.getBoundingClientRect().height
+        setRegionH(Math.max(target - docTop, 160))
+        return
+      }
       const composer = document.querySelector<HTMLElement>('[data-step-composer]')
       if (!composer) return // overlay mounts in the same commit; next render re-measures
       const composerTop = composer.getBoundingClientRect().top
@@ -884,7 +901,13 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
     }
     measure()
     window.addEventListener('resize', measure)
-    return () => window.removeEventListener('resize', measure)
+    // Composer height changes (textarea growth, staged files, errors) don't
+    // change the deps below — watch it directly so the fill re-measures.
+    const ro = new ResizeObserver(measure)
+    if (composerRef.current) ro.observe(composerRef.current)
+    const overlay = document.querySelector<HTMLElement>('[data-step-composer]')
+    if (overlay) ro.observe(overlay)
+    return () => { window.removeEventListener('resize', measure); ro.disconnect() }
     // Deps, not every-render: a setState here must not be able to retrigger
     // the effect (infinite-loop guard). Re-measure when the feed grows or
     // the composer/request-slot above can change height.
@@ -948,15 +971,14 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
         </div>
       )}
 
-      {/* Feed — newest first. Mobile: fills down to the fixed composer and
-          anchors messages to its bottom (last message hugs the input),
-          but scrolls with the page — no separate scroll region. Desktop:
-          plain flow. */}
+      {/* Feed — newest first. Fills down to the pinned composer and anchors
+          messages to its bottom (last message hugs the input), but scrolls
+          with the page/pane — no separate scroll region. */}
       {canPost ? (
         <div
           ref={regionRef}
           style={regionH ? { minHeight: regionH } : undefined}
-          className="flex flex-col md:contents"
+          className="flex flex-col"
         >
           <div className="mt-auto">{feedList}</div>
         </div>
@@ -968,9 +990,14 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
       {canPost && <div ref={tailRef} className="md:hidden" style={{ height: tailH }} />}
 
       {/* Composer — desktop only; mobile uses the fixed overlay at the
-          panel root */}
+          panel root. Sticky to the pane's scroll bottom: pinned while
+          scrolling, in-flow at rest so the last message always scrolls
+          clear. Full-bleed bg so messages don't peek past it. */}
       {canPost && (
-        <div className="hidden md:block pt-1">
+        <div
+          ref={composerRef}
+          className="hidden md:block sticky bottom-0 z-10 -mx-6 px-6 pt-2 pb-6 bg-[hsl(var(--color-background))]"
+        >
           {composer}
         </div>
       )}
@@ -998,6 +1025,15 @@ function FeedComposer({ stepId, text, setText, staged, onRemoveStaged, busy, err
   onConfirmSelect: () => void
 }) {
   const selecting = !!select && select.stepId === stepId
+  const textRef = useRef<HTMLTextAreaElement>(null)
+
+  // Grow the field with content up to ~4 lines, then scroll inside it.
+  useEffect(() => {
+    const t = textRef.current
+    if (!t) return
+    t.style.height = 'auto'
+    t.style.height = `${Math.min(t.scrollHeight, 110)}px`
+  }, [text])
 
   if (selecting) {
     return (
@@ -1037,7 +1073,7 @@ function FeedComposer({ stepId, text, setText, staged, onRemoveStaged, busy, err
           ))}
         </div>
       )}
-      <div className="flex gap-2 items-center">
+      <div className="flex gap-2 items-end">
         <input type="file" ref={fileRef} multiple className="hidden" onChange={e => onUpload(e.target.files)} />
         <button
           onClick={() => fileRef.current?.click()}
@@ -1046,12 +1082,14 @@ function FeedComposer({ stepId, text, setText, staged, onRemoveStaged, busy, err
         >
           <Paperclip className="w-4 h-4" />
         </button>
-        <input
+        <textarea
+          ref={textRef}
           value={text}
           onChange={e => setText(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), onSend())}
           placeholder="Message…"
-          className="flex-1 h-10 px-3.5 rounded-xl bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] text-sm text-[hsl(var(--color-text-primary))] placeholder:text-[hsl(var(--color-text-muted))] outline-none"
+          rows={1}
+          className="flex-1 min-h-10 max-h-[110px] px-3.5 py-2.5 rounded-xl bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] text-sm text-[hsl(var(--color-text-primary))] placeholder:text-[hsl(var(--color-text-muted))] outline-none resize-none overflow-y-auto"
         />
         <button
           onClick={onSend}
