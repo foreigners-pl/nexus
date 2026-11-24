@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { searchClientsQuery, type ClientSearchResult } from '@/lib/data'
-import { fetchCurrentUser, fetchMyOpenTasks, fetchMyOpenActions, fetchCasesMissingActions, fetchMyClients } from '@/lib/data'
+import { fetchCurrentUser, fetchMyOpenTasks, fetchMyOpenActions, fetchCasesMissingActions } from '@/lib/data'
 import { getMyQueries } from '@/app/actions/workflow'
 import { getMyAnsweredHistory } from '@/app/actions/feed'
 import { getRecentClients, type RecentClient } from '@/lib/recent-clients'
@@ -68,12 +68,6 @@ export default function MobileHomePage() {
     refetchInterval: 15 * 1000,
     refetchIntervalInBackground: false,
   })
-  const [myClientsOpen, setMyClientsOpen] = useState(false)
-  const { data: myClients } = useQuery({
-    queryKey: ['my-clients'],
-    queryFn: fetchMyClients,
-    staleTime: 60 * 1000,
-  })
 
   const newTasks = requestsData == null ? null : (() => {
     const cutoff = Date.now() - DAY_MS
@@ -120,7 +114,6 @@ export default function MobileHomePage() {
 
     setSearching(true)
     setDropdownOpen(true)
-    setMyClientsOpen(false)
     debounceRef.current = setTimeout(async () => {
       const { results } = await searchClientsQuery(q, 5)
       setResults(results)
@@ -182,7 +175,7 @@ export default function MobileHomePage() {
           <Search className="w-5 h-5 text-[hsl(var(--color-primary))]" />
           <h2 className="font-semibold text-[hsl(var(--color-text-primary))] flex-1">Find a client</h2>
           <button
-            onClick={() => { setMyClientsOpen(o => !o); setDropdownOpen(false) }}
+            onClick={() => go('/clients/mine')}
             className="flex items-center gap-1 px-3 h-8 rounded-lg bg-[hsl(var(--color-surface-secondary))] border border-[hsl(var(--color-border))] text-[hsl(var(--color-text-secondary))] text-xs font-semibold active:bg-[hsl(var(--color-surface-hover))] shrink-0"
           >
             <Users className="w-3.5 h-3.5" />
@@ -235,26 +228,6 @@ export default function MobileHomePage() {
           </>
         )}
 
-        {/* My clients — floating dropdown, same pattern as the search results */}
-        {myClientsOpen && (
-          <>
-            <div
-              className="fixed inset-0 z-40"
-              onClick={() => setMyClientsOpen(false)}
-            />
-            <div className="absolute left-4 right-4 top-full -mt-1 z-50 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl shadow-2xl shadow-black/50 overflow-hidden">
-              {!myClients ? (
-                <p className="text-sm text-[hsl(var(--color-text-secondary))] px-4 py-3">Loading…</p>
-              ) : myClients.clients.length === 0 ? (
-                <p className="text-sm text-[hsl(var(--color-text-secondary))] px-4 py-3">No clients assigned to you yet</p>
-              ) : (
-                <ul className="max-h-72 overflow-y-auto divide-y divide-[hsl(var(--color-border))]">
-                  {myClients.clients.map((c) => clientItem(c, () => setMyClientsOpen(false)))}
-                </ul>
-              )}
-            </div>
-          </>
-        )}
       </section>
 
       {/* Requests + Actions — one row each */}
