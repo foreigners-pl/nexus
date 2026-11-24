@@ -233,7 +233,10 @@ export async function runBotTurn(user: BotUser, text: string): Promise<string> {
       break
     }
   } catch (e: any) {
-    reply = `Something broke on my side (${e.message?.slice(0, 300) || 'unknown error'}). Try again in a moment.`
+    const msg = e?.message || ''
+    reply = e?.status === 429 || /quota|rate.?limit|RESOURCE_EXHAUSTED/i.test(msg)
+      ? "I'm out of Gemini quota for now — the free tier caps requests per minute/day. Give it a minute and try again."
+      : `Something broke on my side (${msg.slice(0, 300) || 'unknown error'}). Try again in a moment.`
   }
   if (!reply) reply = 'I got nothing back — try rephrasing?'
 
