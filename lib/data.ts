@@ -558,6 +558,35 @@ export async function fetchMyAnsweredHistory(limit = 10) {
   }
 }
 
+/** All clients on cases where the user is CSR or legal — deduped, with phones. */
+export async function fetchMyClients(): Promise<{ clients: ClientSearchResult[] }> {
+  const me = await meId()
+  if (!me) return { clients: [] }
+
+  const { data: rows } = await supabase
+    .from('cases')
+    .select(`clients(${CLIENT_SEARCH_SELECT})`)
+    .or(`assigned_to.eq.${me},csr_id.eq.${me}`)
+
+  const seen = new Set<string>()
+  const clients = (rows || [])
+    .map((r: any) => r.clients)
+    .filter((c: any) => c && !seen.has(c.id) && seen.add(c.id))
+    .map((c: any) => ({
+      id: c.id,
+      first_name: c.first_name,
+      last_name: c.last_name,
+      contact_email: c.contact_email,
+      phones: (c.contact_numbers || []).map((p: any) => p.number).filter(Boolean),
+    }))
+    .sort((a, b) =>
+      ([a.first_name, a.last_name].filter(Boolean).join(' ') || '')
+        .localeCompare([b.first_name, b.last_name].filter(Boolean).join(' ') || '')
+    )
+
+  return { clients }
+}
+
 export async function fetchMyOpenActions() {
   const me = await meId()
   if (!me) return { actions: [] as any[] }
