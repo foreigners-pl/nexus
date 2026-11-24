@@ -17,6 +17,7 @@ import EligibilityDetailPage from '@/app/(dashboard)/cases/[id]/eligibility/[typ
 import EligibilityPage from '@/app/(dashboard)/cases/[id]/eligibility/page'
 import ClientPage from '@/app/(dashboard)/clients/[id]/page'
 import ClientInfoPage from '@/app/(dashboard)/clients/[id]/info/page'
+import { MyClientsContent } from '@/components/mobile/MyClientsContent'
 import { RequestsContent } from '@/components/mobile/RequestsContent'
 import { ActionsContent } from '@/components/mobile/ActionsContent'
 import { SearchContent } from '@/components/mobile/SearchContent'
@@ -27,7 +28,7 @@ import { MobileBackHeader } from '@/components/mobile/MobileBackHeader'
 function isPaneRoute(href: string): boolean {
   const path = href.split('?')[0]
   return /^\/cases\/[^/]+(\/progress(\/[^/]+)?|\/billing(\/[^/]+)?|\/files|\/legacy|\/eligibility(\/[^/]+)?|\/agreement|\/actions)?$/.test(path)
-    || (/^\/clients\/[^/]+(\/info)?$/.test(path) && path !== '/clients/mine')
+    || /^\/clients\/[^/]+(\/info)?$/.test(path)
     || /^\/home$/.test(path)
     || /^\/(requests|actions|search|notifications)$/.test(path)
 }
@@ -62,8 +63,13 @@ function renderPaneRoute(href: string): React.ReactNode | null {
     return <CaseActionsPage params={Promise.resolve({ id: m[1] })} />
   if ((m = path.match(/^\/cases\/([^/]+)$/)))
     return <CasePage params={Promise.resolve({ id: m[1] })} />
-  // /clients/mine is a real page, not a client detail — let it navigate normally
-  if (path === '/clients/mine') return null
+  if (path === '/clients/mine')
+    return (
+      <div>
+        <MobileBackHeader title="My clients" />
+        <MyClientsContent />
+      </div>
+    )
   if ((m = path.match(/^\/clients\/([^/]+)\/info$/)))
     return <ClientInfoPage params={Promise.resolve({ id: m[1] })} />
   if ((m = path.match(/^\/clients\/([^/]+)$/)))
