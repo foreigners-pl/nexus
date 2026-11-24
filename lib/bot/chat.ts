@@ -7,7 +7,7 @@ import { runTool, type BotUser } from './tools'
  *   CRM user (from session) → history → Gemini w/ tools → reply
  */
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3-flash'
 
 const SYSTEM_PROMPT = `You are the Nexus CRM assistant, chatting inside the CRM app with staff of a legal-services company.
 
