@@ -478,6 +478,118 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
       }
     }
 
+    case 'create_client': {
+      const parts = String(args.name || '').trim().split(/\s+/).filter(Boolean)
+      if (!parts.length) return { error: 'Client name is required' }
+      const { data: client, error } = await supabase.from('clients').insert({
+        first_name: parts[0],
+        last_name: parts.slice(1).join(' ') || null,
+        contact_email: args.email ? String(args.email).trim() : null,
+      }).select('id, first_name, last_name').single()
+      if (error || !client) return { error: 'Failed to create client' }
+      if (args.phone) {
+        await supabase.from('contact_numbers').insert({
+          client_id: client.id, number: String(args.phone).trim(), is_on_whatsapp: args.whatsapp !== false,
+        })
+      }
+      return { ok: `Client created: ${[client.first_name, client.last_name].filter(Boolean).join(' ')}` }
+    }
+
+    case 'create_case': {
+      // Resolve the client — word-wise match, then full-name containment.
+      const words = String(args.client || '').trim().split(/\s+/).filter(Boolean)
+      if (!words.length) return { error: 'Client name is required' }
+      const orClause = words.flatMap(w => [`first_name.ilike.%${w}%`, `last_name.ilike.%${w}%`]).join(',')
+      const { data: cands } = await supabase.from('clients').select('id, first_name, last_name').or(orClause).limit(20)
+      const full = (c: any) => [c.first_name, c.last_name].filter(Boolean).join(' ')
+      const needle = words.join(' ').toLowerCase()
+      const exact = (cands || []).filter(c => full(c).toLowerCase().includes(needle))
+      const pool = exact.length ? exact : (cands || [])
+      if (!pool.length) return { error: `No client matching "${args.client}" — use create_client first` }
+      if (pool.length > 1) return { error: 'Multiple clients match', candidates: pool.map(full) }
+      const client = pool[0]
+
+      // Service by name fragment — error lists what's available on a miss.
+      let serviceId: string | null = null
+      let serviceName: string | null = null
+      if (args.service) {
+        const { data: svcs } = await supabase.from('services').select('id, name').ilike('name', `%${String(args.service).trim()}%`).limit(8)
+        if (!svcs?.length) {
+          const { data: all } = await supabase.from('services').select('name').order('name').limit(30)
+          return { error: `No service matching "${args.service}". Available: ${(all || []).map(s => s.name).join(', ')}` }
+        }
+        if (svcs.length > 1) return { error: 'Multiple services match', candidates: svcs.map(s => s.name) }
+        serviceId = svcs[0].id
+        serviceName = svcs[0].name
+      }
+
+      // Optional lawyer (assigned_to) by name/email fragment.
+      let lawyerId: string | null = null
+      let lawyerName: string | null = null
+      if (args.lawyer) {
+        const { data: us } = await supabase.from('users').select('id, display_name, email')
+          .or(`display_name.ilike.%${String(args.lawyer).trim()}%,email.ilike.%${String(args.lawyer).trim()}%`).limit(8)
+        const uName = (u: any) => u.display_name || u.email?.split('@')[0] || '?'
+        if (!us?.length) return { error: `No user matching "${args.lawyer}"` }
+        if (us.length > 1) return { error: 'Multiple users match', candidates: us.map(uName) }
+        lawyerId = us[0].id
+        lawyerName = uName(us[0])
+      }
+
+      const { data: newStatus } = await supabase.from('status').select('id').eq('name', 'New').single()
+      const { data: created, error } = await supabase.from('cases').insert({
+        client_id: client.id,
+        status_id: newStatus?.id ?? null,
+        assigned_to: lawyerId,
+        csr_id: me.id,
+      }).select('id, case_code').single()
+      if (error || !created) return { error: 'Failed to create case' }
+
+      // Same init as the app's addCase: assignee rows, system steps, initial step.
+      for (const uid of [...new Set([me.id, lawyerId].filter(Boolean))] as string[]) {
+        await supabase.from('case_assignees').insert({ case_id: created.id, user_id: uid })
+      }
+      await supabase.from('case_steps').insert([
+        { case_id: created.id, name: 'Eligibility check', position: -3, is_required: true, step_type: 'eligibility' },
+        { case_id: created.id, name: 'Pre-sale', position: -2, is_required: true, step_type: 'presale' },
+        { case_id: created.id, name: 'Consultation', position: -1, is_required: false, step_type: 'consultation' },
+        { case_id: created.id, name: 'Service closure', position: 1000000, is_required: true, step_type: 'closure' },
+      ])
+      const { data: elig } = await supabase.from('case_steps').select('id')
+        .eq('case_id', created.id).eq('step_type', 'eligibility').single()
+      if (elig) await supabase.from('cases').update({ current_step_id: elig.id }).eq('id', created.id)
+
+      if (serviceId) {
+        await supabase.from('case_services').insert({ case_id: created.id, service_id: serviceId })
+        const { data: tpl } = await supabase.from('service_steps').select('name, position, is_required')
+          .eq('service_id', serviceId).order('position')
+        if (tpl?.length) {
+          await supabase.from('case_steps').insert(tpl.map(t => ({
+            case_id: created.id, name: t.name, position: t.position,
+            is_required: t.is_required, step_type: 'service', service_id: serviceId,
+          })))
+        }
+        await supabase.from('case_eligibility').insert([
+          { case_id: created.id, service_id: serviceId, type: 'status' },
+          { case_id: created.id, service_id: serviceId, type: 'documents' },
+        ])
+      }
+
+      if (lawyerId) {
+        await notifyUsers(supabase, me.id, [lawyerId], {
+          kind: 'task',
+          title: `New case ${created.case_code}`,
+          body: `${me.display_name || me.email.split('@')[0]} assigned you to a case`,
+          link: `/cases/${created.id}`,
+          caseId: created.id,
+        })
+      }
+      const bits = [`Created case ${created.case_code} for ${full(client)}`]
+      if (serviceName) bits.push(`service: ${serviceName}`)
+      if (lawyerName) bits.push(`lawyer: ${lawyerName}`)
+      return { ok: bits.join(' — ') }
+    }
+
     default:
       return { error: `Unknown tool: ${name}` }
   }

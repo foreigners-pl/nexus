@@ -25,6 +25,8 @@ let resolvedModel: string | null = null
 let listedModels: string[] | null = null
 
 const isModelGone = (e: any) => /not found|no longer|does not exist|not supported/i.test(e?.message || '')
+// A model under load (503) should also yield to the next candidate.
+const isModelBusy = (e: any) => e?.status === 503 || /high demand|unavailable|overloaded/i.test(e?.message || '')
 
 async function modelCandidates(): Promise<string[]> {
   try {
@@ -60,7 +62,7 @@ async function generate(contents: any[], systemInstruction: string) {
       resolvedModel = model
       return res
     } catch (e: any) {
-      if (!isModelGone(e)) throw e
+      if (!isModelGone(e) && !isModelBusy(e)) throw e
       lastErr = e
     }
   }
@@ -79,6 +81,8 @@ The CRM organises work into CASES (identified by a code like C0000582 and a clie
 
 Rules:
 - You act as the signed-in user — be concise, plain text only, no markdown.
+- For multi-part requests (e.g. create a client, then a case, then messages) work through them in order with tool calls; only stop to ask when something is genuinely ambiguous.
+- New clients/cases: create_client makes the person; create_case needs an existing client, optionally a service and a lawyer. Messages and requests go to the case's current step.
 - For write actions (messages, requests, answers, actions, cancellations), just do them — the user asked you to.
 - If a case reference is ambiguous, ask which one.
 - If the user asks for something the tools can't do, say so briefly.
@@ -104,6 +108,32 @@ const FUNCTION_DECLARATIONS = [
     name: 'mark_notifications_read',
     description: 'Mark all of the user\'s notifications as read.',
     parameters: { type: Type.OBJECT, properties: {}, required: [] },
+  },
+  {
+    name: 'create_client',
+    description: 'Create a new client record from a full name (split into first/last automatically), with optional email and phone.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        name: { type: Type.STRING, description: 'Full name, e.g. "John Smith"' },
+        email: { type: Type.STRING },
+        phone: { type: Type.STRING },
+      },
+      required: ['name'],
+    },
+  },
+  {
+    name: 'create_case',
+    description: 'Create a new case for an existing client. Optionally attach a service by name fragment (e.g. "TRC") and assign a lawyer by name. If the client is unknown, create them first with create_client.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        client: { type: Type.STRING, description: 'Client name' },
+        service: { type: Type.STRING, description: 'Service name fragment' },
+        lawyer: { type: Type.STRING, description: 'Name of the team member to assign as lawyer' },
+      },
+      required: ['client'],
+    },
   },
   {
     name: 'find_client',
@@ -273,7 +303,9 @@ export async function runBotTurn(user: BotUser, text: string): Promise<string> {
     const msg = e?.message || ''
     reply = e?.status === 429 || /quota|rate.?limit|RESOURCE_EXHAUSTED/i.test(msg)
       ? "I'm out of Gemini quota for now — the free tier caps requests per minute/day. Give it a minute and try again."
-      : `Something broke on my side (${msg.slice(0, 300) || 'unknown error'}). Try again in a moment.`
+      : isModelBusy(e)
+        ? 'Gemini is under heavy load right now — give it a moment and try again.'
+        : `Something broke on my side (${msg.slice(0, 300) || 'unknown error'}). Try again in a moment.`
   }
   if (!reply) reply = 'I got nothing back — try rephrasing?'
 
