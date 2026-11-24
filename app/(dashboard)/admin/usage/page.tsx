@@ -133,20 +133,18 @@ function UserRow({ row }: { row: UsageRow }) {
             </>
           )}
           {total === 0 && <span className="text-[11px] text-[hsl(var(--color-text-muted))]">All clear</span>}
-          <Link
-            href={viewAsLink.href}
-            onClick={e => { e.stopPropagation(); viewAsLink.onClick(e) }}
-            title={`View as ${row.name}`}
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-[hsl(var(--color-text-muted))] hover:text-[hsl(var(--color-primary))] hover:bg-[hsl(var(--color-primary))]/10 transition-colors"
-          >
-            <Eye className="w-4 h-4" />
-          </Link>
           <ChevronDown className={`w-4 h-4 text-[hsl(var(--color-text-muted))] transition-transform ${open ? 'rotate-180' : ''}`} />
         </div>
       </button>
 
       {open && (
-        <div className="px-4 pb-4 pt-1 border-t border-[hsl(var(--color-border))]">
+        <div className="px-4 pb-4 pt-3 border-t border-[hsl(var(--color-border))]">
+          <Link
+            {...viewAsLink}
+            className="w-full flex items-center justify-center gap-2 mb-3 py-2.5 rounded-xl bg-[hsl(var(--color-primary))]/10 text-[hsl(var(--color-primary))] text-sm font-semibold hover:bg-[hsl(var(--color-primary))]/20 transition-colors"
+          >
+            <Eye className="w-4 h-4" /> View as {row.name}
+          </Link>
           {total === 0 ? (
             <p className="text-xs text-[hsl(var(--color-text-muted))] py-3 text-center">Nothing needs attention</p>
           ) : (

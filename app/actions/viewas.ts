@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { runTool, type BotUser } from '@/lib/bot/tools'
+import type { BotUser } from '@/lib/bot/tools'
 
 /** Mirrors the admin pages' existing posture — any signed-in team member.
  *  Centralised so a future role gate lives in exactly one place. */
@@ -37,18 +37,145 @@ export async function getViewAsUser(userId: string): Promise<{ id: string; name:
   return t ? { id: t.id, name: t.display_name || t.email, role: t.role_name } : null
 }
 
-/** The target's Requests + Actions queues — the same buckets the Requests
- *  and Actions pages show (reuses the assistant's read tools). */
-export async function getViewAsQueues(userId: string): Promise<{ requests: any; actions: any } | null> {
+/** Requests-page data for the target — the same three collections
+ *  RequestsContent renders (board tasks, live queries, answer history). */
+export async function getViewAsRequests(userId: string) {
   if (!await assertSignedIn()) return null
   const t = await loadTarget(userId)
   if (!t) return null
-  const admin = createAdminClient()
-  const [requests, actions] = await Promise.all([
-    runTool(admin, t, 'list_requests', {}),
-    runTool(admin, t, 'list_actions', {}),
-  ])
-  return { requests, actions }
+  const supabase = createAdminClient()
+
+  // Board tasks — mirrors fetchMyOpenTasks: assigned cards not in a final column.
+  const { data: assigns } = await supabase.from('card_assignees').select('card_id').eq('user_id', t.id)
+  let tasks: any[] = []
+  if (assigns?.length) {
+    const { data: cards } = await supabase
+      .from('cards')
+      .select('id, title, description, due_date, created_at, board_id, status_id, boards(id, name), board_statuses(id, name, color, position)')
+      .in('id', assigns.map((a: any) => a.card_id))
+      .order('due_date', { ascending: true, nullsFirst: false })
+    const boardIds = [...new Set((cards || []).map((c: any) => c.board_id))]
+    const { data: statuses } = boardIds.length
+      ? await supabase.from('board_statuses').select('id, board_id, position').in('board_id', boardIds)
+      : { data: [] }
+    const maxPos = new Map<string, number>()
+    for (const s of statuses || []) {
+      const prev = maxPos.get(s.board_id)
+      if (prev === undefined || (s.position ?? 0) > prev) maxPos.set(s.board_id, s.position ?? 0)
+    }
+    const finalIds = new Set((statuses || []).filter((s: any) => (s.position ?? 0) === maxPos.get(s.board_id)).map((s: any) => s.id))
+    tasks = (cards || []).filter((c: any) => !finalIds.has(c.status_id)).map((c: any) => ({
+      ...c,
+      boards: Array.isArray(c.boards) ? c.boards[0] || null : c.boards,
+      board_statuses: Array.isArray(c.board_statuses) ? c.board_statuses[0] || null : c.board_statuses,
+    }))
+  }
+
+  // Live requests — mirrors getMyQueries, needs_me judged against the target.
+  const { data: qData } = await supabase
+    .from('case_queries')
+    .select('id, case_id, step_id, status, direction, created_at, answered_at, seen_at, opened_by, assigned_to, case_steps(name), cases(case_code, clients(first_name, last_name))')
+    .or(`and(assigned_to.eq.${t.id},status.eq.open),and(opened_by.eq.${t.id},status.eq.answered,seen_at.is.null)`)
+    .order('created_at', { ascending: false })
+  const qids = (qData || []).map((q: any) => q.id)
+  const { data: qEntries } = qids.length
+    ? await supabase.from('case_entries').select('id, query_id, body').in('query_id', qids).eq('request_part', 'question')
+    : { data: [] }
+  const entryByQuery = new Map((qEntries || []).map((e: any) => [e.query_id, e]))
+  const clientOf = (c: any) => c?.clients ? [c.clients.first_name, c.clients.last_name].filter(Boolean).join(' ') : null
+  const queries = (qData || []).map((q: any) => ({
+    id: q.id,
+    case_id: q.case_id,
+    entry_id: entryByQuery.get(q.id)?.id ?? null,
+    step_id: q.step_id ?? null,
+    status: q.status,
+    direction: q.direction,
+    created_at: q.created_at,
+    answered_at: q.answered_at ?? null,
+    pending_since: q.status === 'answered' ? (q.answered_at ?? q.created_at) : q.created_at,
+    needs_me: (q.assigned_to === t.id && q.status === 'open' ? 'respond' : 'seen') as 'respond' | 'seen',
+    preview: entryByQuery.get(q.id)?.body ?? null,
+    case_code: q.cases?.case_code ?? null,
+    client_name: clientOf(q.cases),
+    step_name: q.case_steps?.name ?? null,
+  }))
+
+  // Answered history — mirrors getMyAnsweredHistory(10).
+  const { data: hData } = await supabase
+    .from('case_queries')
+    .select('id, case_id, step_id, status, created_at, answered_at, seen_at, case_steps(name), cases(case_code, clients(first_name, last_name))')
+    .eq('opened_by', t.id)
+    .in('status', ['answered', 'closed'])
+    .not('answered_at', 'is', null)
+    .order('answered_at', { ascending: false })
+    .limit(10)
+  const history = (hData || []).map((q: any) => ({
+    id: q.id,
+    case_id: q.case_id,
+    step_id: q.step_id ?? null,
+    status: q.status,
+    answered_at: q.answered_at ?? null,
+    seen_at: q.seen_at ?? null,
+    case_code: q.cases?.case_code ?? null,
+    client_name: clientOf(q.cases),
+    step_name: q.case_steps?.name ?? null,
+  }))
+
+  return { tasks, queries, history }
+}
+
+/** Actions-page data for the target — open actions + neglected cases,
+ *  identical to ActionsContent's fetch pair. */
+export async function getViewAsActionsData(userId: string) {
+  if (!await assertSignedIn()) return null
+  const t = await loadTarget(userId)
+  if (!t) return null
+  const supabase = createAdminClient()
+  const clientOf = (c: any) => c?.clients ? [c.clients.first_name, c.clients.last_name].filter(Boolean).join(' ') : null
+
+  const { data } = await supabase
+    .from('case_entries')
+    .select('id, body, due_date, waiting_on, case_id, step_id, cases!inner(case_code, clients(first_name, last_name))')
+    .eq('kind', 'action')
+    .eq('created_by', t.id)
+    .is('completed_at', null)
+    .order('due_date', { ascending: true, nullsFirst: false })
+  const actions = (data || []).map((a: any) => ({
+    id: a.id,
+    body: a.body,
+    due_date: a.due_date,
+    waiting_on: a.waiting_on,
+    case_id: a.case_id,
+    step_id: a.step_id ?? null,
+    case_code: a.cases?.case_code ?? null,
+    client_name: clientOf(a.cases),
+  }))
+
+  const { data: rows } = await supabase
+    .from('cases')
+    .select('id, case_code, status:status_id(name), step:case_steps!cases_current_step_id_fkey(name, step_type), clients(first_name, last_name)')
+    .or(`assigned_to.eq.${t.id},csr_id.eq.${t.id}`)
+  const eligible = (rows || []).filter((c: any) =>
+    c.step && c.step.step_type !== 'eligibility' && c.step.step_type !== 'presale' &&
+    !(c.status?.name || '').toLowerCase().startsWith('complet'))
+  let missing: any[] = []
+  if (eligible.length) {
+    const { data: open } = await supabase
+      .from('case_entries')
+      .select('case_id')
+      .eq('kind', 'action')
+      .is('completed_at', null)
+      .in('case_id', eligible.map((c: any) => c.id))
+    const has = new Set((open || []).map((r: any) => r.case_id))
+    missing = eligible.filter((c: any) => !has.has(c.id)).map((c: any) => ({
+      case_id: c.id,
+      case_code: c.case_code ?? null,
+      client_name: clientOf(c),
+      step_name: c.step?.name ?? null,
+    }))
+  }
+
+  return { actions, missing }
 }
 
 /** YYYY-MM-DD of a timestamp in the viewer's local timezone. */

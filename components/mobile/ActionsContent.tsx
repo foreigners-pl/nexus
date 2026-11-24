@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query'
 import type { MyAction, MissingActionCase } from '@/app/actions/workflow'
 import { fetchMyOpenActions, fetchCasesMissingActions } from '@/lib/data'
+import { getViewAsActionsData } from '@/app/actions/viewas'
 import { MobileBackHeader } from '@/components/mobile/MobileBackHeader'
 import { usePaneLink } from '@/lib/panes'
 import { usePrefetchWorkflow } from '@/lib/query'
@@ -86,10 +87,14 @@ function ActionRow({ action }: { action: MyAction }) {
   )
 }
 
-export function ActionsContent() {
+export function ActionsContent({ viewAsUserId }: { viewAsUserId?: string }) {
   const { data } = useQuery({
-    queryKey: queryKeys.myActions,
+    queryKey: viewAsUserId ? ['viewas-actions', viewAsUserId] : queryKeys.myActions,
     queryFn: async () => {
+      if (viewAsUserId) {
+        const r = await getViewAsActionsData(viewAsUserId)
+        return { actions: r?.actions ?? [], missing: r?.missing ?? [] }
+      }
       const [actionsRes, missingRes] = await Promise.all([fetchMyOpenActions(), fetchCasesMissingActions()])
       return { actions: actionsRes.actions, missing: missingRes.cases }
     },
@@ -111,7 +116,7 @@ export function ActionsContent() {
 
   return (
     <div className="space-y-5">
-      <MobileBackHeader title="Actions" />
+      {!viewAsUserId && <MobileBackHeader title="Actions" />}
 
       {!actions ? (
         <div className="flex justify-center py-10">

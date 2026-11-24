@@ -8,6 +8,7 @@ import type { MyQuery } from '@/app/actions/workflow'
 import { fetchMyOpenTasks } from '@/lib/data'
 import { getMyQueries } from '@/app/actions/workflow'
 import { markRequestSeen, markAllRequestsSeen, getMyAnsweredHistory } from '@/app/actions/feed'
+import { getViewAsRequests } from '@/app/actions/viewas'
 import { MobileBackHeader } from '@/components/mobile/MobileBackHeader'
 import { usePaneLink } from '@/lib/panes'
 import { ChevronRight, MessageSquare, Loader2, CheckCheck } from 'lucide-react'
@@ -154,13 +155,17 @@ function TaskGroup({ title, tasks, accent }: { title: string; tasks: Task[]; acc
   )
 }
 
-export function RequestsContent() {
+export function RequestsContent({ viewAsUserId }: { viewAsUserId?: string }) {
   const queryClient = useQueryClient()
   const [showHistory, setShowHistory] = useState(false)
   const [markingAll, setMarkingAll] = useState(false)
   const { data } = useQuery({
-    queryKey: queryKeys.requests,
+    queryKey: viewAsUserId ? ['viewas-requests', viewAsUserId] : queryKeys.requests,
     queryFn: async () => {
+      if (viewAsUserId) {
+        const r = await getViewAsRequests(viewAsUserId)
+        return { tasks: r?.tasks ?? [], queries: r?.queries ?? [], history: r?.history ?? [] }
+      }
       const [tasksRes, queriesRes, historyRes] = await Promise.all([
         fetchMyOpenTasks(),
         getMyQueries(),
@@ -180,7 +185,7 @@ export function RequestsContent() {
   if (!tasks) {
     return (
       <div>
-        <MobileBackHeader title="Requests" />
+        {!viewAsUserId && <MobileBackHeader title="Requests" />}
         <div className="flex justify-center py-10">
           <Loader2 className="w-5 h-5 animate-spin text-[hsl(var(--color-text-muted))]" />
         </div>
@@ -220,7 +225,7 @@ export function RequestsContent() {
 
   return (
     <div className="space-y-5">
-      <MobileBackHeader title="Requests" />
+      {!viewAsUserId && <MobileBackHeader title="Requests" />}
 
       {empty ? (
         <div className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl p-8 text-center">
@@ -254,13 +259,15 @@ export function RequestsContent() {
                 <p className="text-xs font-semibold uppercase tracking-wide text-green-400">
                   Answered · {answered.length}
                 </p>
-                <button
-                  onClick={markAll}
-                  disabled={markingAll}
-                  className="text-xs font-medium text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))] disabled:opacity-40"
-                >
-                  {markingAll ? 'Marking…' : 'Mark all as seen'}
-                </button>
+                {!viewAsUserId && (
+                  <button
+                    onClick={markAll}
+                    disabled={markingAll}
+                    className="text-xs font-medium text-[hsl(var(--color-text-secondary))] hover:text-[hsl(var(--color-text-primary))] disabled:opacity-40"
+                  >
+                    {markingAll ? 'Marking…' : 'Mark all as seen'}
+                  </button>
+                )}
               </div>
               <ul className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl divide-y divide-[hsl(var(--color-border))] overflow-hidden">
                 {answered.map(q => <QueryRow key={q.id} query={q} />)}
