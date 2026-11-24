@@ -1,7 +1,6 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { revalidatePath } from 'next/cache'
 import { notifyUsers } from '@/app/actions/notifications'
 
 // ------------------------------------------------------------
@@ -121,7 +120,6 @@ export async function sendStepRequest(caseId: string, stepId: string, entryIds: 
     .update({ query_id: query.id, request_part: 'question' })
     .in('id', entryIds)
 
-  revalidatePath(`/cases/${caseId}`)
 
   const name = await actorName(supabase, user.id)
   await notifyUsers([assignedTo], {
@@ -171,7 +169,6 @@ export async function answerStepRequest(queryId: string, entryIds: string[]) {
     answered_by: user.id,
   }).eq('id', queryId)
 
-  revalidatePath(`/cases/${query.case_id}`)
 
   const ctx = await getCaseContext(supabase, query.case_id)
   const name = await actorName(supabase, user.id)
@@ -204,7 +201,6 @@ export async function cancelStepRequest(queryId: string) {
     .update({ status: 'cancelled', closed_at: new Date().toISOString() })
     .eq('id', queryId)
 
-  revalidatePath(`/cases/${query.case_id}`)
   return { success: true }
 }
 
@@ -230,7 +226,6 @@ export async function markRequestSeen(queryId: string) {
     closed_at: new Date().toISOString(),
   }).eq('id', queryId)
 
-  revalidatePath(`/cases/${query.case_id}`)
   return { success: true }
 }
 
@@ -284,7 +279,5 @@ export async function markAllRequestsSeen() {
     .eq('status', 'answered')
     .is('seen_at', null)
 
-  revalidatePath('/requests')
-  revalidatePath('/')
   return { success: true }
 }

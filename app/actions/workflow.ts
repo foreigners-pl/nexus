@@ -860,7 +860,6 @@ export async function createAction(caseId: string, body: string, dueDate: string
   }).select('id').single()
 
   if (error) return { error: 'Failed to create action' }
-  revalidatePath(`/cases/${caseId}`)
 
   const ctx = await getCaseNotifyContext(caseId)
   await notifyUsers(ctx.recipients, {
@@ -886,7 +885,6 @@ export async function completeAction(entryId: string, caseId: string) {
     .is('completed_at', null)
 
   if (error) return { error: 'Failed to complete action' }
-  revalidatePath(`/cases/${caseId}`)
 
   const { data: action } = await supabase.from('case_entries').select('body').eq('id', entryId).single()
   const ctx = await getCaseNotifyContext(caseId)
@@ -919,7 +917,6 @@ export async function updateAction(entryId: string, caseId: string, body: string
     .is('completed_at', null)
 
   if (error) return { error: 'Failed to update action' }
-  revalidatePath(`/cases/${caseId}`)
 
   if (old?.due_date !== dueDate) {
     const ctx = await getCaseNotifyContext(caseId)

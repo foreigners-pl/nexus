@@ -244,30 +244,108 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
     })
   }
 
+  // Query/entry mutations apply locally first (the UI flips instantly),
+  // then the server action confirms in the background. On failure the
+  // snapshots are restored and the error surfaces in the composer.
+  const patchEntries = (ids: string[], patch: Partial<CaseEntry>) => {
+    const before = new Map(entries.filter(e => ids.includes(e.id)).map(e => [e.id, e]))
+    setEntries(entries.map(e => (ids.includes(e.id) ? { ...e, ...patch } : e)))
+    return before
+  }
+
   const confirmSelect = async () => {
     if (!select || selectedIds.size === 0) return
-    setFeedBusy(true)
+    const mode = select.mode
+    const stepId = select.stepId
+    const queryId = select.queryId
+    const ids = [...selectedIds]
+    const now = new Date().toISOString()
+    const tempQueryId = `temp-q-${Date.now()}`
     setFeedError(null)
-    const r = select.mode === 'request'
-      ? await sendStepRequest(caseId, select.stepId, [...selectedIds])
-      : await answerStepRequest(select.queryId!, [...selectedIds])
-    setFeedBusy(false)
-    if (r.error) { setFeedError(r.error); return }
+
+    let prevEntries: Map<string, CaseEntry>
+    let prevQuery: CaseQuery | undefined
+    if (mode === 'request') {
+      const isCsr = meId === csrId
+      const optimisticQuery: CaseQuery = {
+        id: tempQueryId,
+        case_id: caseId,
+        step_id: stepId,
+        opened_by: meId,
+        assigned_to: isCsr ? legalId : csrId,
+        direction: isCsr ? 'csr_to_legal' : 'legal_to_csr',
+        status: 'open',
+        created_at: now,
+        closed_at: null,
+        answered_at: null,
+        answered_by: null,
+        seen_at: null,
+        seen_by: null,
+      }
+      prevEntries = patchEntries(ids, { request_part: 'question', query_id: tempQueryId })
+      setQueries(q => ({ ...q, [tempQueryId]: optimisticQuery }))
+    } else {
+      prevQuery = queries[queryId!]
+      prevEntries = patchEntries(ids, { request_part: 'answer', query_id: queryId })
+      if (prevQuery) {
+        setQueries(q => ({ ...q, [queryId!]: { ...prevQuery!, status: 'answered', answered_at: now, answered_by: meId } }))
+      }
+    }
     cancelSelect()
+
+    const r = mode === 'request'
+      ? await sendStepRequest(caseId, stepId, ids)
+      : await answerStepRequest(queryId!, ids)
+
+    if (r.error) {
+      setEntries(prev => prev.map(e => prevEntries.get(e.id) ?? e))
+      if (mode === 'request') {
+        setQueries(q => { const n = { ...q }; delete n[tempQueryId]; return n })
+      } else if (prevQuery) {
+        setQueries(q => ({ ...q, [queryId!]: prevQuery! }))
+      }
+      setFeedError(r.error)
+      return
+    }
+    // Swap the temp query for the real id so highlights stay wired until refetch
+    if (mode === 'request' && 'queryId' in r && r.queryId) {
+      setQueries(q => {
+        const temp = q[tempQueryId]
+        if (!temp) return q
+        const n = { ...q }
+        delete n[tempQueryId]
+        n[r.queryId as string] = { ...temp, id: r.queryId as string }
+        return n
+      })
+      setEntries(prev => prev.map(e => (e.query_id === tempQueryId ? { ...e, query_id: r.queryId as string } : e)))
+    }
     refreshAll()
   }
 
   const markSeen = async (queryId: string) => {
-    setFeedBusy(true)
-    await markRequestSeen(queryId)
-    setFeedBusy(false)
+    const prev = queries[queryId]
+    if (!prev) return
+    const now = new Date().toISOString()
+    setQueries(q => ({ ...q, [queryId]: { ...prev, status: 'closed', seen_at: now, seen_by: meId, closed_at: now } }))
+    const r = await markRequestSeen(queryId)
+    if (r.error) {
+      setQueries(q => ({ ...q, [queryId]: prev }))
+      setFeedError(r.error)
+      return
+    }
     refreshAll()
   }
 
   const cancelRequest = async (queryId: string) => {
-    setFeedBusy(true)
-    await cancelStepRequest(queryId)
-    setFeedBusy(false)
+    const prev = queries[queryId]
+    if (!prev) return
+    setQueries(q => ({ ...q, [queryId]: { ...prev, status: 'cancelled', closed_at: new Date().toISOString() } }))
+    const r = await cancelStepRequest(queryId)
+    if (r.error) {
+      setQueries(q => ({ ...q, [queryId]: prev }))
+      setFeedError(r.error)
+      return
+    }
     refreshAll()
   }
 

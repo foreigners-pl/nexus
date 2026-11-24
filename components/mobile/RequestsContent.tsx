@@ -199,9 +199,22 @@ export function RequestsContent() {
   const empty = tasks.length === 0 && queries.length === 0
 
   const markAll = async () => {
+    // Optimistic — answered rows leave the list immediately; on failure the
+    // snapshot is restored.
+    const prev = data
     setMarkingAll(true)
-    await markAllRequestsSeen()
+    if (prev) {
+      queryClient.setQueryData(queryKeys.requests, {
+        ...prev,
+        queries: prev.queries.filter(q => q.needs_me !== 'seen'),
+      })
+    }
+    const r = await markAllRequestsSeen()
     setMarkingAll(false)
+    if (r.error) {
+      if (prev) queryClient.setQueryData(queryKeys.requests, prev)
+      return
+    }
     queryClient.invalidateQueries({ queryKey: queryKeys.requests })
   }
 

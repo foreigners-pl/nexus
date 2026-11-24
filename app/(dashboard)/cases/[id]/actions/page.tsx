@@ -25,7 +25,6 @@ export default function CaseActionsPage({ params }: { params: Promise<{ id: stri
   const [form, setForm] = useState<'new' | string | null>(null) // 'new' or entry id
   const [body, setBody] = useState('')
   const [dueDate, setDueDate] = useState('')
-  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -65,21 +64,67 @@ export default function CaseActionsPage({ params }: { params: Promise<{ id: stri
     setError(null)
   }
 
+  // Optimistic: the list updates immediately; the server action confirms in
+  // the background. On failure the change is rolled back and the form
+  // reopens with the error.
   const submit = async () => {
     if (!form || !body.trim() || !dueDate) return
-    setSaving(true)
+    const editing = form !== 'new' ? form : null
+    const draft = { body, dueDate }
+    const now = new Date().toISOString()
     setError(null)
-    const r = form === 'new'
-      ? await createAction(caseId, body, dueDate)
-      : await updateAction(form, caseId, body, dueDate)
-    setSaving(false)
-    if (r.error) { setError(r.error); return }
     setForm(null)
+
+    let optimistic: CaseEntry | null = null
+    let prevAction: CaseEntry | undefined
+    if (editing) {
+      prevAction = actions.find(a => a.id === editing)
+      setActions(prev => prev.map(a => (a.id === editing ? { ...a, body: body.trim(), due_date: dueDate } : a)))
+    } else {
+      optimistic = {
+        id: `temp-${Date.now()}`,
+        case_id: caseId,
+        step_id: null,
+        kind: 'action',
+        body: body.trim(),
+        created_by: meId,
+        created_at: now,
+        due_date: dueDate,
+        waiting_on: null,
+        completed_at: null,
+        completed_by: null,
+        query_id: null,
+        request_part: null,
+        author: null,
+      }
+      setActions(prev => [...prev, optimistic!])
+    }
+
+    const r = editing
+      ? await updateAction(editing, caseId, draft.body, draft.dueDate)
+      : await createAction(caseId, draft.body, draft.dueDate)
+
+    if (r.error) {
+      if (optimistic) setActions(prev => prev.filter(a => a.id !== optimistic!.id))
+      else if (prevAction) setActions(prev => prev.map(a => (a.id === prevAction!.id ? prevAction! : a)))
+      setForm(editing ?? 'new')
+      setBody(draft.body)
+      setDueDate(draft.dueDate)
+      setError(r.error)
+      return
+    }
     refresh()
   }
 
   const complete = async (a: CaseEntry) => {
-    await completeAction(a.id, caseId)
+    const now = new Date().toISOString()
+    setActions(prev => prev.map(x => (x.id === a.id ? { ...x, completed_at: now, completed_by: meId } : x)))
+    const r = await completeAction(a.id, caseId)
+    if (r.error) {
+      setActions(prev => prev.map(x => (x.id === a.id ? a : x)))
+      setError(r.error)
+      return
+    }
     refresh()
   }
 
@@ -162,9 +207,9 @@ export default function CaseActionsPage({ params }: { params: Promise<{ id: stri
               />
               {error && <p className="text-xs text-red-400">{error}</p>}
               <div className="flex gap-2">
-                <Button variant="secondary" onClick={() => setForm(null)} disabled={saving} className="flex-1">Cancel</Button>
-                <Button onClick={submit} disabled={saving || !body.trim() || !dueDate} className="flex-1">
-                  {saving ? 'Saving…' : form === 'new' ? 'Add' : 'Save'}
+                <Button variant="secondary" onClick={() => setForm(null)} className="flex-1">Cancel</Button>
+                <Button onClick={submit} disabled={!body.trim() || !dueDate} className="flex-1">
+                  {form === 'new' ? 'Add' : 'Save'}
                 </Button>
               </div>
             </div>
