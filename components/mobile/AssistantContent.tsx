@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
+import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { sendAssistantMessage, getAssistantHistory, type StagedFile } from '@/app/actions/assistant'
 import { createClient } from '@/lib/supabase/client'
+import { usePaneLink } from '@/lib/panes'
 import { Sparkles, Send, Paperclip, Zap, X } from 'lucide-react'
 
 interface Msg {
@@ -17,6 +19,28 @@ const SUGGESTIONS = [
   "What's late or neglected?",
   'What happened recently on my cases?',
 ]
+
+function BubbleLink({ href, label }: { href: string; label: string }) {
+  const paneLink = usePaneLink(href)
+  return <Link {...paneLink} className="text-blue-400">{label}</Link>
+}
+
+const LINK_RE = /\[([^\]]+)\]\((\/[a-zA-Z0-9/_?=&%.-]+)\)|\b(C\d{5,6})\b/g
+
+/** Parse [label](/path) links the model emits, plus bare case codes. */
+function linkify(text: string): ReactNode[] {
+  const nodes: ReactNode[] = []
+  let last = 0
+  for (const m of text.matchAll(LINK_RE)) {
+    if (m.index > last) nodes.push(text.slice(last, m.index))
+    nodes.push(
+      <BubbleLink key={m.index} href={m[2] ?? `/cases/${m[3]}`} label={m[1] ?? m[3]} />
+    )
+    last = m.index + m[0].length
+  }
+  if (last < text.length) nodes.push(text.slice(last))
+  return nodes
+}
 
 /** In-app AI assistant chat — talks to Gemini with the CRM tools. */
 export function AssistantContent() {
@@ -114,7 +138,7 @@ export function AssistantContent() {
                       : 'bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] text-[hsl(var(--color-text-primary))] rounded-bl-md'
                   }`}
                 >
-                  {m.text}
+                  {linkify(m.text)}
                 </div>
               </div>
             ))}

@@ -484,6 +484,7 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
       }
       return {
         clients: data.map((c: any) => ({
+          id: c.id,
           name: [c.first_name, c.last_name].filter(Boolean).join(' '),
           phones: (c.contact_numbers || []).map((p: any) => p.number).filter(Boolean),
           email: c.contact_email,
@@ -506,7 +507,7 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
           client_id: client.id, number: String(args.phone).trim(), is_on_whatsapp: args.whatsapp !== false,
         })
       }
-      return { ok: `Client created: ${[client.first_name, client.last_name].filter(Boolean).join(' ')}` }
+      return { ok: `Client created: ${[client.first_name, client.last_name].filter(Boolean).join(' ')}`, client_id: client.id }
     }
 
     case 'create_case': {
