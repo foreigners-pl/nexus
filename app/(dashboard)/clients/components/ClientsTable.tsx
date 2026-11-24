@@ -51,17 +51,22 @@ function ClientCard({ client }: { client: ClientWithPhones }) {
     ? (primaryPhone.country_code ? `${primaryPhone.country_code} ${primaryPhone.number}` : primaryPhone.number)
     : null
   const href = `/clients/${client.client_code || client.id}`
+  const name = client.first_name || client.last_name
+    ? `${client.first_name || ''} ${client.last_name || ''}`.trim()
+    : 'Unnamed Client'
+  const initial = (client.first_name?.[0] || client.last_name?.[0] || '?').toUpperCase()
 
   return (
     <Link href={href} onTouchStart={() => prefetchClient(client.id)}>
-      <div className="p-4 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl hover:bg-[hsl(var(--color-surface-hover))] transition-colors active:scale-[0.98]">
-        <div className="flex items-center justify-between gap-3">
+      <div className="p-3.5 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl hover:bg-[hsl(var(--color-surface-hover))] transition-colors active:scale-[0.98]">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-[hsl(var(--color-surface-active))] flex items-center justify-center text-sm font-semibold text-[hsl(var(--color-text-primary))] shrink-0">
+            {initial}
+          </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-medium text-[hsl(var(--color-text-primary))] truncate">
-                {client.first_name || client.last_name 
-                  ? `${client.first_name || ''} ${client.last_name || ''}`.trim()
-                  : 'Unnamed Client'}
+                {name}
               </span>
               {primaryPhone?.is_on_whatsapp && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-400 flex-shrink-0">
@@ -69,15 +74,18 @@ function ClientCard({ client }: { client: ClientWithPhones }) {
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-3 mt-1 text-sm text-[hsl(var(--color-text-secondary))]">
+            <div className="flex items-center gap-2 mt-0.5 text-xs text-[hsl(var(--color-text-secondary))]">
               {phoneDisplay && (
-                <span className="font-mono text-xs">{phoneDisplay}</span>
+                <span className="font-mono truncate">{phoneDisplay}</span>
               )}
               {client.contact_email && phoneDisplay && (
                 <span className="text-[hsl(var(--color-text-muted))]">•</span>
               )}
               {client.contact_email && (
-                <span className="truncate text-xs">{client.contact_email}</span>
+                <span className="truncate">{client.contact_email}</span>
+              )}
+              {!phoneDisplay && !client.contact_email && (
+                <span className="text-[hsl(var(--color-text-muted))]">No contact info</span>
               )}
             </div>
           </div>
