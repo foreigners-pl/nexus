@@ -12,6 +12,7 @@ import { runTool, type BotUser } from './tools'
 // model-not-found are skipped. The winner is cached per server instance.
 // GEMINI_MODEL pins one explicitly if set.
 const PREFERRED = [
+  'gemini-3.5-flash-lite',
   'gemini-2.5-flash-lite',
   'gemini-3-flash-preview',
   'gemini-2.5-flash',
@@ -19,7 +20,7 @@ const PREFERRED = [
   'gemini-2.5-pro',
   'gemini-3-pro-preview',
 ]
-const STATIC_FALLBACK = ['gemini-2.5-flash-lite', 'gemini-2.0-flash']
+const STATIC_FALLBACK = ['gemini-3.5-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.0-flash']
 let resolvedModel: string | null = null
 let listedModels: string[] | null = null
 
