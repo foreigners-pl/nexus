@@ -7,7 +7,39 @@ import { runTool, type BotUser } from './tools'
  *   CRM user (from session) → history → Gemini w/ tools → reply
  */
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3-flash'
+// Models retire/rename under us — try candidates in order, cache the
+// first that works for the life of the server instance. GEMINI_MODEL
+// pins one explicitly if set.
+const MODEL_CANDIDATES = [
+  process.env.GEMINI_MODEL,
+  'gemini-3-flash-preview',
+  'gemini-2.5-flash-lite',
+  'gemini-2.5-flash-preview-09-2025',
+  'gemini-2.0-flash',
+].filter((m): m is string => !!m)
+let resolvedModel: string | null = null
+
+const isModelGone = (e: any) => /not found|no longer|does not exist|not supported/i.test(e?.message || '')
+
+async function generate(contents: any[], systemInstruction: string) {
+  const order = resolvedModel ? [resolvedModel, ...MODEL_CANDIDATES.filter(m => m !== resolvedModel)] : MODEL_CANDIDATES
+  let lastErr: any
+  for (const model of order) {
+    try {
+      const res = await ai.models.generateContent({
+        model,
+        contents,
+        config: { systemInstruction, tools: [{ functionDeclarations: FUNCTION_DECLARATIONS as any }] },
+      })
+      resolvedModel = model
+      return res
+    } catch (e: any) {
+      if (!isModelGone(e)) throw e
+      lastErr = e
+    }
+  }
+  throw lastErr
+}
 
 const SYSTEM_PROMPT = `You are the Nexus CRM assistant, chatting inside the CRM app with staff of a legal-services company.
 
@@ -153,14 +185,10 @@ export async function runBotTurn(user: BotUser, text: string): Promise<string> {
   let reply = ''
   try {
     for (let i = 0; i < 8; i++) {
-      const res = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+      const res = await generate(
         contents,
-        config: {
-          systemInstruction: `${SYSTEM_PROMPT}\n\nYou are talking to ${user.display_name || user.email}. Today is ${new Date().toDateString()}.`,
-          tools: [{ functionDeclarations: FUNCTION_DECLARATIONS as any }],
-        },
-      })
+        `${SYSTEM_PROMPT}\n\nYou are talking to ${user.display_name || user.email}. Today is ${new Date().toDateString()}.`,
+      )
 
       const calls = res.functionCalls
       if (calls && calls.length) {

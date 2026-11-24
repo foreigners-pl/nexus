@@ -184,17 +184,17 @@ export default function MobileHomePage() {
       <section className="relative bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl p-4">
         <div className="flex items-center gap-2 mb-3">
           <Search className="w-5 h-5 text-[hsl(var(--color-primary))]" />
-          <h2 className="font-semibold text-[hsl(var(--color-text-primary))] flex-1">Find a client</h2>
+          <h2 className="font-semibold text-[hsl(var(--color-text-primary))] flex-1 whitespace-nowrap">Find a client</h2>
           <button
             onClick={() => go('/clients/mine')}
-            className="flex items-center gap-1 px-3 h-8 rounded-lg bg-[hsl(var(--color-surface-secondary))] border border-[hsl(var(--color-border))] text-[hsl(var(--color-text-secondary))] text-xs font-semibold active:bg-[hsl(var(--color-surface-hover))] shrink-0"
+            className="flex items-center gap-1 px-3 h-8 rounded-lg bg-[hsl(var(--color-surface-secondary))] border border-[hsl(var(--color-border))] text-[hsl(var(--color-text-secondary))] text-xs font-semibold whitespace-nowrap active:bg-[hsl(var(--color-surface-hover))] shrink-0"
           >
             <Users className="w-3.5 h-3.5" />
             My clients
           </button>
           <Link
             href="/clients?add=1"
-            className="flex items-center gap-1 px-3 h-8 rounded-lg bg-[hsl(var(--color-primary))] text-white text-xs font-semibold active:bg-[hsl(var(--color-primary-hover))] shrink-0"
+            className="flex items-center gap-1 px-3 h-8 rounded-lg bg-[hsl(var(--color-primary))] text-white text-xs font-semibold whitespace-nowrap active:bg-[hsl(var(--color-primary-hover))] shrink-0"
           >
             <Plus className="w-3.5 h-3.5" />
             Add client
