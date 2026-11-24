@@ -31,20 +31,41 @@ function Transcript({ userId, date, tz, today, fetchAudio, footer }: {
 }) {
   const [messages, setMessages] = useState<any[] | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
+  const skipScroll = useRef(false)
 
+  const findScroller = () => {
+    let el = endRef.current?.parentElement ?? null
+    while (el) {
+      const o = getComputedStyle(el).overflowY
+      if ((o === 'auto' || o === 'scroll') && el.scrollHeight > el.clientHeight) break
+      el = el.parentElement
+    }
+    return el
+  }
+
+  // Newest batch first (instant), then quietly prepend the rest.
   useEffect(() => {
-    getViewAsSession(userId, date, tz).then(r => setMessages(r.messages))
+    let cancelled = false
+    ;(async () => {
+      const first = await getViewAsSession(userId, date, tz, { limit: 15 })
+      if (cancelled) return
+      setMessages(first.messages)
+      const oldest = first.messages[0]?.created_at
+      if (first.messages.length < 15 || !oldest) return
+      const rest = await getViewAsSession(userId, date, tz, { limit: 500, before: oldest })
+      if (cancelled || !rest.messages.length) return
+      const sc = findScroller()
+      skipScroll.current = !!sc && sc.scrollHeight - sc.scrollTop - sc.clientHeight >= 4
+      setMessages(m => [...rest.messages, ...(m ?? [])])
+    })()
+    return () => { cancelled = true }
   }, [userId, date, tz])
 
-  // Start at the bottom — newest messages, no animated scroll.
+  // Stay glued to the bottom (first paint + prepends while at the bottom).
   useEffect(() => {
     if (!messages?.length) return
-    let scroller = endRef.current?.parentElement ?? null
-    while (scroller) {
-      const o = getComputedStyle(scroller).overflowY
-      if ((o === 'auto' || o === 'scroll') && scroller.scrollHeight > scroller.clientHeight) break
-      scroller = scroller.parentElement
-    }
+    if (skipScroll.current) { skipScroll.current = false; return }
+    const scroller = findScroller()
     if (scroller) scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'auto' })
     else window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'auto' })
   }, [messages])
@@ -85,9 +106,12 @@ function Transcript({ userId, date, tz, today, fetchAudio, footer }: {
   )
 }
 
-function AiView({ userId }: { userId: string }) {
+function AiView({ userId, name }: { userId: string; name: string }) {
   const [sessions, setSessions] = useState<{ date: string; count: number; tokens: number }[] | null>(null)
   const [view, setView] = useState<'chat' | 'sessions' | { date: string }>('chat')
+  const [confirmNudge, setConfirmNudge] = useState(false)
+  const [nudging, setNudging] = useState(false)
+  const [nudgeMsg, setNudgeMsg] = useState<string | null>(null)
   const [today] = useState(() => {
     const off = new Date().getTimezoneOffset() * 60000
     return new Date(Date.now() - off).toISOString().slice(0, 10)
@@ -100,27 +124,86 @@ function AiView({ userId }: { userId: string }) {
       getViewAsSessions(userId, tz).then(r => setSessions(r.sessions))
   }, [userId, view])
 
-  // Default: today's conversation — the Sessions pill sits where their
+  async function doNudge() {
+    if (nudging) return
+    setNudging(true)
+    setNudgeMsg(null)
+    const res = await nudgeUser(userId)
+    setNudging(false)
+    if (res.error) { setNudgeMsg(res.error); return }
+    setConfirmNudge(false)
+    setNudgeMsg(`Sent — the assistant pinged ${name} with their queue summary.`)
+    setTimeout(() => setNudgeMsg(null), 5000)
+  }
+
+  // Default: today's conversation — a Nudge/Sessions row sits where their
   // composer would be, read-only.
   if (view === 'chat') {
     return (
-      <Transcript
-        userId={userId}
-        date={today}
-        tz={tz}
-        today={today}
-        fetchAudio={fetchAudio}
-        footer={
-          <div className="sticky bottom-0 pt-3 pb-1 bg-[hsl(var(--color-background))]">
-            <button
-              onClick={() => setView('sessions')}
-              className="w-full h-11 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-sm font-semibold text-[hsl(var(--color-text-primary))] flex items-center justify-center gap-2 active:bg-[hsl(var(--color-surface-hover))]"
+      <>
+        <Transcript
+          userId={userId}
+          date={today}
+          tz={tz}
+          today={today}
+          fetchAudio={fetchAudio}
+          footer={
+            <div className="sticky bottom-0 pt-3 pb-1 bg-[hsl(var(--color-background))]">
+              {nudgeMsg && (
+                <p className="text-xs text-[hsl(var(--color-text-secondary))] text-center mb-1.5">{nudgeMsg}</p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setNudgeMsg(null); setConfirmNudge(true) }}
+                  className="flex-1 h-11 rounded-xl border border-amber-400/30 bg-amber-400/10 text-sm font-semibold text-amber-400 flex items-center justify-center gap-2 active:bg-amber-400/20"
+                >
+                  <BellRing className="w-4 h-4" /> Nudge
+                </button>
+                <button
+                  onClick={() => setView('sessions')}
+                  className="flex-1 h-11 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-sm font-semibold text-[hsl(var(--color-text-primary))] flex items-center justify-center gap-2 active:bg-[hsl(var(--color-surface-hover))]"
+                >
+                  <History className="w-4 h-4" /> Sessions
+                </button>
+              </div>
+            </div>
+          }
+        />
+        {confirmNudge && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center px-6 bg-black/60"
+            onClick={() => { if (!nudging) setConfirmNudge(false) }}
+          >
+            <div
+              className="w-full max-w-sm bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl p-5"
+              onClick={e => e.stopPropagation()}
             >
-              <History className="w-4 h-4" /> Sessions
-            </button>
+              <p className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Nudge {name}?</p>
+              <p className="text-xs text-[hsl(var(--color-text-secondary))] mt-1.5 leading-relaxed">
+                The assistant will send {name} a message summarizing what's pending on their queue — plus a notification.
+              </p>
+              {nudgeMsg && <p className="text-xs text-red-400 mt-2">{nudgeMsg}</p>}
+              <div className="flex gap-2 mt-4">
+                <button
+                  onClick={() => setConfirmNudge(false)}
+                  disabled={nudging}
+                  className="flex-1 h-10 rounded-xl border border-[hsl(var(--color-border))] text-sm font-semibold text-[hsl(var(--color-text-secondary))] active:bg-[hsl(var(--color-surface-hover))] disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={doNudge}
+                  disabled={nudging}
+                  className="flex-1 h-10 rounded-xl bg-amber-400/15 text-amber-400 text-sm font-semibold flex items-center justify-center gap-2 active:bg-amber-400/25 disabled:opacity-50"
+                >
+                  {nudging ? <Loader2 className="w-4 h-4 animate-spin" /> : <BellRing className="w-4 h-4" />}
+                  {nudging ? 'Sending…' : 'Nudge'}
+                </button>
+              </div>
+            </div>
           </div>
-        }
-      />
+        )}
+      </>
     )
   }
 
@@ -185,22 +268,10 @@ export default function ViewAsPage({ params }: { params: Promise<{ userId: strin
   const paneBack = usePaneBack()
   const [user, setUser] = useState<{ id: string; name: string; role: string | null } | null>(null)
   const [view, setView] = useState<View>('home')
-  const [nudging, setNudging] = useState(false)
-  const [nudgeResult, setNudgeResult] = useState<string | null>(null)
 
   useEffect(() => {
     getViewAsUser(userId).then(setUser)
   }, [userId])
-
-  async function nudge() {
-    if (nudging) return
-    setNudging(true)
-    setNudgeResult(null)
-    const res = await nudgeUser(userId)
-    setNudging(false)
-    setNudgeResult(res.error ?? `Sent — the assistant pinged ${user?.name ?? 'them'}.`)
-    setTimeout(() => setNudgeResult(null), 4000)
-  }
 
   const exitMirror = () => (paneBack ? paneBack() : router.push('/admin/usage'))
 
@@ -228,25 +299,13 @@ export default function ViewAsPage({ params }: { params: Promise<{ userId: strin
           {view === 'requests' ? 'Requests' : view === 'actions' ? 'Actions' : 'Assistant'}
           <span className="text-sm font-normal text-[hsl(var(--color-text-secondary))]"> — {user?.name ?? '…'}</span>
         </p>
-        <button
-          onClick={nudge}
-          disabled={nudging}
-          title="Send them an AI nudge summarizing what's pending"
-          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-400/10 text-amber-400 text-xs font-semibold hover:bg-amber-400/20 transition-colors disabled:opacity-50"
-        >
-          {nudging ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BellRing className="w-3.5 h-3.5" />}
-          Nudge
-        </button>
       </div>
-      {nudgeResult && (
-        <p className="text-xs text-[hsl(var(--color-text-secondary))] -mt-2 mb-3 px-1">{nudgeResult}</p>
-      )}
       {view === 'requests' ? (
         <RequestsContent viewAsUserId={userId} />
       ) : view === 'actions' ? (
         <ActionsContent viewAsUserId={userId} />
       ) : (
-        <AiView userId={userId} />
+        <AiView userId={userId} name={user?.name ?? 'them'} />
       )}
     </div>
   )

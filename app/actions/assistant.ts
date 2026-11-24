@@ -95,10 +95,10 @@ export async function getAssistantAudioUrl(path: string): Promise<{ url?: string
 }
 
 /** Today's session only — older days live under Sessions. */
-export async function getAssistantHistory(tzOffset = 0): Promise<{ messages: { role: string; text: string; created_at: string; audio_path: string | null }[] }> {
+export async function getAssistantHistory(tzOffset = 0, opts?: { limit?: number; before?: string }): Promise<{ messages: { role: string; text: string; created_at: string; audio_path: string | null }[] }> {
   const user = await me()
   if (!user) return { messages: [] }
-  return { messages: await getBotHistory(user.id, todayStartUtc(tzOffset)) }
+  return { messages: await getBotHistory(user.id, todayStartUtc(tzOffset), opts?.limit ?? 40, opts?.before) }
 }
 
 /** Session list — one entry per local day that has messages. */

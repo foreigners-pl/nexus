@@ -155,10 +155,41 @@ export function AssistantContent() {
     return () => ro.disconnect()
   }, [])
 
+  // The scrollable ancestor of the feed (pane scroller on desktop, <main> on mobile).
+  const findScroller = () => {
+    let el = scrollRef.current?.parentElement ?? null
+    while (el) {
+      const o = getComputedStyle(el).overflowY
+      if ((o === 'auto' || o === 'scroll') && el.scrollHeight > el.clientHeight) break
+      el = el.parentElement
+    }
+    return el
+  }
+
+  // Two-phase load: the newest 15 messages render and snap to bottom
+  // immediately; anything older is fetched next and prepended quietly, so
+  // the chat never waits on the full history before showing anything.
+  const keepBottomRef = useRef(false)
   useEffect(() => {
-    getAssistantHistory(tz).then(({ messages }) => {
-      setMessages(messages.map(m => ({ role: m.role === 'model' ? 'model' : 'user', text: m.text, audioPath: m.audio_path })))
+    let cancelled = false
+    const mapMsg = (m: { role: string; text: string; audio_path: string | null }): Msg => ({
+      role: m.role === 'model' ? 'model' : 'user',
+      text: m.text,
+      audioPath: m.audio_path,
     })
+    ;(async () => {
+      const first = await getAssistantHistory(tz, { limit: 15 })
+      if (cancelled) return
+      setMessages(first.messages.map(mapMsg))
+      const oldest = first.messages[0]?.created_at
+      if (first.messages.length < 15 || !oldest) return
+      const rest = await getAssistantHistory(tz, { limit: 40, before: oldest })
+      if (cancelled || !rest.messages.length) return
+      const sc = findScroller()
+      keepBottomRef.current = !!sc && sc.scrollHeight - sc.scrollTop - sc.clientHeight < 4
+      setMessages(m => [...rest.messages.map(mapMsg), ...(m ?? [])])
+    })()
+    return () => { cancelled = true }
   }, [])
 
   // Grow the field with content up to ~4 lines; scroll inside only at the cap.
@@ -175,14 +206,12 @@ export function AssistantContent() {
   // First populated render snaps instantly; later messages scroll smoothly.
   const firstPopulated = useRef(true)
   useEffect(() => {
-    let scroller = scrollRef.current?.parentElement ?? null
-    while (scroller) {
-      const o = getComputedStyle(scroller).overflowY
-      if ((o === 'auto' || o === 'scroll') && scroller.scrollHeight > scroller.clientHeight) break
-      scroller = scroller.parentElement
-    }
-    const instant = firstPopulated.current && (messages?.length ?? 0) > 0
-    if (instant) firstPopulated.current = false
+    const scroller = findScroller()
+    // Instant snap on first paint and on quiet prepends (when the user was
+    // sitting at the bottom); smooth for new messages afterwards.
+    const instant = (firstPopulated.current && (messages?.length ?? 0) > 0) || keepBottomRef.current
+    keepBottomRef.current = false
+    if (firstPopulated.current && (messages?.length ?? 0) > 0) firstPopulated.current = false
     const behavior = instant ? 'auto' : 'smooth'
     if (scroller) scroller.scrollTo({ top: scroller.scrollHeight, behavior })
     else window.scrollTo({ top: document.documentElement.scrollHeight, behavior })

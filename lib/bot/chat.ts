@@ -377,7 +377,7 @@ export async function runBotTurn(user: BotUser, text: string, sinceIso?: string,
 }
 
 /** Recent conversation for rendering the chat on load. */
-export async function getBotHistory(userId: string, sinceIso?: string, limit = 40) {
+export async function getBotHistory(userId: string, sinceIso?: string, limit = 40, before?: string) {
   const supabase = createAdminClient()
   let q = supabase
     .from('bot_messages')
@@ -386,6 +386,7 @@ export async function getBotHistory(userId: string, sinceIso?: string, limit = 4
     .order('created_at', { ascending: false })
     .limit(limit)
   if (sinceIso) q = q.gte('created_at', sinceIso)
+  if (before) q = q.lt('created_at', before)
   const { data } = await q
   return (data || []).reverse() as { role: string; text: string; created_at: string; audio_path: string | null }[]
 }
