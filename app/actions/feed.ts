@@ -91,7 +91,7 @@ export async function sendStepRequest(caseId: string, stepId: string, entryIds: 
     .eq('case_id', caseId)
     .eq('step_id', stepId)
     .eq('opened_by', user.id)
-    .neq('status', 'closed')
+    .in('status', ['open', 'answered'])
     .is('seen_at', null)
     .limit(1)
   if (live && live.length > 0) {
@@ -182,6 +182,29 @@ export async function answerStepRequest(queryId: string, entryIds: string[]) {
     link: `/cases/${query.case_id}/progress?s=${query.step_id}`,
     caseId: query.case_id,
   })
+  return { success: true }
+}
+
+/** Requester withdraws their request while it's still unanswered. */
+export async function cancelStepRequest(queryId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const { data: query } = await supabase
+    .from('case_queries')
+    .select('id, case_id, opened_by, status')
+    .eq('id', queryId)
+    .single()
+  if (!query || query.opened_by !== user.id || query.status !== 'open') {
+    return { error: 'Nothing to cancel' }
+  }
+
+  await supabase.from('case_queries')
+    .update({ status: 'cancelled', closed_at: new Date().toISOString() })
+    .eq('id', queryId)
+
+  revalidatePath(`/cases/${query.case_id}`)
   return { success: true }
 }
 

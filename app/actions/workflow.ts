@@ -24,7 +24,7 @@ export interface CaseEntry {
   id: string
   case_id: string
   step_id: string | null
-  kind: 'note' | 'action' | 'query'
+  kind: 'note' | 'action' | 'query' | 'system'
   body: string | null
   created_by: string | null
   created_at: string
@@ -558,8 +558,8 @@ export async function toggleCaseEligibility(
     await supabase.from('case_entries').insert({
       case_id: caseId,
       step_id: step.data?.id || null,
-      kind: 'note',
-      body: `${label} marked as ${completed ? 'done' : 'not done'}`,
+      kind: 'system',
+      body: `marked ${label.toLowerCase()} as ${completed ? 'done' : 'not done'}`,
       created_by: user.id,
     })
 
@@ -616,8 +616,8 @@ export async function toggleAllCaseEligibility(
     await supabase.from('case_entries').insert({
       case_id: caseId,
       step_id: step.data?.id || null,
-      kind: 'note',
-      body: `Eligibility ${completed ? 'confirmed' : 'unconfirmed'}`,
+      kind: 'system',
+      body: `${completed ? 'confirmed' : 'unconfirmed'} eligibility`,
       created_by: user.id,
     })
 
@@ -643,8 +643,8 @@ export async function logAgreementDownload(caseId: string) {
   const { error } = await supabase.from('case_entries').insert({
     case_id: caseId,
     step_id: step.data?.id || null,
-    kind: 'note',
-    body: 'Service agreement downloaded',
+    kind: 'system',
+    body: 'downloaded the service agreement',
     created_by: user.id,
   })
 
@@ -1043,7 +1043,7 @@ export interface CaseQuery {
   opened_by: string | null
   assigned_to: string | null
   direction: 'csr_to_legal' | 'legal_to_csr'
-  status: 'open' | 'answered' | 'closed'
+  status: 'open' | 'answered' | 'closed' | 'cancelled'
   created_at: string
   closed_at: string | null
   answered_at?: string | null

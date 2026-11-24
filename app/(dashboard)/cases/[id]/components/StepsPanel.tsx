@@ -17,6 +17,7 @@ import {
   sendStepRequest,
   answerStepRequest,
   markRequestSeen,
+  cancelStepRequest,
 } from '@/app/actions/feed'
 import { saveAttachment, getAttachmentUrl } from '@/app/actions/attachments'
 import { createClient } from '@/lib/supabase/client'
@@ -263,6 +264,13 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
     refreshAll()
   }
 
+  const cancelRequest = async (queryId: string) => {
+    setFeedBusy(true)
+    await cancelStepRequest(queryId)
+    setFeedBusy(false)
+    refreshAll()
+  }
+
   const handleMove = async (stepId: string) => {
     await moveToStep(caseId, stepId)
     refresh()
@@ -350,6 +358,8 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
         if (e.completed_at) {
           items.push({ kind: 'event', at: e.completed_at, key: `ad-${e.id}`, icon: 'done', text: `${nameOf(e.completed_by)} completed an action` })
         }
+      } else if (e.kind === 'system') {
+        items.push({ kind: 'event', at: e.created_at, key: `s-${e.id}`, icon: 'system', text: `${nameOf(e.created_by)} ${e.body}` })
       } else {
         items.push({ kind: 'msg', at: e.created_at, key: e.id, entry: e })
       }
@@ -358,6 +368,7 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
       items.push({ kind: 'event', at: q.created_at, key: `q-${q.id}`, icon: 'request', text: `${nameOf(q.opened_by)} sent a request` })
       if (q.answered_at) items.push({ kind: 'event', at: q.answered_at, key: `qa-${q.id}`, icon: 'answer', text: `${nameOf(q.answered_by)} answered the request` })
       if (q.seen_at) items.push({ kind: 'event', at: q.seen_at, key: `qs-${q.id}`, icon: 'seen', text: `${nameOf(q.seen_by)} marked the request seen` })
+      if (q.status === 'cancelled' && q.closed_at) items.push({ kind: 'event', at: q.closed_at, key: `qc-${q.id}`, icon: 'cancel', text: `${nameOf(q.opened_by)} cancelled the request` })
     }
     // Newest first — the feed reads top-down like an activity stream
     return items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
@@ -510,6 +521,7 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
             onToggleEntry={toggleSelectEntry}
             onStartSelect={(mode, queryId) => startSelect(mode, s.id, queryId)}
             onMarkSeen={markSeen}
+            onCancelRequest={cancelRequest}
             composer={<FeedComposer stepId={s.id} {...composerProps} onSend={() => sendFeedMessage(s.id)} />}
           />
         </div>
@@ -621,7 +633,7 @@ interface FeedAttachment {
 
 type FeedItem =
   | { kind: 'msg'; at: string; key: string; entry: CaseEntry }
-  | { kind: 'event'; at: string; key: string; icon: 'request' | 'answer' | 'seen' | 'action' | 'done'; text: string }
+  | { kind: 'event'; at: string; key: string; icon: 'request' | 'answer' | 'seen' | 'action' | 'done' | 'cancel' | 'system'; text: string }
 
 const EVENT_META = {
   request: { Icon: MessageSquare, cls: 'text-amber-400' },
@@ -629,6 +641,8 @@ const EVENT_META = {
   seen: { Icon: CheckCheck, cls: 'text-[hsl(var(--color-text-muted))]' },
   action: { Icon: Zap, cls: 'text-[hsl(var(--color-primary))]' },
   done: { Icon: CheckCheck, cls: 'text-green-500' },
+  cancel: { Icon: X, cls: 'text-red-400' },
+  system: { Icon: Check, cls: 'text-[hsl(var(--color-text-muted))]' },
 } as const
 
 function EventLine({ icon, text, at }: { icon: keyof typeof EVENT_META; text: string; at: string }) {
@@ -658,7 +672,7 @@ function FeedMessage({ entry, query, attachments, mine, right, selectMode, selec
   const author = entry.author?.display_name || entry.author?.email?.split('@')[0] || 'Someone'
   const isQuestion = entry.request_part === 'question'
   const isAnswer = entry.request_part === 'answer'
-  const live = !!query && query.status !== 'closed'
+  const live = !!query && (query.status === 'open' || query.status === 'answered')
 
   const openFile = async (a: FeedAttachment) => {
     const url = await getAttachmentUrl(a.file_path)
@@ -730,7 +744,7 @@ function FeedMessage({ entry, query, attachments, mine, right, selectMode, selec
   )
 }
 
-function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attachmentsByEntry, select, selectedIds, busy, onToggleEntry, onStartSelect, onMarkSeen, composer }: {
+function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attachmentsByEntry, select, selectedIds, busy, onToggleEntry, onStartSelect, onMarkSeen, onCancelRequest, composer }: {
   stepId: string
   canPost: boolean
   feed: FeedItem[]
@@ -745,6 +759,7 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
   onToggleEntry: (entryId: string) => void
   onStartSelect: (mode: 'request' | 'answer', queryId?: string) => void
   onMarkSeen: (queryId: string) => void
+  onCancelRequest: (queryId: string) => void
   composer: ReactNode
 }) {
   const stepQueries = Object.values(queries).filter(q => q.step_id === stepId)
@@ -829,9 +844,14 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
               Mark as seen
             </Button>
           ) : myOpen ? (
-            <Button variant="secondary" disabled className="w-full">
-              Request sent — waiting
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="secondary" disabled className="flex-1">
+                Request sent — waiting
+              </Button>
+              <Button variant="ghost" onClick={() => onCancelRequest(myOpen.id)} disabled={busy} className="text-red-400 hover:text-red-300">
+                Cancel
+              </Button>
+            </div>
           ) : (
             <Button variant="secondary" onClick={() => onStartSelect('request')} className="w-full gap-2">
               <MessageSquare className="w-4 h-4" />
