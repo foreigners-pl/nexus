@@ -57,6 +57,20 @@ const ambiguous = (rows: CaseRow[]) => ({
   candidates: rows.map(c => `${c.case_code} — ${clientName(c)}`),
 })
 
+/** Resolve a team member by name/email — exact match beats fuzzy. */
+async function resolveUser(supabase: Supabase, ref: string): Promise<{ user?: { id: string; label: string }; candidates?: string[] }> {
+  const q = String(ref).trim()
+  const { data } = await supabase.from('users').select('id, display_name, email')
+    .or(`display_name.ilike.%${q}%,email.ilike.%${q}%`).limit(8)
+  const rows = data || []
+  const label = (u: any) => u.display_name || u.email?.split('@')[0] || '?'
+  const exact = rows.filter(u => label(u).toLowerCase() === q.toLowerCase() || u.email?.split('@')[0].toLowerCase() === q.toLowerCase())
+  const pool = exact.length ? exact : rows
+  if (pool.length === 1) return { user: { id: pool[0].id, label: label(pool[0]) } }
+  if (pool.length > 1) return { candidates: pool.map(label) }
+  return {}
+}
+
 async function stepName(supabase: Supabase, stepId: string | null): Promise<string | null> {
   if (!stepId) return null
   const { data } = await supabase.from('case_steps').select('name').eq('id', stepId).single()
@@ -527,13 +541,11 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
       let lawyerId: string | null = null
       let lawyerName: string | null = null
       if (args.lawyer) {
-        const { data: us } = await supabase.from('users').select('id, display_name, email')
-          .or(`display_name.ilike.%${String(args.lawyer).trim()}%,email.ilike.%${String(args.lawyer).trim()}%`).limit(8)
-        const uName = (u: any) => u.display_name || u.email?.split('@')[0] || '?'
-        if (!us?.length) return { error: `No user matching "${args.lawyer}"` }
-        if (us.length > 1) return { error: 'Multiple users match', candidates: us.map(uName) }
-        lawyerId = us[0].id
-        lawyerName = uName(us[0])
+        const r = await resolveUser(supabase, args.lawyer)
+        if (r.candidates) return { error: 'Multiple users match', candidates: r.candidates }
+        if (!r.user) return { error: `No user matching "${args.lawyer}"` }
+        lawyerId = r.user.id
+        lawyerName = r.user.label
       }
 
       const { data: newStatus } = await supabase.from('status').select('id').eq('name', 'New').single()
@@ -588,6 +600,34 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
       if (serviceName) bits.push(`service: ${serviceName}`)
       if (lawyerName) bits.push(`lawyer: ${lawyerName}`)
       return { ok: bits.join(' — ') }
+    }
+
+    case 'assign_case': {
+      const r = await resolveCase(supabase, args.case)
+      if (r.candidates) return ambiguous(r.candidates)
+      if (!r.case) return notFound(args.case)
+      const u = await resolveUser(supabase, args.user)
+      if (u.candidates) return { error: 'Multiple users match', candidates: u.candidates }
+      if (!u.user) return { error: `No user matching "${args.user}"` }
+      const isCsr = String(args.role || 'lawyer').toLowerCase() === 'csr'
+      const field = isCsr ? 'csr_id' : 'assigned_to'
+      const current = isCsr ? r.case.csr_id : r.case.assigned_to
+      if (current === u.user.id) return { ok: `${u.user.label} is already the ${isCsr ? 'CSR' : 'lawyer'} on ${r.case.case_code}` }
+
+      await supabase.from('cases').update({ [field]: u.user.id }).eq('id', r.case.id)
+      const { data: existing } = await supabase.from('case_assignees').select('id')
+        .eq('case_id', r.case.id).eq('user_id', u.user.id).limit(1)
+      if (!existing?.length) {
+        await supabase.from('case_assignees').insert({ case_id: r.case.id, user_id: u.user.id })
+      }
+      await notifyUsers(supabase, me.id, [u.user.id], {
+        kind: 'task',
+        title: `Assigned to ${clientName(r.case) || r.case.case_code}`,
+        body: `You were assigned to case ${r.case.case_code || ''}`.trim(),
+        link: `/cases/${r.case.id}`,
+        caseId: r.case.id,
+      })
+      return { ok: `${u.user.label} is now the ${isCsr ? 'CSR' : 'lawyer'} on ${r.case.case_code} ${clientName(r.case)}`.trim() }
     }
 
     default:

@@ -136,6 +136,19 @@ const FUNCTION_DECLARATIONS = [
     },
   },
   {
+    name: 'assign_case',
+    description: "Assign or reassign the lawyer (or CSR with role='csr') on an existing case. The new assignee gets a notification.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        case: { type: Type.STRING },
+        user: { type: Type.STRING, description: 'Team member name or email' },
+        role: { type: Type.STRING, description: "'lawyer' (default) or 'csr'" },
+      },
+      required: ['case', 'user'],
+    },
+  },
+  {
     name: 'find_client',
     description: 'Look up a client by name or email — returns their phone numbers, email, and case codes.',
     parameters: {
@@ -276,6 +289,7 @@ export async function runBotTurn(user: BotUser, text: string): Promise<string> {
 
   let reply = ''
   try {
+    let emptyRetries = 0
     for (let i = 0; i < 8; i++) {
       const res = await generate(
         contents,
@@ -297,7 +311,9 @@ export async function runBotTurn(user: BotUser, text: string): Promise<string> {
       }
 
       reply = res.text || ''
-      break
+      // Gemini occasionally returns an empty candidate — retry the turn a
+      // couple of times before giving up.
+      if (reply || ++emptyRetries >= 3) break
     }
   } catch (e: any) {
     const msg = e?.message || ''
