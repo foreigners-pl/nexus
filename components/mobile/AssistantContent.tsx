@@ -44,10 +44,17 @@ export function AssistantContent() {
     t.style.overflowY = t.scrollHeight > 110 ? 'auto' : 'hidden'
   }, [text])
 
-  // Keep the newest message in view — 'nearest' only scrolls when the new
-  // content actually falls out of view, so taps on quick actions don't jump.
+  // Keep the newest message in view — scroll the chat's own scroller to the
+  // absolute bottom so the reply rests above the sticky composer, not behind it.
   useEffect(() => {
-    scrollRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    let scroller = scrollRef.current?.parentElement ?? null
+    while (scroller) {
+      const o = getComputedStyle(scroller).overflowY
+      if ((o === 'auto' || o === 'scroll') && scroller.scrollHeight > scroller.clientHeight) break
+      scroller = scroller.parentElement
+    }
+    if (scroller) scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' })
+    else window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' })
   }, [messages, busy])
 
   const send = async (raw?: string) => {
@@ -146,43 +153,46 @@ export function AssistantContent() {
           </div>
         )}
 
-        {/* Quick actions — one button, opens a list to pick from */}
-        <div className="relative pb-2">
-          {quickOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setQuickOpen(false)} />
-              <div className="absolute left-0 bottom-full mb-1 z-50 w-64 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl shadow-2xl shadow-black/50 overflow-hidden">
-                {SUGGESTIONS.map(s => (
-                  <button
-                    key={s}
-                    onClick={() => send(s)}
-                    className="w-full text-left px-4 py-3 text-sm text-[hsl(var(--color-text-primary))] active:bg-[hsl(var(--color-surface-hover))] border-b border-[hsl(var(--color-border))] last:border-b-0"
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-          <button
-            onClick={() => setQuickOpen(o => !o)}
-            disabled={busy}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] text-xs text-[hsl(var(--color-text-secondary))] active:bg-[hsl(var(--color-surface-hover))] disabled:opacity-40"
-          >
-            <Zap className="w-3.5 h-3.5 text-[hsl(var(--color-primary))]" />
-            Quick actions
-          </button>
-        </div>
-
-        <div className="flex gap-2 items-end">
+        {/* Actions row — quick actions and attach split the width */}
+        <div className="flex gap-2 pb-2">
+          <div className="relative flex-1">
+            {quickOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setQuickOpen(false)} />
+                <div className="absolute left-0 bottom-full mb-1 z-50 w-64 max-w-[80vw] bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl shadow-2xl shadow-black/50 overflow-hidden">
+                  {SUGGESTIONS.map(s => (
+                    <button
+                      key={s}
+                      onClick={() => send(s)}
+                      className="w-full text-left px-4 py-3 text-sm text-[hsl(var(--color-text-primary))] active:bg-[hsl(var(--color-surface-hover))] border-b border-[hsl(var(--color-border))] last:border-b-0"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            <button
+              onClick={() => setQuickOpen(o => !o)}
+              disabled={busy}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] text-xs text-[hsl(var(--color-text-secondary))] active:bg-[hsl(var(--color-surface-hover))] disabled:opacity-40"
+            >
+              <Zap className="w-3.5 h-3.5 text-[hsl(var(--color-primary))]" />
+              Quick actions
+            </button>
+          </div>
           <input type="file" ref={fileRef} multiple className="hidden" onChange={e => { attachFiles(e.target.files); e.target.value = '' }} />
           <button
             onClick={() => fileRef.current?.click()}
             disabled={busy}
-            className="w-10 h-10 rounded-xl bg-[hsl(var(--color-surface-active))] flex items-center justify-center text-[hsl(var(--color-text-secondary))] disabled:opacity-40 shrink-0"
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] text-xs text-[hsl(var(--color-text-secondary))] active:bg-[hsl(var(--color-surface-hover))] disabled:opacity-40"
           >
-            <Paperclip className="w-4 h-4" />
+            <Paperclip className="w-3.5 h-3.5 text-[hsl(var(--color-primary))]" />
+            Attach files
           </button>
+        </div>
+
+        <div className="flex gap-2 items-end">
           <textarea
             ref={textRef}
             value={text}
