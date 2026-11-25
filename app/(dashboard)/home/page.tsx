@@ -193,7 +193,7 @@ export default function MobileHomePage({ viewAsUserId, onOpenTab, onBack }: {
   return (
     <div className="space-y-4">
       {(userName || viewAsUserId) && (
-        <div className="sticky top-0 z-10 -mx-4 px-4 -mt-4 pt-4 md:-mx-6 md:px-6 md:-mt-6 md:pt-6 pb-2 bg-[hsl(var(--color-background))] flex items-center justify-between gap-2">
+        <div className="sticky top-0 z-10 -mx-4 px-4 -mt-4 pt-2 md:-mx-6 md:px-6 md:-mt-6 md:pt-4 pb-1 bg-[hsl(var(--color-background))] flex items-center justify-between gap-2">
           <div className="flex items-center gap-1 min-w-0">
             {onBack && (
               <button
