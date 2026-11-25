@@ -99,3 +99,17 @@ export async function sendPushToUsers(
     await admin.from('push_subscriptions').delete().in('endpoint', dead)
   }
 }
+
+/** Fires a test push at the current user — used by the notifications page
+ *  so people can verify this device actually receives alerts. */
+export async function sendTestPush(): Promise<{ ok?: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not signed in' }
+  await sendPushToUsers([user.id], {
+    title: 'Test notification',
+    body: 'Push is working on this device.',
+    url: '/notifications',
+  })
+  return { ok: true }
+}

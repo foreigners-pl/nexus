@@ -17,7 +17,7 @@ import {
   markAllNotificationsRead,
   type AppNotification,
 } from '@/app/actions/notifications'
-import { savePushSubscription } from '@/app/actions/push'
+import { savePushSubscription, sendTestPush } from '@/app/actions/push'
 import { usePaneNavigate } from '@/lib/panes'
 import { MobileBackHeader } from '@/components/mobile/MobileBackHeader'
 
@@ -56,6 +56,7 @@ export function NotificationsContent() {
   const [pushState, setPushState] = useState<'unknown' | 'unsupported' | 'denied' | 'off' | 'on'>('unknown')
   const [pushBusy, setPushBusy] = useState(false)
   const [pushError, setPushError] = useState<string | null>(null)
+  const [testSent, setTestSent] = useState(false)
 
   const load = useCallback(async () => {
     const { notifications, unreadCount } = await getMyNotifications(50)
@@ -118,6 +119,8 @@ export function NotificationsContent() {
       )
       if (res && 'error' in res && res.error) throw new Error(res.error)
       setPushState('on')
+      setTestSent(true)
+      sendTestPush() // self-test — the device should ping immediately
     } catch (e) {
       console.error('push subscribe failed:', e)
       setPushError(e instanceof Error ? e.message : 'Could not enable push')
@@ -145,6 +148,17 @@ export function NotificationsContent() {
   return (
     <div className="space-y-4">
       <MobileBackHeader title="Notifications" />
+
+      {pushState === 'on' && (
+        <div className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl px-4 py-3">
+          <button
+            onClick={() => { setTestSent(false); sendTestPush().then(() => setTestSent(true)) }}
+            className="w-full text-left text-sm text-[hsl(var(--color-primary))] font-medium"
+          >
+            Send test notification{testSent ? ' — sent, check for the ping' : ''}
+          </button>
+        </div>
+      )}
 
       {pushState !== 'on' && pushState !== 'unknown' && (
         <div className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl px-4 py-3.5">
