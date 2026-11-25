@@ -58,7 +58,12 @@ export async function sendPushToUsers(
   const pub = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
   const priv = process.env.VAPID_PRIVATE_KEY
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!pub || !priv || !serviceKey || userIds.length === 0) return
+  if (userIds.length === 0) return
+  if (!pub || !priv || !serviceKey) {
+    console.error('[push] skipped — VAPID keys or service key missing from env:',
+      { pub: !!pub, priv: !!priv, serviceKey: !!serviceKey })
+    return
+  }
 
   const admin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey)
   webpush.setVapidDetails(
