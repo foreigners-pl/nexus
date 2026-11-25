@@ -153,26 +153,12 @@ export async function createStripeInvoice(
     return { error: 'Invoice not found' }
   }
 
-  if (!invoice.installment_id) {
-    return { error: 'Invoice has no linked installment' }
-  }
-
-  // Get installment and case
-  const { data: installment, error: installmentError } = await supabase
-    .from('installments')
-    .select('id, case_id')
-    .eq('id', invoice.installment_id)
-    .single()
-
-  if (installmentError || !installment) {
-    return { error: 'Installment not found' }
-  }
-
-  // Get case and client
+  // Get case and client — invoice.case_id is authoritative (installment_id
+  // is optional now that charges/invoices can link many-to-many)
   const { data: caseData, error: caseError } = await supabase
     .from('cases')
     .select('id, client_id')
-    .eq('id', installment.case_id)
+    .eq('id', invoice.case_id)
     .single()
 
   if (caseError || !caseData) {

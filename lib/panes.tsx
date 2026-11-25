@@ -8,6 +8,7 @@ import CaseProgressPage from '@/app/(dashboard)/cases/[id]/progress/page'
 import CaseEntryPage from '@/app/(dashboard)/cases/[id]/progress/[entryId]/page'
 import CaseBillingPage from '@/app/(dashboard)/cases/[id]/billing/page'
 import BillingV2Page from '@/app/(dashboard)/cases/[id]/billing/v2/page'
+import ChargePage from '@/app/(dashboard)/cases/[id]/billing/v2/[chargeId]/page'
 import InstallmentPage from '@/app/(dashboard)/cases/[id]/billing/[installmentId]/page'
 import CaseFilesPage from '@/app/(dashboard)/cases/[id]/files/page'
 import CaseLegacyPage from '@/app/(dashboard)/cases/[id]/legacy/page'
@@ -31,7 +32,7 @@ import ViewAsPage from '@/app/(dashboard)/admin/view-as/[userId]/page'
 /** Routes that render at pane (mobile-like) width on desktop. */
 function isPaneRoute(href: string): boolean {
   const path = href.split('?')[0]
-  return /^\/cases\/[^/]+(\/progress(\/[^/]+)?|\/billing(\/[^/]+)?|\/files|\/legacy|\/eligibility(\/[^/]+)?|\/agreement|\/actions)?$/.test(path)
+  return /^\/cases\/[^/]+(\/progress(\/[^/]+)?|\/billing(\/[^/]+){1,2}|\/files|\/legacy|\/eligibility(\/[^/]+)?|\/agreement|\/actions)?$/.test(path)
     || /^\/clients\/[^/]+(\/info)?$/.test(path)
     || /^\/home$/.test(path)
     || /^\/(requests|actions|search|notifications|assistant)$/.test(path)
@@ -47,6 +48,8 @@ function renderPaneRoute(href: string): React.ReactNode | null {
 
   if ((m = path.match(/^\/cases\/([^/]+)\/billing\/v2$/)))
     return <BillingV2Page params={Promise.resolve({ id: m[1] })} />
+  if ((m = path.match(/^\/cases\/([^/]+)\/billing\/v2\/([^/]+)$/)))
+    return <ChargePage params={Promise.resolve({ id: m[1], chargeId: m[2] })} />
   if ((m = path.match(/^\/cases\/([^/]+)\/billing\/([^/]+)$/)))
     return <InstallmentPage params={Promise.resolve({ id: m[1], installmentId: m[2] })} />
   if ((m = path.match(/^\/cases\/([^/]+)\/eligibility\/([^/]+)$/)))

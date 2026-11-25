@@ -136,6 +136,7 @@ export async function getCaseBillingV2(idOrCode: string) {
   }
 
   const openInvoiceChargeIds = new Set<string>()
+  const paidInvoiceChargeIds = new Set<string>()
   const linksByInvoice = new Map<string, { ids: string[]; names: string[] }>()
   for (const l of links) {
     const entry = linksByInvoice.get(l.invoice_id) || { ids: [], names: [] }
@@ -146,13 +147,18 @@ export async function getCaseBillingV2(idOrCode: string) {
   const invoiceStatusById = new Map((invoicesRes.data || []).map((v: any) => [v.id, v.status]))
   for (const [invId, entry] of linksByInvoice) {
     const st = invoiceStatusById.get(invId)
-    if (st && st !== 'cancelled' && st !== 'paid' && st !== 'draft') {
+    if (st === 'paid') entry.ids.forEach(id => paidInvoiceChargeIds.add(id))
+    else if (st && st !== 'cancelled' && st !== 'draft') {
       entry.ids.forEach(id => openInvoiceChargeIds.add(id))
     }
   }
 
   const charges: ChargeV2[] = rawCharges.map((c: any) => {
-    const paid = paidByCharge.get(c.id) || 0
+    // A paid invoice covering the charge settles it in full — the money may
+    // have arrived via Stripe webhook rather than a manual payment row
+    const paid = paidInvoiceChargeIds.has(c.id)
+      ? Number(c.amount)
+      : (paidByCharge.get(c.id) || 0)
     return { ...c, amount: Number(c.amount), paid_amount: paid, status: deriveStatus(c, paid, openInvoiceChargeIds.has(c.id)) }
   })
 
@@ -226,6 +232,7 @@ export async function updateCharge(chargeId: string, caseId: string, fields: {
   dueDate?: string | null
   automaticInvoice?: boolean
   recurDay?: number | null
+  kind?: ChargeKind
 }) {
   const supabase = await createClient()
 
@@ -235,6 +242,7 @@ export async function updateCharge(chargeId: string, caseId: string, fields: {
   if (fields.dueDate !== undefined) update.due_date = fields.dueDate
   if (fields.automaticInvoice !== undefined) update.automatic_invoice = fields.automaticInvoice
   if (fields.recurDay !== undefined) update.recur_day = fields.recurDay
+  if (fields.kind !== undefined) update.kind = fields.kind
 
   const { error } = await supabase.from('charges').update(update).eq('id', chargeId)
   if (error) {
@@ -265,15 +273,17 @@ export async function deleteCharge(chargeId: string, caseId: string) {
 }
 
 /** Record money received against a charge (supports partial payments). */
-export async function recordPayment(caseId: string, chargeId: string, amount: number, method: string, note?: string) {
+export async function recordPayment(caseId: string, chargeId: string, amount: number, method: string, note?: string, paidAt?: string, invoiceId?: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   const { error } = await supabase.from('payments').insert({
     case_id: caseId,
     charge_id: chargeId,
+    invoice_id: invoiceId || null,
     amount,
     method: method || 'manual',
+    paid_at: paidAt || undefined,
     note: note || null,
     created_by: user?.id || null,
   })
@@ -344,4 +354,84 @@ export async function createInvoiceFromCharges(caseId: string, chargeIds: string
 
   revalidatePath(`/cases/${caseId}`)
   return { success: true, invoice }
+}
+
+/** Replace the set of charges an invoice covers. */
+export async function linkInvoiceCharges(invoiceId: string, chargeIds: string[]) {
+  const supabase = await createClient()
+  await supabase.from('invoice_charges').delete().eq('invoice_id', invoiceId)
+  if (chargeIds.length) {
+    const { error } = await supabase
+      .from('invoice_charges')
+      .insert(chargeIds.map(charge_id => ({ invoice_id: invoiceId, charge_id })))
+    if (error) {
+      console.error('Error linking charges:', error)
+      return { error: 'Failed to link charges' }
+    }
+  }
+  return { success: true }
+}
+
+/**
+ * Mark an invoice paid and write a payment row for each linked charge's
+ * remaining balance — one place where "paid" becomes real money data.
+ */
+export async function markInvoicePaidCharges(invoiceId: string, caseId: string, paidAt?: string, method?: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  const now = paidAt || new Date().toISOString()
+
+  const { error: invErr } = await supabase
+    .from('invoices')
+    .update({ status: 'paid', paid_at: now })
+    .eq('id', invoiceId)
+  if (invErr) {
+    console.error('Error marking invoice paid:', invErr)
+    return { error: 'Failed to mark invoice paid' }
+  }
+
+  // Settle each linked charge with a payment row covering what remains
+  const { data: links } = await supabase
+    .from('invoice_charges')
+    .select('charge_id, charges(id, amount, case_id)')
+    .eq('invoice_id', invoiceId)
+
+  for (const l of links || []) {
+    const charge = (l as any).charges
+    if (!charge) continue
+    const { data: existing } = await supabase
+      .from('payments').select('amount').eq('charge_id', charge.id)
+    const alreadyPaid = (existing || []).reduce((s: number, p: any) => s + Number(p.amount), 0)
+    const remaining = Number(charge.amount) - alreadyPaid
+    if (remaining <= 0) continue
+    await supabase.from('payments').insert({
+      case_id: caseId,
+      charge_id: charge.id,
+      invoice_id: invoiceId,
+      amount: remaining,
+      method: method || 'bank_transfer',
+      paid_at: now,
+      note: 'Invoice paid',
+      created_by: user?.id || null,
+    })
+  }
+
+  revalidatePath(`/cases/${caseId}`)
+  return { success: true }
+}
+
+/** Duplicate an invoice and carry over its charge links. */
+export async function duplicateChargeInvoice(invoiceId: string, caseId: string) {
+  const supabase = await createClient()
+  const { duplicateInvoice } = await import('./invoices')
+  const res = await duplicateInvoice(invoiceId, caseId)
+  if (res.error || !res.invoice) return res
+
+  const { data: links } = await supabase
+    .from('invoice_charges').select('charge_id, amount').eq('invoice_id', invoiceId)
+  if (links?.length) {
+    await supabase.from('invoice_charges')
+      .insert(links.map((l: any) => ({ invoice_id: res.invoice.id, charge_id: l.charge_id, amount: l.amount })))
+  }
+  return res
 }

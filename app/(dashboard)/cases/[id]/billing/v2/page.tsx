@@ -2,17 +2,18 @@
 
 import { use, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { SubPageHeader } from '@/components/shared/SubPageHeader'
 import { Modal } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Loader2, Receipt, ChevronRight, FlaskConical, FileText } from 'lucide-react'
 import {
-  getCaseBillingV2, addCharge, updateCharge, deleteCharge,
-  recordPayment, recordRefund, createInvoiceFromCharges,
+  getCaseBillingV2, addCharge, createInvoiceFromCharges,
   type ChargeV2, type PaymentV2, type InvoiceV2, type ChargeKind,
 } from '@/app/actions/charges'
 import { setCaseTotal } from '@/app/actions/installments'
+import { usePaneNavigate } from '@/lib/panes'
 import { isDesktopViewport } from '@/lib/viewport'
 
 const KIND_LABEL: Record<ChargeKind, string> = {
@@ -56,12 +57,13 @@ function chargeDisplayName(c: ChargeV2, installments: ChargeV2[]) {
 
 export default function BillingV2Page({ params }: { params: Promise<{ id: string }> }) {
   const { id: urlId } = use(params)
+  const router = useRouter()
+  const paneNav = usePaneNavigate()
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const isMounted = useRef(true)
 
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [detail, setDetail] = useState<ChargeV2 | null>(null)
   const [addOpen, setAddOpen] = useState(false)
   const [invoiceOpen, setInvoiceOpen] = useState(false)
   const [editingTotal, setEditingTotal] = useState(false)
@@ -180,7 +182,10 @@ export default function BillingV2Page({ params }: { params: Promise<{ id: string
       const res = await createInvoiceFromCharges(caseRow.id, [...selected], invName.trim(), amount, invDue || undefined)
       if (res.error) { setError(res.error); return }
       setInvoiceOpen(false)
+      const first = [...selected][0]
       setSelected(new Set())
+      const href = `/cases/${urlId}/billing/v2/${first}`
+      if (!paneNav(href)) router.push(href)
     })
     setSubmitting(false)
     refresh()
@@ -249,7 +254,11 @@ export default function BillingV2Page({ params }: { params: Promise<{ id: string
                     title="Select for invoice"
                   />
                 )}
-                <button onClick={() => setDetail(c)} className="flex items-center justify-between flex-1 min-w-0 text-left">
+                <Link
+                  href={`/cases/${urlId}/billing/v2/${c.id}`}
+                  onClick={(e) => { if (paneNav(`/cases/${urlId}/billing/v2/${c.id}`)) e.preventDefault() }}
+                  className="flex items-center justify-between flex-1 min-w-0"
+                >
                   <div className="min-w-0">
                     <p className={`font-medium text-[hsl(var(--color-text-primary))] truncate ${c.status === 'cancelled' ? 'line-through' : ''}`}>
                       {chargeDisplayName(c, ordered)}
@@ -268,7 +277,7 @@ export default function BillingV2Page({ params }: { params: Promise<{ id: string
                     <span className="font-bold text-[hsl(var(--color-text-primary))]">{fmt(c.amount)} <span className="text-xs font-normal">PLN</span></span>
                     <ChevronRight className="w-4 h-4 text-[hsl(var(--color-text-secondary))]" />
                   </div>
-                </button>
+                </Link>
               </div>
             )
           })}
@@ -291,8 +300,12 @@ export default function BillingV2Page({ params }: { params: Promise<{ id: string
           <p className="text-sm text-[hsl(var(--color-text-secondary))]">No invoices yet — select charges above to create one.</p>
         ) : (
           <div className="divide-y divide-[hsl(var(--color-border))]">
-            {invoices.map(inv => (
-              <Link key={inv.id} href={`/print/invoice/${inv.id}`} className="flex items-center gap-3 py-2.5">
+            {invoices.map(inv => {
+              const href = inv.charge_ids[0]
+                ? `/cases/${urlId}/billing/v2/${inv.charge_ids[0]}`
+                : `/print/invoice/${inv.id}`
+              return (
+              <Link key={inv.id} href={href} onClick={(e) => { if (paneNav(href)) e.preventDefault() }} className="flex items-center gap-3 py-2.5">
                 <FileText className="w-4 h-4 text-[hsl(var(--color-text-secondary))] shrink-0" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-[hsl(var(--color-text-primary))] truncate">
@@ -311,7 +324,8 @@ export default function BillingV2Page({ params }: { params: Promise<{ id: string
                 </div>
                 <span className="text-sm font-semibold text-[hsl(var(--color-text-primary))] shrink-0">{fmt(inv.amount)} PLN</span>
               </Link>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
@@ -393,198 +407,6 @@ export default function BillingV2Page({ params }: { params: Promise<{ id: string
         </div>
       </Modal>
 
-      {/* Charge detail modal */}
-      {detail && (
-        <ChargeDetailModal
-          charge={detail}
-          ordered={ordered}
-          payments={payments.filter(p => p.charge_id === detail.id)}
-          caseId={caseRow.id}
-          onClose={() => setDetail(null)}
-          onChanged={() => { setDetail(null); refresh() }}
-        />
-      )}
     </div>
-  )
-}
-
-function ChargeDetailModal({ charge, ordered, payments, caseId, onClose, onChanged }: {
-  charge: ChargeV2
-  ordered: ChargeV2[]
-  payments: PaymentV2[]
-  caseId: string
-  onClose: () => void
-  onChanged: () => void
-}) {
-  const [mode, setMode] = useState<'view' | 'edit' | 'pay' | 'refund'>('view')
-  const [submitting, setSubmitting] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-
-  const [eName, setEName] = useState(charge.name || '')
-  const [eAmount, setEAmount] = useState(String(charge.amount))
-  const [eDue, setEDue] = useState(charge.due_date || '')
-  const [eAutoInv, setEAutoInv] = useState(charge.automatic_invoice)
-
-  const [pAmount, setPAmount] = useState(String(Math.max(0, charge.amount - charge.paid_amount)))
-  const [pMethod, setPMethod] = useState('bank_transfer')
-  const [pNote, setPNote] = useState('')
-  const [rAmount, setRAmount] = useState('')
-  const [rNote, setRNote] = useState('')
-
-  const st = STATUS_STYLE[charge.status]
-  const remaining = Math.max(0, charge.amount - charge.paid_amount)
-
-  const run = async (fn: () => Promise<{ error?: string; success?: boolean }>) => {
-    setSubmitting(true)
-    try {
-      const res = await fn()
-      if (res.error) setErr(res.error)
-      else onChanged()
-    } catch (e: any) {
-      setErr(e?.message || 'Action failed — try refreshing the page')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    <Modal isOpen onClose={onClose} title={chargeDisplayName(charge, ordered)}>
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <span className={`px-2.5 py-1 rounded-lg border text-xs font-medium ${st.chip}`}>{st.label}</span>
-          <span className="text-lg font-bold text-[hsl(var(--color-text-primary))]">
-            {fmt(charge.amount)} PLN
-            {charge.paid_amount > 0 && charge.status !== 'paid' && (
-              <span className="text-xs font-normal text-[hsl(var(--color-text-secondary))]"> · {fmt(charge.paid_amount)} paid</span>
-            )}
-          </span>
-        </div>
-
-        {charge.due_date && <p className="text-sm text-[hsl(var(--color-text-secondary))]">Due {fmtDate(charge.due_date)}</p>}
-
-        {payments.length > 0 && (
-          <div>
-            <p className="text-xs font-medium text-[hsl(var(--color-text-secondary))] mb-1.5">Payments</p>
-            <div className="divide-y divide-[hsl(var(--color-border))] rounded-lg border border-[hsl(var(--color-border))]">
-              {payments.map(p => (
-                <div key={p.id} className="flex items-center justify-between px-3 py-2 text-sm">
-                  <span className="text-[hsl(var(--color-text-secondary))]">
-                    {METHOD_LABEL[p.method] || p.method} · {fmtDate(p.paid_at)}
-                    {p.note ? ` — ${p.note}` : ''}
-                  </span>
-                  <span className={`font-semibold ${p.amount < 0 ? 'text-orange-500' : 'text-green-500'}`}>
-                    {p.amount < 0 ? '−' : '+'}{fmt(Math.abs(p.amount))}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {mode === 'view' && (
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="secondary" onClick={() => setMode('edit')}>Edit</Button>
-            <Button onClick={() => setMode('pay')} disabled={charge.cancelled}>Record payment</Button>
-            <Button variant="outline" onClick={() => setMode('refund')}>Refund</Button>
-            {confirmDelete ? (
-              <Button variant="danger" disabled={submitting}
-                onClick={() => run(() => deleteCharge(charge.id, caseId))}>
-                Confirm delete?
-              </Button>
-            ) : (
-              <Button variant="outline" className="text-red-500" onClick={() => setConfirmDelete(true)}>Delete</Button>
-            )}
-          </div>
-        )}
-
-        {mode === 'edit' && (
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-1">Name</label>
-              <Input value={eName} onChange={e => setEName(e.target.value)} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-1">Amount (PLN)</label>
-              <Input type="number" value={eAmount} onChange={e => setEAmount(e.target.value)} disabled={charge.kind === 'balance'} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-1">Due date</label>
-              <Input type="date" value={eDue} onChange={e => setEDue(e.target.value)} />
-            </div>
-            <label className="flex items-center gap-2 text-sm text-[hsl(var(--color-text-secondary))]">
-              <input type="checkbox" checked={eAutoInv} onChange={e => setEAutoInv(e.target.checked)} className="w-4 h-4 accent-[hsl(var(--color-primary))]" />
-              Auto-invoice when due
-            </label>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setMode('view')} className="flex-1">Back</Button>
-              <Button className="flex-1" disabled={submitting}
-                onClick={() => run(() => updateCharge(charge.id, caseId, {
-                  name: eName || null,
-                  amount: parseFloat(eAmount),
-                  dueDate: eDue || null,
-                  automaticInvoice: eAutoInv,
-                }))}>
-                {submitting ? 'Saving...' : 'Save'}
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {mode === 'pay' && (
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-1">Amount received (PLN)</label>
-              <Input type="number" value={pAmount} onChange={e => setPAmount(e.target.value)} />
-              <p className="text-xs text-[hsl(var(--color-text-muted))] mt-1">Remaining on this charge: {fmt(remaining)} PLN — enter less for a partial payment</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-1">Method</label>
-              <div className="flex flex-wrap gap-2">
-                {['bank_transfer', 'cash', 'stripe', 'manual'].map(m => (
-                  <button key={m} onClick={() => setPMethod(m)}
-                    className={`px-3 py-1.5 rounded-lg border text-sm ${pMethod === m ? 'border-[hsl(var(--color-primary))] text-[hsl(var(--color-primary))] bg-[hsl(var(--color-primary))]/10' : 'border-[hsl(var(--color-border))] text-[hsl(var(--color-text-secondary))]'}`}>
-                    {METHOD_LABEL[m]}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-1">Note (optional)</label>
-              <Input value={pNote} onChange={e => setPNote(e.target.value)} />
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setMode('view')} className="flex-1">Back</Button>
-              <Button className="flex-1" disabled={submitting || !pAmount}
-                onClick={() => run(() => recordPayment(caseId, charge.id, parseFloat(pAmount), pMethod, pNote || undefined))}>
-                {submitting ? 'Recording...' : 'Record'}
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {mode === 'refund' && (
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-1">Refund amount (PLN)</label>
-              <Input type="number" value={rAmount} onChange={e => setRAmount(e.target.value)} placeholder="0.00" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-[hsl(var(--color-text-secondary))] mb-1">Reason</label>
-              <Input value={rNote} onChange={e => setRNote(e.target.value)} />
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setMode('view')} className="flex-1">Back</Button>
-              <Button className="flex-1" disabled={submitting || !rAmount}
-                onClick={() => run(() => recordRefund(caseId, charge.id, parseFloat(rAmount), rNote || undefined))}>
-                {submitting ? 'Recording...' : 'Record refund'}
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {err && <p className="text-sm text-red-500">{err}</p>}
-      </div>
-    </Modal>
   )
 }
