@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { sendAssistantMessage, sendAssistantVoice, getAssistantAudioUrl, getAssistantHistory, type StagedFile } from '@/app/actions/assistant'
 import { createClient } from '@/lib/supabase/client'
 import { usePaneLink, usePaneStack } from '@/lib/panes'
-import { Sparkles, Send, Paperclip, Zap, X, History, Mic, Square, Play, Pause } from 'lucide-react'
+import { Sparkles, Send, Paperclip, Zap, X, History, Mic, Play, Pause } from 'lucide-react'
 
 interface Msg {
   role: 'user' | 'model'
@@ -467,7 +467,7 @@ export function AssistantContent() {
                 className="w-10 h-10 rounded-xl bg-red-500 text-white flex items-center justify-center shrink-0"
                 aria-label="Send voice message"
               >
-                <Square className="w-4 h-4" />
+                <Send className="w-4 h-4" />
               </button>
             </>
           ) : (
