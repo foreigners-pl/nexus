@@ -1,12 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { getAssistantSessions, getAssistantSession, getAssistantUsage } from '@/app/actions/assistant'
-import { usePaneLink } from '@/lib/panes'
+import { usePaneLink, usePaneBack } from '@/lib/panes'
 import { MobileBackHeader } from '@/components/mobile/MobileBackHeader'
 import { linkify, AudioBubble } from '@/components/mobile/AssistantContent'
-import { ChevronRight, Loader2, MessageSquare } from 'lucide-react'
+import { ChevronRight, Loader2, MessageSquare, History } from 'lucide-react'
 
 interface Msg {
   role: string
@@ -91,7 +91,7 @@ export function AssistantSessions() {
 
   return (
     <div>
-      <MobileBackHeader title="Sessions" />
+      <MobileBackHeader title="Sessions" backHref="/assistant" />
       <UsageCard />
       {sessions === null ? (
         <div className="flex justify-center py-10">
@@ -110,18 +110,55 @@ export function AssistantSessions() {
   )
 }
 
-/** Read-only view of one day's conversation. */
+/** Read-only view of one day's conversation. Opens at the bottom — the
+ *  newest batch renders first, older messages prepend behind it. */
 export function AssistantSessionView({ date }: { date: string }) {
   const [messages, setMessages] = useState<Msg[] | null>(null)
   const [title] = useState(() => sessionLabel(date, todayKey()))
+  const endRef = useRef<HTMLDivElement>(null)
+  const skipScroll = useRef(false)
+  const paneBack = usePaneBack()
+  const tz = new Date().getTimezoneOffset()
+
+  const findScroller = () => {
+    let el = endRef.current?.parentElement ?? null
+    while (el) {
+      const o = getComputedStyle(el).overflowY
+      if ((o === 'auto' || o === 'scroll') && el.scrollHeight > el.clientHeight) break
+      el = el.parentElement
+    }
+    return el
+  }
 
   useEffect(() => {
-    getAssistantSession(date, new Date().getTimezoneOffset()).then(r => setMessages(r.messages))
+    let cancelled = false
+    ;(async () => {
+      const first = await getAssistantSession(date, tz, { limit: 15 })
+      if (cancelled) return
+      setMessages(first.messages)
+      const oldest = first.messages[0]?.created_at
+      if (first.messages.length < 15 || !oldest) return
+      const rest = await getAssistantSession(date, tz, { limit: 500, before: oldest })
+      if (cancelled || !rest.messages.length) return
+      const sc = findScroller()
+      skipScroll.current = !!sc && sc.scrollHeight - sc.scrollTop - sc.clientHeight >= 4
+      setMessages(m => [...rest.messages, ...(m ?? [])])
+    })()
+    return () => { cancelled = true }
   }, [date])
+
+  // Glue to the bottom — first paint and prepends while sitting at the bottom.
+  useEffect(() => {
+    if (!messages?.length) return
+    if (skipScroll.current) { skipScroll.current = false; return }
+    const scroller = findScroller()
+    if (scroller) scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'auto' })
+    else window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'auto' })
+  }, [messages])
 
   return (
     <div>
-      <MobileBackHeader title={title} />
+      <MobileBackHeader title={title} backHref="/assistant/sessions" />
       <div className="space-y-2 py-3">
         {messages === null ? (
           <div className="flex justify-center py-10">
@@ -143,6 +180,26 @@ export function AssistantSessionView({ date }: { date: string }) {
               </div>
             </div>
           ))
+        )}
+      </div>
+      <div ref={endRef} />
+      {/* Spacer keeps the last message clear of the fixed bar on mobile. */}
+      <div className="h-[72px] md:h-0" />
+      <div className="fixed z-40 bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 right-0 px-4 pt-2 pb-2 bg-[hsl(var(--color-background))] md:sticky md:bottom-0 md:left-auto md:right-auto md:px-0 shadow-[0_24px_0_hsl(var(--color-background))]">
+        {paneBack ? (
+          <button
+            onClick={paneBack}
+            className="w-full h-11 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-sm font-semibold text-[hsl(var(--color-text-primary))] flex items-center justify-center gap-2 active:bg-[hsl(var(--color-surface-hover))]"
+          >
+            <History className="w-4 h-4" /> Sessions
+          </button>
+        ) : (
+          <Link
+            href="/assistant/sessions"
+            className="h-11 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] text-sm font-semibold text-[hsl(var(--color-text-primary))] flex items-center justify-center gap-2 active:bg-[hsl(var(--color-surface-hover))]"
+          >
+            <History className="w-4 h-4" /> Sessions
+          </Link>
         )}
       </div>
     </div>

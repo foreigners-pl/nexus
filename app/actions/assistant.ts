@@ -151,7 +151,7 @@ export async function getAssistantUsage(): Promise<{ calls: number; tokens: numb
 }
 
 /** One past session's messages, oldest first. */
-export async function getAssistantSession(date: string, tzOffset = 0): Promise<{ messages: { role: string; text: string; created_at: string; audio_path: string | null }[] }> {
+export async function getAssistantSession(date: string, tzOffset = 0, opts?: { limit?: number; before?: string }): Promise<{ messages: { role: string; text: string; created_at: string; audio_path: string | null }[] }> {
   const user = await me()
   if (!user) return { messages: [] }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { messages: [] }
@@ -162,8 +162,8 @@ export async function getAssistantSession(date: string, tzOffset = 0): Promise<{
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(500)
-  const messages = (data || [])
-    .filter(m => localDateKey(m.created_at, tzOffset) === date)
-    .reverse()
-  return { messages }
+  let msgs = (data || []).filter(m => localDateKey(m.created_at, tzOffset) === date)
+  if (opts?.before) msgs = msgs.filter(m => m.created_at < opts.before!)
+  if (opts?.limit) msgs = msgs.slice(0, opts.limit)
+  return { messages: msgs.reverse() }
 }

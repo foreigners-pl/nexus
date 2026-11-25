@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { usePaneBack } from '@/lib/panes'
 
-export function MobileBackHeader({ title }: { title: string }) {
+export function MobileBackHeader({ title, backHref }: { title: string; backHref?: string }) {
   const paneBack = usePaneBack()
 
   const back = paneBack ? (
@@ -17,7 +17,7 @@ export function MobileBackHeader({ title }: { title: string }) {
     </button>
   ) : (
     <Link
-      href="/home"
+      href={backHref ?? '/home'}
       className="w-9 h-9 -ml-1 rounded-full flex items-center justify-center text-[hsl(var(--color-text-secondary))] active:bg-[hsl(var(--color-surface-hover))]"
       aria-label="Back to home"
     >
