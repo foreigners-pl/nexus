@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useEffect, useRef, type ReactNode } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react'
 import { sendAssistantMessage, sendAssistantVoice, getAssistantAudioUrl, getAssistantHistory, type StagedFile } from '@/app/actions/assistant'
 import { createClient } from '@/lib/supabase/client'
 import { usePaneLink, usePaneStack } from '@/lib/panes'
@@ -201,6 +201,28 @@ export function AssistantContent() {
     t.style.overflowY = t.scrollHeight > 110 ? 'auto' : 'hidden'
   }, [text])
 
+  // Fill the pane's scrollport down to the sticky composer so messages
+  // anchor right above the input — the fixed 100dvh calc leaves a dead
+  // gap at pane height on desktop. Mobile keeps the tuned calc below.
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const [fillH, setFillH] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = wrapRef.current
+      if (!el || window.innerWidth < 768) { setFillH(null); return }
+      const scroller = el.closest('.overflow-y-auto') as HTMLElement | null
+      const composer = composerRef.current
+      if (!scroller || !composer) { setFillH(null); return }
+      const sRect = scroller.getBoundingClientRect()
+      const docTop = el.getBoundingClientRect().top - sRect.top + scroller.scrollTop
+      const target = scroller.clientHeight - composer.getBoundingClientRect().height - 8
+      setFillH(Math.max(target - docTop, 120))
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [composerH, messages?.length])
+
   // Keep the newest message in view — scroll the chat's own scroller to the
   // absolute bottom so the reply rests above the sticky composer, not behind it.
   // First populated render snaps instantly; later messages scroll smoothly.
@@ -326,7 +348,7 @@ export function AssistantContent() {
   }
 
   return (
-    <div className="flex flex-col" style={{ minHeight: 'calc(100dvh - 230px)' }}>
+    <div ref={wrapRef} className="flex flex-col" style={{ minHeight: fillH ?? 'calc(100dvh - 230px)' }}>
       <div className="mt-auto space-y-2 pb-3">
         {messages === null ? (
           <p className="text-sm text-[hsl(var(--color-text-secondary))] py-6 text-center">Loading…</p>

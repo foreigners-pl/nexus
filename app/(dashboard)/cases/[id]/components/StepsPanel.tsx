@@ -889,7 +889,7 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
         // scrollport's bottom edge — fill the region so its bottom lands
         // on the composer's natural top. Longer feeds already exceed this,
         // so min-height is a no-op for them.
-        const target = scroller.clientHeight - 24 - composer.getBoundingClientRect().height
+        const target = scroller.clientHeight - 25 - composer.getBoundingClientRect().height
         setRegionH(Math.max(target - docTop, 160))
         return
       }
@@ -926,6 +926,16 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
     // the effect (infinite-loop guard). Re-measure when the feed grows or
     // the composer/request-slot above can change height.
   }, [canPost, feed.length, select !== null, queries])
+
+  // Open at the bottom instantly — the anchored feed means a short chat
+  // sits near the composer, so landing at scrollTop 0 shows empty space.
+  const snappedRef = useRef(false)
+  useLayoutEffect(() => {
+    if (snappedRef.current || regionH == null || !feed.length || window.innerWidth < 768) return
+    snappedRef.current = true
+    const scroller = regionRef.current?.closest('.overflow-y-auto') as HTMLElement | null
+    if (scroller) scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'auto' })
+  }, [regionH])
 
   const feedList = feed.length === 0 ? (
     <p className="text-xs text-[hsl(var(--color-text-muted))] py-6 text-center">
