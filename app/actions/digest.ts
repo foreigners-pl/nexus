@@ -7,12 +7,15 @@ import { sendPushToUsers } from '@/app/actions/push'
 /** Morning digest — one push per member summarising their queue. Runs from
  *  the daily /api/cron/mrc job (the project's single Vercel cron). Reuses the
  *  assistant's read tools so the buckets match what the member sees in-app. */
-export async function sendMorningDigests(): Promise<{ sent: number; skipped: number; errors: string[] }> {
+export async function sendMorningDigests(onlyUserId?: string): Promise<{ sent: number; skipped: number; errors: string[] }> {
   const admin = createAdminClient()
   const { data: allUsers } = await admin
     .from('users')
     .select('id, display_name, email')
-  const users = (allUsers || []).filter(u => u.display_name !== 'System' && u.display_name !== 'test')
+  const users = (allUsers || []).filter(u =>
+    onlyUserId ? u.id === onlyUserId
+               : u.display_name !== 'System' && u.display_name !== 'test',
+  )
 
   let sent = 0
   let skipped = 0
