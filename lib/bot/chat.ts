@@ -364,12 +364,16 @@ export async function runBotTurn(user: BotUser, text: string, sinceIso?: string,
   }
   if (!reply) reply = 'I got nothing back — try rephrasing?'
 
+  // Explicit created_at — a multi-row insert shares one transaction-time
+  // now(), which left question/reply order unstable in the history fetch.
+  const ts = Date.now()
   await supabase.from('bot_messages').insert([
-    { user_id: user.id, role: 'user', text, audio_path: opts?.audioPath ?? null },
+    { user_id: user.id, role: 'user', text, audio_path: opts?.audioPath ?? null, created_at: new Date(ts).toISOString() },
     {
       user_id: user.id, role: 'model', text: reply.slice(0, 2000),
       tokens: tokens + (opts?.extraTokens ?? 0),
       calls: apiCalls + (opts?.extraCalls ?? 0),
+      created_at: new Date(ts + 1).toISOString(),
     },
   ]).then(() => {}, () => {})
 
