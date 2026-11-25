@@ -138,10 +138,14 @@ export default function BillingV2Page({ params }: { params: Promise<{ id: string
     setInvoiceOpen(true)
   }
 
+  const guard = async (fn: () => Promise<void>) => {
+    try { await fn() } catch (e: any) { setError(e?.message || 'Action failed — try refreshing the page') }
+  }
+
   const saveTotal = async () => {
     const value = parseFloat(totalDraft)
     setSubmitting(true)
-    await setCaseTotal(caseRow.id, isNaN(value) ? null : value)
+    await guard(async () => { await setCaseTotal(caseRow.id, isNaN(value) ? null : value) })
     setEditingTotal(false)
     setSubmitting(false)
     refresh()
@@ -151,17 +155,20 @@ export default function BillingV2Page({ params }: { params: Promise<{ id: string
     const amount = parseFloat(newAmount)
     if (!amount || amount <= 0) return
     setSubmitting(true)
-    await addCharge(caseRow.id, {
-      name: newName || undefined,
-      amount,
-      dueDate: newDue || undefined,
-      kind: newKind,
-      recurDay: newRecurDay ? parseInt(newRecurDay) : undefined,
-      automaticInvoice: newAutoInv,
+    await guard(async () => {
+      const res = await addCharge(caseRow.id, {
+        name: newName || undefined,
+        amount,
+        dueDate: newDue || undefined,
+        kind: newKind,
+        recurDay: newRecurDay ? parseInt(newRecurDay) : undefined,
+        automaticInvoice: newAutoInv,
+      })
+      if (res.error) { setError(res.error); return }
+      setAddOpen(false)
+      setNewName(''); setNewAmount(''); setNewDue(''); setNewRecurDay(''); setNewAutoInv(false); setNewKind('installment')
     })
     setSubmitting(false)
-    setAddOpen(false)
-    setNewName(''); setNewAmount(''); setNewDue(''); setNewRecurDay(''); setNewAutoInv(false); setNewKind('installment')
     refresh()
   }
 
@@ -169,11 +176,13 @@ export default function BillingV2Page({ params }: { params: Promise<{ id: string
     const amount = parseFloat(invAmount)
     if (!invName.trim() || isNaN(amount) || amount <= 0) return
     setSubmitting(true)
-    const res = await createInvoiceFromCharges(caseRow.id, [...selected], invName.trim(), amount, invDue || undefined)
+    await guard(async () => {
+      const res = await createInvoiceFromCharges(caseRow.id, [...selected], invName.trim(), amount, invDue || undefined)
+      if (res.error) { setError(res.error); return }
+      setInvoiceOpen(false)
+      setSelected(new Set())
+    })
     setSubmitting(false)
-    if (res.error) { setError(res.error); return }
-    setInvoiceOpen(false)
-    setSelected(new Set())
     refresh()
   }
 
@@ -236,7 +245,7 @@ export default function BillingV2Page({ params }: { params: Promise<{ id: string
                     type="checkbox"
                     checked={selected.has(c.id)}
                     onChange={() => toggleSelect(c.id)}
-                    className="w-4 h-4 shrink-0 accent-[hsl(var(--color-primary))]"
+                    className="w-5 h-5 shrink-0 accent-[hsl(var(--color-primary))]"
                     title="Select for invoice"
                   />
                 )}
@@ -428,10 +437,15 @@ function ChargeDetailModal({ charge, ordered, payments, caseId, onClose, onChang
 
   const run = async (fn: () => Promise<{ error?: string; success?: boolean }>) => {
     setSubmitting(true)
-    const res = await fn()
-    setSubmitting(false)
-    if (res.error) setErr(res.error)
-    else onChanged()
+    try {
+      const res = await fn()
+      if (res.error) setErr(res.error)
+      else onChanged()
+    } catch (e: any) {
+      setErr(e?.message || 'Action failed — try refreshing the page')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -470,16 +484,16 @@ function ChargeDetailModal({ charge, ordered, payments, caseId, onClose, onChang
 
         {mode === 'view' && (
           <div className="grid grid-cols-2 gap-2">
-            <Button variant="ghost" onClick={() => setMode('edit')}>Edit</Button>
+            <Button variant="secondary" onClick={() => setMode('edit')}>Edit</Button>
             <Button onClick={() => setMode('pay')} disabled={charge.cancelled}>Record payment</Button>
-            <Button variant="ghost" onClick={() => setMode('refund')}>Refund</Button>
+            <Button variant="outline" onClick={() => setMode('refund')}>Refund</Button>
             {confirmDelete ? (
-              <Button variant="ghost" className="text-red-500" disabled={submitting}
+              <Button variant="danger" disabled={submitting}
                 onClick={() => run(() => deleteCharge(charge.id, caseId))}>
                 Confirm delete?
               </Button>
             ) : (
-              <Button variant="ghost" onClick={() => setConfirmDelete(true)}>Delete</Button>
+              <Button variant="outline" className="text-red-500" onClick={() => setConfirmDelete(true)}>Delete</Button>
             )}
           </div>
         )}
@@ -503,7 +517,7 @@ function ChargeDetailModal({ charge, ordered, payments, caseId, onClose, onChang
               Auto-invoice when due
             </label>
             <div className="flex gap-2">
-              <Button variant="ghost" onClick={() => setMode('view')} className="flex-1">Back</Button>
+              <Button variant="outline" onClick={() => setMode('view')} className="flex-1">Back</Button>
               <Button className="flex-1" disabled={submitting}
                 onClick={() => run(() => updateCharge(charge.id, caseId, {
                   name: eName || null,
@@ -540,7 +554,7 @@ function ChargeDetailModal({ charge, ordered, payments, caseId, onClose, onChang
               <Input value={pNote} onChange={e => setPNote(e.target.value)} />
             </div>
             <div className="flex gap-2">
-              <Button variant="ghost" onClick={() => setMode('view')} className="flex-1">Back</Button>
+              <Button variant="outline" onClick={() => setMode('view')} className="flex-1">Back</Button>
               <Button className="flex-1" disabled={submitting || !pAmount}
                 onClick={() => run(() => recordPayment(caseId, charge.id, parseFloat(pAmount), pMethod, pNote || undefined))}>
                 {submitting ? 'Recording...' : 'Record'}
@@ -560,7 +574,7 @@ function ChargeDetailModal({ charge, ordered, payments, caseId, onClose, onChang
               <Input value={rNote} onChange={e => setRNote(e.target.value)} />
             </div>
             <div className="flex gap-2">
-              <Button variant="ghost" onClick={() => setMode('view')} className="flex-1">Back</Button>
+              <Button variant="outline" onClick={() => setMode('view')} className="flex-1">Back</Button>
               <Button className="flex-1" disabled={submitting || !rAmount}
                 onClick={() => run(() => recordRefund(caseId, charge.id, parseFloat(rAmount), rNote || undefined))}>
                 {submitting ? 'Recording...' : 'Record refund'}
