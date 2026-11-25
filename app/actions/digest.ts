@@ -46,10 +46,18 @@ export async function sendMorningDigests(): Promise<{ sent: number; skipped: num
       n(undated, 'undated action'),
       n(neglected, 'neglected case'),
     ].filter(Boolean)
+    const body = parts.join(' · ')
+
+    // Chat message too — visible without push, and proves the cron ran.
+    await admin.from('bot_messages').insert({
+      user_id: u.id,
+      role: 'model',
+      text: `Morning — your queue: ${body}.`,
+    })
 
     await sendPushToUsers([u.id], {
       title: `Morning — ${total} open`,
-      body: parts.join(' · '),
+      body,
       url: '/home',
     })
     sent++
