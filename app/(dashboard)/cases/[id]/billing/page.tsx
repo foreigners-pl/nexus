@@ -1,13 +1,15 @@
 'use client'
 
 import { use, useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { usePaneNavigate } from '@/lib/panes'
 import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys, fetchBillingQuery } from '@/lib/query'
 import { SubPageHeader } from '@/components/shared/SubPageHeader'
 import { PaymentPanel } from '../components/PaymentPanel'
 import { MrcSection } from '../components/MrcSection'
-import { Loader2, Receipt } from 'lucide-react'
+import { Loader2, Receipt, FlaskConical } from 'lucide-react'
 
 interface BillingPageProps {
   params: Promise<{ id: string }>
@@ -25,6 +27,7 @@ export default function CaseBillingPage({ params }: BillingPageProps) {
   const isMounted = useRef(true)
   const supabase = createClient()
   const queryClient = useQueryClient()
+  const paneNav = usePaneNavigate()
 
   useEffect(() => {
     isMounted.current = true
@@ -98,6 +101,15 @@ export default function CaseBillingPage({ params }: BillingPageProps) {
   return (
     <div className="max-w-3xl mx-auto pb-20">
       <SubPageHeader backHref={`/cases/${urlId}`} title={serviceName || caseCode || caseData.case_code || 'Case'} subtitle={subtitle} icon={<Receipt className="w-4 h-4 text-white" />} titleHref={caseData.client_id ? `/clients/${caseData.client_id}` : undefined} />
+
+      <Link
+        href={`/cases/${urlId}/billing/v2`}
+        onClick={(e) => { if (paneNav(`/cases/${urlId}/billing/v2`)) e.preventDefault() }}
+        className="flex items-center gap-2.5 mb-4 px-4 py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/5 text-amber-600 dark:text-amber-500 hover:bg-amber-500/10 transition-colors"
+      >
+        <FlaskConical className="w-4 h-4 shrink-0" />
+        <span className="text-sm font-medium">Try the new billing — preview, doesn't affect this page</span>
+      </Link>
 
       <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-5 space-y-6">
         <div>

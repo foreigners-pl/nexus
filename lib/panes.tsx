@@ -7,6 +7,7 @@ import CasePage from '@/app/(dashboard)/cases/[id]/page'
 import CaseProgressPage from '@/app/(dashboard)/cases/[id]/progress/page'
 import CaseEntryPage from '@/app/(dashboard)/cases/[id]/progress/[entryId]/page'
 import CaseBillingPage from '@/app/(dashboard)/cases/[id]/billing/page'
+import BillingV2Page from '@/app/(dashboard)/cases/[id]/billing/v2/page'
 import InstallmentPage from '@/app/(dashboard)/cases/[id]/billing/[installmentId]/page'
 import CaseFilesPage from '@/app/(dashboard)/cases/[id]/files/page'
 import CaseLegacyPage from '@/app/(dashboard)/cases/[id]/legacy/page'
@@ -44,6 +45,8 @@ function renderPaneRoute(href: string): React.ReactNode | null {
   const searchParams = Promise.resolve(Object.fromEntries(new URLSearchParams(qs || '').entries()))
   let m: RegExpMatchArray | null
 
+  if ((m = path.match(/^\/cases\/([^/]+)\/billing\/v2$/)))
+    return <BillingV2Page params={Promise.resolve({ id: m[1] })} />
   if ((m = path.match(/^\/cases\/([^/]+)\/billing\/([^/]+)$/)))
     return <InstallmentPage params={Promise.resolve({ id: m[1], installmentId: m[2] })} />
   if ((m = path.match(/^\/cases\/([^/]+)\/eligibility\/([^/]+)$/)))
