@@ -477,6 +477,22 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
     swipeAxis.current = null
   }
 
+  // Track is exactly the viewed panel's height — sibling panels render
+  // for the swipe but can't stretch the column. ResizeObserver keeps it
+  // synced as the viewed panel's content changes (region measure, feed
+  // growth, request slot toggling). MUST stay above the early returns —
+  // a hook below them crashes the whole panel (React #310).
+  const [viewedH, setViewedH] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    const viewed = slideRef.current?.querySelectorAll('[data-step-panel]')[viewIdx] as HTMLElement | undefined
+    if (!viewed) { setViewedH(null); return }
+    const update = () => setViewedH(viewed.offsetHeight)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(viewed)
+    return () => ro.disconnect()
+  }, [viewIdx])
+
   if (isLoading) {
     return (
       <div className="px-4 md:px-6 space-y-3 animate-pulse">
@@ -534,21 +550,6 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
     // Oldest first — chat-style, newest message at the bottom by the input
     return items.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
   }
-
-  // Track is exactly the viewed panel's height — sibling panels render
-  // for the swipe but can't stretch the column. ResizeObserver keeps it
-  // synced as the viewed panel's content changes (region measure, feed
-  // growth, request slot toggling).
-  const [viewedH, setViewedH] = useState<number | null>(null)
-  useLayoutEffect(() => {
-    const viewed = slideRef.current?.querySelectorAll('[data-step-panel]')[viewIdx] as HTMLElement | undefined
-    if (!viewed) { setViewedH(null); return }
-    const update = () => setViewedH(viewed.offsetHeight)
-    update()
-    const ro = new ResizeObserver(update)
-    ro.observe(viewed)
-    return () => ro.disconnect()
-  }, [viewIdx])
 
   const viewedStep = steps[viewIdx]
 
