@@ -548,10 +548,14 @@
     padding-top: env(safe-area-inset-top, 0px);
   }
 
-  /* App shell — vh fallback for browsers without dvh support (old Safari) */
+  /* App shell — vh fallback for browsers without dvh support (old Safari),
+     then a JS-measured --app-h wins once set: 100vh/100dvh both overstate
+     the visible height on mobile browsers with dynamic toolbars, which
+     drops the in-flow bottom nav below the fold. */
   .app-shell {
     height: 100vh;
     height: 100dvh;
+    height: var(--app-h, 100dvh);
   }
 }
 

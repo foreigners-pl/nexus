@@ -191,7 +191,7 @@ export default function MobileHomePage({ viewAsUserId, onOpenTab, onBack }: {
   )
 
   return (
-    <div className="min-h-full flex flex-col justify-between space-y-3">
+    <div className="min-h-full flex flex-col justify-between md:justify-start space-y-3">
       {(userName || viewAsUserId) && (
         <div className="sticky -top-4 md:-top-6 z-10 -mx-4 px-4 -mt-4 pt-2 md:-mx-6 md:px-6 md:-mt-6 md:pt-2 pb-1 bg-[hsl(var(--color-background))] flex items-center justify-between gap-2">
           <div className="flex items-center gap-1 min-w-0">

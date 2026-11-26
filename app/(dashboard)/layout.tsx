@@ -37,6 +37,17 @@ export default function DashboardLayout({
     return () => window.removeEventListener('navbar-toggle', handleToggle as EventListener)
   }, [])
 
+  // --app-h = the actually-visible viewport height. Mobile browsers report
+  // 100vh/100dvh taller than what's on screen while the toolbar is showing,
+  // which pushes the in-flow bottom nav below the fold. innerHeight is exact.
+  useEffect(() => {
+    const set = () => document.documentElement.style.setProperty('--app-h', `${window.innerHeight}px`)
+    set()
+    window.addEventListener('resize', set)
+    window.addEventListener('orientationchange', set)
+    return () => { window.removeEventListener('resize', set); window.removeEventListener('orientationchange', set) }
+  }, [])
+
   return (
     <QueryProvider>
       <NotificationProvider>
