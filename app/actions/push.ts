@@ -90,6 +90,10 @@ export async function sendPushToUsers(
       await webpush.sendNotification(
         { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
         body,
+        // High urgency = heads-up banner over whatever app is open on
+        // Android (maps to FCM high priority), instead of waiting quietly
+        // in the shade.
+        { urgency: 'high', TTL: 3600 },
       )
     } catch (err: any) {
       if (err?.statusCode === 404 || err?.statusCode === 410) {
