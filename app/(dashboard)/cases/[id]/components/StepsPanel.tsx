@@ -994,10 +994,17 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
       if (!el) { setRegionH(null); return }
       if (window.innerWidth >= 768) {
         const composer = composerRef.current
-        // The region itself is .overflow-y-auto — closest() would match it,
-        // so start from the parent to reach the pane's scroll column.
-        const scroller = el.parentElement?.closest('.overflow-y-auto') as HTMLElement | null
-        if (!composer || !scroller) { setRegionH(null); return }
+        // Walk up to the real scrollport by computed overflow — the pane
+        // column's class is md:prefixed so a .overflow-y-auto selector
+        // misses it and lands on a wrong (or non-scrolling) ancestor,
+        // which is what left dead space scrollable below the composer.
+        let scroller = el.parentElement
+        while (scroller && scroller !== document.body) {
+          const oy = getComputedStyle(scroller).overflowY
+          if (oy === 'auto' || oy === 'scroll') break
+          scroller = scroller.parentElement
+        }
+        if (!composer || !scroller || scroller === document.body) { setRegionH(null); return }
         const sRect = scroller.getBoundingClientRect()
         const docTop = el.getBoundingClientRect().top - sRect.top + scroller.scrollTop
         // The region's bottom must land exactly on the composer's natural
