@@ -191,7 +191,7 @@ export default function MobileHomePage({ viewAsUserId, onOpenTab, onBack }: {
   )
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {(userName || viewAsUserId) && (
         <div className="sticky -top-4 md:-top-6 z-10 -mx-4 px-4 -mt-4 pt-2 md:-mx-6 md:px-6 md:-mt-6 md:pt-2 pb-1 bg-[hsl(var(--color-background))] flex items-center justify-between gap-2">
           <div className="flex items-center gap-1 min-w-0">
@@ -300,7 +300,7 @@ export default function MobileHomePage({ viewAsUserId, onOpenTab, onBack }: {
             <p className="text-base font-semibold text-[hsl(var(--color-text-primary))] flex-1">Requests</p>
             <ChevronRight className="w-5 h-5 text-[hsl(var(--color-text-muted))]" />
           </div>
-          <div className="grid grid-cols-3 text-center mt-4">
+          <div className="grid grid-cols-3 text-center mt-3">
             <div className="border-r border-[hsl(var(--color-border))]">
               <p className={`text-4xl font-bold ${newTasks ? 'text-blue-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
                 {newTasks ?? '–'}
@@ -349,7 +349,7 @@ export default function MobileHomePage({ viewAsUserId, onOpenTab, onBack }: {
               ))}
             </div>
           </div>
-          <div className="grid grid-cols-3 text-center mt-4">
+          <div className="grid grid-cols-3 text-center mt-3">
             <div className="border-r border-[hsl(var(--color-border))]">
               <p className={`text-4xl font-bold ${deadlineCounts?.[deadlineRange] ? 'text-blue-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
                 {deadlineCounts?.[deadlineRange] ?? '–'}
@@ -395,10 +395,10 @@ export default function MobileHomePage({ viewAsUserId, onOpenTab, onBack }: {
                 onTouchStart={() => prefetchClient(c.id)}
                 className="flex flex-col items-center active:opacity-70"
               >
-                <div className="w-12 h-12 rounded-full bg-[hsl(var(--color-surface-active))] border border-[hsl(var(--color-border))] flex items-center justify-center text-base font-semibold text-[hsl(var(--color-text-primary))]">
+                <div className="w-11 h-11 rounded-full bg-[hsl(var(--color-surface-active))] border border-[hsl(var(--color-border))] flex items-center justify-center text-base font-semibold text-[hsl(var(--color-text-primary))]">
                   {c.name[0]?.toUpperCase() || '?'}
                 </div>
-                <p className="text-[11px] text-[hsl(var(--color-text-secondary))] mt-1.5 truncate w-full text-center">
+                <p className="text-[11px] text-[hsl(var(--color-text-secondary))] mt-1 truncate w-full text-center">
                   {c.name.split(' ')[0]}
                 </p>
               </Link>
