@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useLayoutEffect, useCallback, useRef, type RefObject, type ReactNode } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, type RefObject } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -699,7 +699,6 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
             onMarkSeen={markSeen}
             onCancelRequest={cancelRequest}
             onActionTap={(entry) => setActionTarget({ entry, isNew: entry.kind !== 'action' })}
-            composer={<FeedComposer stepId={s.id} {...composerProps} onSend={() => sendFeedMessage(s.id)} />}
           />
         </div>
       </div>
@@ -740,16 +739,19 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
         </div>
       )}
 
-      {/* Mobile composer — fixed above the tab bar like the nav overlay,
-          bound to the viewed step. Outside the transform track so it never
-          rides along with a swipe. */}
+      {/* Composer — ONE fixed overlay on both platforms, bound to the
+          viewed step. Outside the transform track so it never rides a
+          swipe, and outside the scrollport so it can never create
+          scrollable space below itself. Mobile: pinned above the tab bar
+          by classes; desktop: pinned to the pane column's bottom edge by
+          the region measure. */}
       {viewedStep && viewedStep.id === currentStepId && (
         <div
           data-step-composer
           onTouchStart={e => e.stopPropagation()}
           onTouchMove={e => e.stopPropagation()}
           onTouchEnd={e => e.stopPropagation()}
-          className="md:hidden fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 right-0 z-40 px-4 py-2.5 bg-[hsl(var(--color-background))]"
+          className="fixed z-40 px-4 py-2.5 bg-[hsl(var(--color-background))] max-md:left-0 max-md:right-0 max-md:bottom-[calc(4rem+env(safe-area-inset-bottom))] md:bottom-0"
         >
           <FeedComposer stepId={viewedStep.id} {...composerProps} onSend={() => sendFeedMessage(viewedStep.id)} />
         </div>
@@ -968,7 +970,7 @@ function FeedMessage({ entry, query, attachments, mine, right, selectMode, actio
   )
 }
 
-function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attachmentsByEntry, select, selectedIds, busy, onToggleEntry, onStartSelect, onMarkSeen, onCancelRequest, onActionTap, composer }: {
+function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attachmentsByEntry, select, selectedIds, busy, onToggleEntry, onStartSelect, onMarkSeen, onCancelRequest, onActionTap }: {
   stepId: string
   canPost: boolean
   feed: FeedItem[]
@@ -985,7 +987,6 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
   onMarkSeen: (queryId: string) => void
   onCancelRequest: (queryId: string) => void
   onActionTap: (entry: CaseEntry) => void
-  composer: ReactNode
 }) {
   const stepQueries = Object.values(queries).filter(q => q.step_id === stepId)
   const myOpen = stepQueries.find(q => q.opened_by === meId && q.status === 'open')
@@ -1000,46 +1001,50 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
 
   // Fill the space down to the pinned composer so the message column can
   // anchor to the bottom of it — last message hugs the input, empty space
-  // collects at the top of the chat area. Mobile measures against the fixed
-  // overlay + document scroll; desktop against the sticky composer inside
-  // the pane's own scroll column. Measured before paint.
+  // collects at the top of the chat area. The composer is a fixed overlay
+  // on BOTH platforms — outside the scrollport, it can never create
+  // scrollable space below itself. Desktop pins it to the pane column's
+  // bottom edge; mobile to just above the tab bar. Measured before paint.
   const regionRef = useRef<HTMLDivElement>(null)
   const tailRef = useRef<HTMLDivElement>(null)
-  const composerRef = useRef<HTMLDivElement>(null)
   const [regionH, setRegionH] = useState<number | null>(null)
   const [tailH, setTailH] = useState(44)
   useLayoutEffect(() => {
     const measure = () => {
       const el = regionRef.current
       if (!el) { setRegionH(null); return }
+      const composer = document.querySelector<HTMLElement>('[data-step-composer]')
+      if (!composer) return // overlay mounts in the same commit; next render re-measures
       if (window.innerWidth >= 768) {
-        const composer = composerRef.current
-        // Walk up to the real scrollport by computed overflow — the pane
-        // column's class is md:prefixed so a .overflow-y-auto selector
-        // misses it and lands on a wrong (or non-scrolling) ancestor,
-        // which is what left dead space scrollable below the composer.
+        // Find the pane scroll column by computed overflow — the column's
+        // class is md:prefixed so a .overflow-y-auto selector misses it.
         let scroller = el.parentElement
         while (scroller && scroller !== document.body) {
           const oy = getComputedStyle(scroller).overflowY
           if (oy === 'auto' || oy === 'scroll') break
           scroller = scroller.parentElement
         }
-        if (!composer || !scroller || scroller === document.body) { setRegionH(null); return }
+        if (!scroller || scroller === document.body) { setRegionH(null); return }
         const sRect = scroller.getBoundingClientRect()
+        // Pin the overlay flush to the column's bottom edge, full column
+        // width — viewport coords, immune to pane padding entirely.
+        composer.style.left = `${sRect.left}px`
+        composer.style.width = `${sRect.width}px`
+        composer.style.bottom = `${window.innerHeight - sRect.bottom}px`
         const docTop = el.getBoundingClientRect().top - sRect.top + scroller.scrollTop
-        // The region's bottom must land exactly on the composer's natural
-        // top or the column overflows and the pane scrolls. Composer top =
-        // scrollport bottom − its bottom padding − the space-y gap above
-        // it − its height. Read padding + gap live so a class tweak can't
-        // silently reopen the pane scroll.
-        const padBottom = parseFloat(getComputedStyle(scroller).paddingBottom) || 0
-        const gap = parseFloat(getComputedStyle(composer).marginTop) || 0
-        const target = scroller.clientHeight - padBottom - gap - composer.getBoundingClientRect().height
-        setRegionH(Math.max(target - docTop, 160))
+        // Region fills down to the overlay's top edge. Nothing lives below
+        // the overlay inside the scroller, so the column can never scroll.
+        setRegionH(Math.max(sRect.height - composer.getBoundingClientRect().height - docTop, 160))
+        if (observedScroller !== scroller) {
+          observedScroller = scroller
+          ro.observe(scroller)
+        }
         return
       }
-      const composer = document.querySelector<HTMLElement>('[data-step-composer]')
-      if (!composer) return // overlay mounts in the same commit; next render re-measures
+      // Mobile: overlay is class-pinned above the tab bar.
+      composer.style.left = ''
+      composer.style.width = ''
+      composer.style.bottom = ''
       const composerTop = composer.getBoundingClientRect().top
       const docTop = el.getBoundingClientRect().top + window.scrollY
       // Fill so the region's bottom edge lands exactly on the composer's
@@ -1058,15 +1063,27 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
       const belowWithoutTail = panelBottom - docBottom - (tailRef.current?.offsetHeight ?? 0) + 80
       setTailH(Math.max(window.innerHeight - composerTop - belowWithoutTail, 0))
     }
+    let observedScroller: Element | null = null
+    let raf = 0
+    const queued = () => {
+      if (!raf) raf = requestAnimationFrame(() => { raf = 0; measure() })
+    }
     measure()
     window.addEventListener('resize', measure)
+    // Capture-phase scroll: any ancestor scrolling (incl. the horizontal
+    // pane track sliding columns sideways) needs an overlay re-pin.
+    window.addEventListener('scroll', queued, true)
     // Composer height changes (textarea growth, staged files, errors) don't
     // change the deps below — watch it directly so the fill re-measures.
     const ro = new ResizeObserver(measure)
-    if (composerRef.current) ro.observe(composerRef.current)
     const overlay = document.querySelector<HTMLElement>('[data-step-composer]')
     if (overlay) ro.observe(overlay)
-    return () => { window.removeEventListener('resize', measure); ro.disconnect() }
+    return () => {
+      window.removeEventListener('resize', measure)
+      window.removeEventListener('scroll', queued, true)
+      if (raf) cancelAnimationFrame(raf)
+      ro.disconnect()
+    }
     // Deps, not every-render: a setState here must not be able to retrigger
     // the effect (infinite-loop guard). Re-measure when the feed grows or
     // the composer/request-slot above can change height.
@@ -1188,21 +1205,9 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
 
       {/* Tail below the feed — sized so everything below the region equals
           the zone the fixed composer covers; the anchored bottom lands
-          flush on the input and the last message can scroll clear */}
+          flush on the input and the last message can scroll clear.
+          Mobile only — desktop's region fills to the overlay edge. */}
       {canPost && <div ref={tailRef} className="md:hidden" style={{ height: tailH }} />}
-
-      {/* Composer — desktop only; mobile uses the fixed overlay at the
-          panel root. Sticky to the pane's scroll bottom: pinned while
-          scrolling, in-flow at rest so the last message always scrolls
-          clear. Full-bleed bg so messages don't peek past it. */}
-      {canPost && (
-        <div
-          ref={composerRef}
-          className="hidden md:block sticky bottom-0 z-10 -mx-6 px-6 pt-2 pb-6 bg-[hsl(var(--color-background))] shadow-[0_24px_0_hsl(var(--color-background))]"
-        >
-          {composer}
-        </div>
-      )}
     </div>
   )
 }

@@ -123,6 +123,12 @@ export function ActionsContent({ viewAsUserId, initialFilter }: { viewAsUserId?:
   const withDates = (actions || []).filter(a => a.due_date)
   const late = withDates.filter(a => new Date(a.due_date!).getTime() < todayMs)
   const upcoming = withDates.filter(a => new Date(a.due_date!).getTime() >= todayMs)
+  // Upcoming split into the same ranges the home card toggles between
+  const DAY = 86400000
+  const in7 = upcoming.filter(a => new Date(a.due_date!).getTime() - todayMs < 7 * DAY)
+  const in30 = upcoming.filter(a => { const d = new Date(a.due_date!).getTime() - todayMs; return d >= 7 * DAY && d < 30 * DAY })
+  const in90 = upcoming.filter(a => { const d = new Date(a.due_date!).getTime() - todayMs; return d >= 30 * DAY && d < 90 * DAY })
+  const later = upcoming.filter(a => new Date(a.due_date!).getTime() - todayMs >= 90 * DAY)
   const empty = withDates.length === 0 && missing.length === 0
 
   // Filter tabs — deep-linked from the home stat cells via ?f=
@@ -189,16 +195,21 @@ export function ActionsContent({ viewAsUserId, initialFilter }: { viewAsUserId?:
               </ul>
             </section>
           )}
-          {(filter === 'all' || filter === 'upcoming') && upcoming.length > 0 && (
-            <section>
+          {(filter === 'all' || filter === 'upcoming') && [
+            { label: 'Due in 7 days', items: in7 },
+            { label: 'Due in 30 days', items: in30 },
+            { label: 'Due in 90 days', items: in90 },
+            { label: 'Later', items: later },
+          ].filter(s => s.items.length > 0).map(s => (
+            <section key={s.label}>
               <p className="text-xs font-semibold uppercase tracking-wide mb-2 px-1 text-[hsl(var(--color-text-muted))]">
-                Upcoming · {upcoming.length}
+                {s.label} · {s.items.length}
               </p>
               <ul className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl divide-y divide-[hsl(var(--color-border))] overflow-hidden">
-                {upcoming.map(a => <ActionRow key={a.id} action={a} />)}
+                {s.items.map(a => <ActionRow key={a.id} action={a} />)}
               </ul>
             </section>
-          )}
+          ))}
         </>
       )}
     </div>

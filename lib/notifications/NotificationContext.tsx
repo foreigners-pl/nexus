@@ -3,8 +3,16 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
+export interface LatestAlert {
+  title: string
+  body: string | null
+  link: string | null
+  at: number
+}
+
 interface NotificationContextType {
   unreadCount: number
+  latest: LatestAlert | null
   soundEnabled: boolean
   setSoundEnabled: (enabled: boolean) => void
   soundType: string
@@ -27,6 +35,7 @@ const NotificationContext = createContext<NotificationContextType | undefined>(u
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0)
+  const [latest, setLatest] = useState<LatestAlert | null>(null)
   const [soundEnabled, setSoundEnabledState] = useState(true)
   const [soundType, setSoundTypeState] = useState<SoundType>('bubble')
   const [userId, setUserId] = useState<string | null>(null)
@@ -264,7 +273,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           table: 'user_alerts',
           filter: `user_id=eq.${userId}`
         },
-        () => {
+        (payload) => {
+          if (payload.eventType === 'INSERT' && payload.new) {
+            const n = payload.new as { title?: string; body?: string | null; link?: string | null }
+            if (n.title) setLatest({ title: n.title, body: n.body ?? null, link: n.link ?? null, at: Date.now() })
+          }
           refreshCount()
         }
       )
@@ -320,7 +333,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, [soundEnabled, soundType, playSound])
 
   return (
-    <NotificationContext.Provider value={{ unreadCount, soundEnabled, setSoundEnabled, soundType, setSoundType, refreshCount, testSound }}>
+    <NotificationContext.Provider value={{ unreadCount, latest, soundEnabled, setSoundEnabled, soundType, setSoundType, refreshCount, testSound }}>
       {children}
     </NotificationContext.Provider>
   )
