@@ -1069,6 +1069,9 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
     const queued = () => {
       if (!raf) raf = requestAnimationFrame(() => { raf = 0; measure() })
     }
+    // ro must exist before the first measure() — the desktop branch calls
+    // ro.observe(scroller) inside it, so a later const would be TDZ'd.
+    const ro = new ResizeObserver(measure)
     measure()
     window.addEventListener('resize', measure)
     // Capture-phase scroll: any ancestor scrolling (incl. the horizontal
@@ -1076,7 +1079,6 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
     window.addEventListener('scroll', queued, true)
     // Composer height changes (textarea growth, staged files, errors) don't
     // change the deps below — watch it directly so the fill re-measures.
-    const ro = new ResizeObserver(measure)
     const overlay = document.querySelector<HTMLElement>('[data-step-composer]')
     if (overlay) ro.observe(overlay)
     return () => {
