@@ -16,6 +16,13 @@ import { Button } from '@/components/ui/Button'
 
 const DAY_MS = 86400000
 
+// Quarter-hour options — a select gives the iOS scroll wheel / desktop
+// dropdown instead of the native clock-dial time picker.
+const TIME_OPTIONS: string[] = []
+for (let h = 0; h < 24; h++) for (const m of [0, 15, 30, 45]) {
+  TIME_OPTIONS.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`)
+}
+
 export default function CaseActionsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: caseId } = use(params)
   const queryClient = useQueryClient()
@@ -211,12 +218,15 @@ export default function CaseActionsPage({ params }: { params: Promise<{ id: stri
                   onChange={e => setDueDate(e.target.value)}
                   className="flex-1 h-10 px-3 rounded-lg bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] text-sm text-[hsl(var(--color-text-primary))]"
                 />
-                <input
-                  type="time"
+                <select
                   value={dueTime}
                   onChange={e => setDueTime(e.target.value)}
-                  className="w-28 h-10 px-3 rounded-lg bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] text-sm text-[hsl(var(--color-text-primary))]"
-                />
+                  className="w-24 h-10 px-3 rounded-lg bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] text-sm text-[hsl(var(--color-text-primary))]"
+                >
+                  <option value="">—:—</option>
+                  {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                  {dueTime && !TIME_OPTIONS.includes(dueTime) && <option value={dueTime}>{dueTime}</option>}
+                </select>
               </div>
               {error && <p className="text-xs text-red-400">{error}</p>}
               <div className="flex gap-2">

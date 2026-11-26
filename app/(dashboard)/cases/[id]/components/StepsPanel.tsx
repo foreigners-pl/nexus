@@ -1231,6 +1231,13 @@ function TaskDialog({ entry, isNew, busy, anchorRef, onSave, onComplete, onClose
   const [time, setTime] = useState(entry.due_time?.slice(0, 5) || '')
   const [rect, setRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null)
   const inputCls = 'h-10 px-3 rounded-lg bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] text-sm text-[hsl(var(--color-text-primary))] outline-none'
+  // Quarter-hour options — a select gives the scroll wheel on iOS and a
+  // plain dropdown on desktop, instead of the native clock-dial picker.
+  const timeOptions: string[] = []
+  for (let h = 0; h < 24; h++) for (const m of [0, 15, 30, 45]) {
+    timeOptions.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`)
+  }
+  if (time && !timeOptions.includes(time)) timeOptions.push(time)
 
   useEffect(() => {
     const measure = () => {
@@ -1254,7 +1261,7 @@ function TaskDialog({ entry, isNew, busy, anchorRef, onSave, onComplete, onClose
 
   return (
     <div
-      className="fixed z-50 flex items-end sm:items-center justify-center p-4 bg-black/60"
+      className="fixed z-50 flex items-center justify-center p-4 bg-black/60"
       style={rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : { inset: 0 }}
       onClick={onClose}
     >
@@ -1272,7 +1279,10 @@ function TaskDialog({ entry, isNew, busy, anchorRef, onSave, onComplete, onClose
         )}
         <div className="flex gap-2">
           <input type="date" value={date} onChange={e => setDate(e.target.value)} className={`${inputCls} flex-1`} />
-          <input type="time" value={time} onChange={e => setTime(e.target.value)} className={`${inputCls} w-28`} />
+          <select value={time} onChange={e => setTime(e.target.value)} className={`${inputCls} w-24`}>
+            <option value="">—:—</option>
+            {timeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={onClose} disabled={busy} className="flex-1">
