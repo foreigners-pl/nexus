@@ -764,6 +764,7 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
           entry={actionTarget.entry}
           isNew={actionTarget.isNew}
           busy={feedBusy}
+          anchorRef={slideRef}
           onSave={(d, t) => saveTask(actionTarget.entry, d, t)}
           onComplete={() => completeTask(actionTarget.entry)}
           onClose={() => setActionTarget(null)}
@@ -1216,20 +1217,49 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
 }
 
 // Task dialog — set a deadline on a message (new task) or edit an open
-// task's date/time + mark it complete.
-function TaskDialog({ entry, isNew, busy, onSave, onComplete, onClose }: {
+// task's date/time + mark it complete. On desktop it's scoped to the pane
+// column it was opened from (same rect-pinning as the composer overlay),
+// not centered on the whole viewport; mobile keeps the fullscreen sheet.
+function TaskDialog({ entry, isNew, busy, anchorRef, onSave, onComplete, onClose }: {
   entry: CaseEntry
   isNew: boolean
   busy: boolean
+  anchorRef?: RefObject<HTMLDivElement | null>
   onSave: (dueDate: string, dueTime: string) => void
   onComplete: () => void
   onClose: () => void
 }) {
   const [date, setDate] = useState(entry.due_date || '')
   const [time, setTime] = useState(entry.due_time?.slice(0, 5) || '')
+  const [rect, setRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null)
   const inputCls = 'h-10 px-3 rounded-lg bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] text-sm text-[hsl(var(--color-text-primary))] outline-none'
+
+  useEffect(() => {
+    const measure = () => {
+      if (window.innerWidth < 768) { setRect(null); return }
+      // Same scrollport walk the composer uses — the pane/base column's
+      // overflow class is md:prefixed, so class matching won't find it.
+      let scroller = anchorRef?.current?.parentElement ?? null
+      while (scroller && scroller !== document.body) {
+        const oy = getComputedStyle(scroller).overflowY
+        if (oy === 'auto' || oy === 'scroll') break
+        scroller = scroller.parentElement
+      }
+      if (!scroller || scroller === document.body) { setRect(null); return }
+      const r = scroller.getBoundingClientRect()
+      setRect({ left: r.left, top: r.top, width: r.width, height: r.height })
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [anchorRef])
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60" onClick={onClose}>
+    <div
+      className="fixed z-50 flex items-end sm:items-center justify-center p-4 bg-black/60"
+      style={rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : { inset: 0 }}
+      onClick={onClose}
+    >
       <div
         className="w-full max-w-sm rounded-2xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-3"
         onClick={e => e.stopPropagation()}
