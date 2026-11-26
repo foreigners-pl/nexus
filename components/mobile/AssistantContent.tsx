@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useState, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react'
-import { sendAssistantMessage, sendAssistantVoice, getAssistantAudioUrl, getAssistantHistory, type StagedFile } from '@/app/actions/assistant'
+import { sendAssistantMessage, sendAssistantVoice, getAssistantAudioUrl, type StagedFile } from '@/app/actions/assistant'
 import { createClient } from '@/lib/supabase/client'
 import { usePaneLink, usePaneStack } from '@/lib/panes'
 import { Sparkles, Send, Paperclip, Zap, X, History, Mic, Play, Pause } from 'lucide-react'
@@ -170,6 +170,8 @@ export function AssistantContent() {
   // Two-phase load: the newest 15 messages render and snap to bottom
   // immediately; anything older is fetched next and prepended quietly, so
   // the chat never waits on the full history before showing anything.
+  // Direct PostgREST read (RLS scopes to own rows) — a server action would
+  // cold-start the whole bot/Gemini bundle just to run a SELECT.
   const keepBottomRef = useRef(false)
   useEffect(() => {
     let cancelled = false
@@ -178,17 +180,30 @@ export function AssistantContent() {
       text: m.text,
       audioPath: m.audio_path,
     })
+    const localNow = Date.now() - tz * 60000
+    const since = new Date(Math.floor(localNow / 86400000) * 86400000 + tz * 60000).toISOString()
+    const fetchPage = async (before?: string) => {
+      let q = createClient()
+        .from('bot_messages')
+        .select('role, text, created_at, audio_path')
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(before ? 40 : 15)
+      if (before) q = q.lt('created_at', before)
+      const { data } = await q
+      return (data || []).reverse()
+    }
     ;(async () => {
-      const first = await getAssistantHistory(tz, { limit: 15 })
+      const first = await fetchPage()
       if (cancelled) return
-      setMessages(first.messages.map(mapMsg))
-      const oldest = first.messages[0]?.created_at
-      if (first.messages.length < 15 || !oldest) return
-      const rest = await getAssistantHistory(tz, { limit: 40, before: oldest })
-      if (cancelled || !rest.messages.length) return
+      setMessages(first.map(mapMsg))
+      const oldest = first[0]?.created_at
+      if (first.length < 15 || !oldest) return
+      const rest = await fetchPage(oldest)
+      if (cancelled || !rest.length) return
       const sc = findScroller()
       keepBottomRef.current = !!sc && sc.scrollHeight - sc.scrollTop - sc.clientHeight < 4
-      setMessages(m => [...rest.messages.map(mapMsg), ...(m ?? [])])
+      setMessages(m => [...rest.map(mapMsg), ...(m ?? [])])
     })()
     return () => { cancelled = true }
   }, [])
