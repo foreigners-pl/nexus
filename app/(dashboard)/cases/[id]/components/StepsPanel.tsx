@@ -865,11 +865,11 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
   const alignRight = (authorId: string | null) =>
     authorId === meId || (!viewerIsParty && authorId === legalId)
 
-  // Fill the space down to the pinned composer so the message column can
-  // anchor to the bottom of it — last message hugs the input, empty space
-  // collects at the top of the chat area. Mobile measures against the fixed
-  // overlay + document scroll; desktop against the sticky composer inside
-  // the pane's own scroll column. Measured before paint.
+  // Fill the space down to the pinned composer so the pane doesn't end
+  // early on short feeds — messages stay rooted at the top (newest first)
+  // and empty space collects above the composer. Mobile measures against
+  // the fixed overlay + document scroll; desktop against the sticky
+  // composer inside the pane's own scroll column. Measured before paint.
   const regionRef = useRef<HTMLDivElement>(null)
   const tailRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<HTMLDivElement>(null)
@@ -927,15 +927,8 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
     // the composer/request-slot above can change height.
   }, [canPost, feed.length, select !== null, queries])
 
-  // Open at the bottom instantly — the anchored feed means a short chat
-  // sits near the composer, so landing at scrollTop 0 shows empty space.
-  const snappedRef = useRef(false)
-  useLayoutEffect(() => {
-    if (snappedRef.current || regionH == null || !feed.length || window.innerWidth < 768) return
-    snappedRef.current = true
-    const scroller = regionRef.current?.closest('.overflow-y-auto') as HTMLElement | null
-    if (scroller) scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'auto' })
-  }, [regionH])
+  // Feed is newest-first and rooted at the top of its space, so opening at
+  // scrollTop 0 already shows the latest — no bottom snap needed.
 
   const feedList = feed.length === 0 ? (
     <p className="text-xs text-[hsl(var(--color-text-muted))] py-6 text-center">
@@ -995,16 +988,15 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
         </div>
       )}
 
-      {/* Feed — newest first. Fills down to the pinned composer and anchors
-          messages to its bottom (last message hugs the input), but scrolls
-          with the page/pane — no separate scroll region. */}
+      {/* Feed — newest first, rooted at the top of its space. The region
+          still fills down to the pinned composer so the pane doesn't end
+          early on short feeds, but messages flow from the top. */}
       {canPost ? (
         <div
           ref={regionRef}
           style={regionH ? { minHeight: regionH } : undefined}
-          className="flex flex-col"
         >
-          <div className="mt-auto">{feedList}</div>
+          {feedList}
         </div>
       ) : feedList}
 
@@ -1052,11 +1044,13 @@ function FeedComposer({ stepId, text, setText, staged, onRemoveStaged, busy, err
   const textRef = useRef<HTMLTextAreaElement>(null)
 
   // Grow the field with content up to ~4 lines, then scroll inside it.
+  // scrollHeight excludes the border, so add it back — otherwise the box
+  // is 2px short and a phantom scrollbar shows even on a single line.
   useEffect(() => {
     const t = textRef.current
     if (!t) return
     t.style.height = 'auto'
-    t.style.height = `${Math.min(t.scrollHeight, 110)}px`
+    t.style.height = `${Math.min(t.scrollHeight + (t.offsetHeight - t.clientHeight), 110)}px`
   }, [text])
 
   if (selecting) {
