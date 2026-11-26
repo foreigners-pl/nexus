@@ -405,14 +405,14 @@ export default function WikiPage() {
 
   return (
     <div className={cn(
-      "fixed top-0 right-0 bottom-0 flex transition-all duration-300",
-      "left-0 md:left-16", // No left margin on mobile
+      "flex w-full h-full transition-all duration-300",
+      "md:fixed md:top-0 md:right-0 md:bottom-0 md:left-16", // Desktop: fixed takeover beside the navbar
       !isNavCollapsed && "md:left-56" // Expanded navbar only on md+
     )}>
       {/* Mobile View */}
       <div className="md:hidden flex flex-col h-full w-full bg-[hsl(var(--color-bg))]">
-        {/* Mobile Header */}
-        <div className="flex items-center gap-3 p-4 border-b border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))]">
+        {/* Mobile Header — plain page header; main supplies the padding */}
+        <div className="flex items-center gap-2 px-1 py-2 border-b border-[hsl(var(--color-border))]">
           {mobileView !== 'folders' && (
             <button
               onClick={() => {
@@ -463,7 +463,7 @@ export default function WikiPage() {
         {/* Mobile Content */}
         <div className="flex-1 overflow-y-auto">
           {mobileView === 'folders' && (
-            <div className="p-4 space-y-2">
+            <div className="pt-2 px-0.5 space-y-3">
               {loading ? (
                 <div className="text-center py-8 text-[hsl(var(--color-text-secondary))]">Loading...</div>
               ) : folders.length === 0 ? (
@@ -495,7 +495,7 @@ export default function WikiPage() {
           )}
 
           {mobileView === 'documents' && selectedFolder && (
-            <div className="p-4 space-y-2">
+            <div className="pt-2 px-0.5 space-y-3">
               {(allDocuments[selectedFolder.id] || []).length === 0 ? (
                 <div className="text-center py-8 text-[hsl(var(--color-text-secondary))]">No documents in this folder</div>
               ) : (
@@ -522,7 +522,7 @@ export default function WikiPage() {
           )}
 
           {mobileView === 'viewer' && selectedDocument && (
-            <div className="h-full overflow-hidden p-4">
+            <div className="h-full overflow-hidden pt-2">
               <DocumentViewer
                 document={selectedDocument}
                 canEdit={canEdit}

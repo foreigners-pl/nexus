@@ -175,9 +175,9 @@ export function PaneProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <PaneContext.Provider value={{ openPane, closeFrom, paneCount: panes.length }}>
-      <div className="md:flex md:flex-1 md:min-h-0 md:overflow-x-auto">
+      <div className="h-full md:flex md:flex-1 md:min-h-0 md:overflow-x-auto">
         <div className={cn(
-          'md:h-full md:overflow-y-auto md:px-6 md:py-6 md:relative md:bg-[hsl(var(--color-background))] md:border-r md:border-[hsl(var(--color-border))]',
+          'h-full md:overflow-y-auto md:px-6 md:py-6 md:relative md:bg-[hsl(var(--color-background))] md:border-r md:border-[hsl(var(--color-border))]',
           baseIsPane
             ? 'md:w-[440px] xl:w-[500px] md:shrink-0'
             : 'md:flex-1 md:min-w-[380px]',
