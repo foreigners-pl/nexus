@@ -41,11 +41,26 @@ export default function DashboardLayout({
   // 100vh/100dvh taller than what's on screen while the toolbar is showing,
   // which pushes the in-flow bottom nav below the fold. innerHeight is exact.
   useEffect(() => {
-    const set = () => document.documentElement.style.setProperty('--app-h', `${window.innerHeight}px`)
+    // Take the larger: older iOS keeps innerHeight constant while the toolbar
+    // collapses (vv.height is truth), but the on-screen keyboard shrinks
+    // vv.height — innerHeight keeps the nav put then.
+    const set = () => {
+      const h = Math.max(window.innerHeight, Math.round(window.visualViewport?.height ?? 0))
+      document.documentElement.style.setProperty('--app-h', `${h}px`)
+    }
     set()
     window.addEventListener('resize', set)
     window.addEventListener('orientationchange', set)
-    return () => { window.removeEventListener('resize', set); window.removeEventListener('orientationchange', set) }
+    // iOS toolbar collapse doesn't fire window resize — visualViewport does.
+    const vv = window.visualViewport
+    vv?.addEventListener('resize', set)
+    vv?.addEventListener('scroll', set)
+    return () => {
+      window.removeEventListener('resize', set)
+      window.removeEventListener('orientationchange', set)
+      vv?.removeEventListener('resize', set)
+      vv?.removeEventListener('scroll', set)
+    }
   }, [])
 
   return (

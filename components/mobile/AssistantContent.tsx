@@ -265,13 +265,16 @@ export function AssistantContent() {
   }
 
   const attachFiles = async (files: FileList | null) => {
-    if (!files?.length) return
+    // Snapshot synchronously — the onChange clears input.value right after,
+    // which empties the live FileList before any await below resumes.
+    const list = files ? Array.from(files) : []
+    if (!list.length) return
     setNotice(null)
     const uid = await myId()
     if (!uid) { setNotice('Upload failed — not signed in'); return }
     const supabase = createClient()
     const failed: string[] = []
-    for (const file of Array.from(files)) {
+    for (const file of list) {
       const ext = file.name.split('.').pop()
       const path = `staging/${uid}/${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${ext}`
       const { error } = await supabase.storage.from('case_attachments').upload(path, file, { cacheControl: '3600', upsert: false })
