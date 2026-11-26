@@ -1037,6 +1037,29 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
     regionRef.current?.scrollTo({ top: regionRef.current.scrollHeight, behavior: 'auto' })
   }, [regionH])
 
+  // Auto-scroll on new messages: always when the newest one is mine (I just
+  // sent it); otherwise only when already parked at the bottom, so someone
+  // reading history isn't yanked down. Near-bottom is tracked live because
+  // scrollHeight already includes the new item by the time this runs.
+  const nearBottomRef = useRef(true)
+  const prevLenRef = useRef(feed.length)
+  const onRegionScroll = () => {
+    const el = regionRef.current
+    if (el) nearBottomRef.current = el.scrollTop + el.clientHeight >= el.scrollHeight - 48
+  }
+  useLayoutEffect(() => {
+    const el = regionRef.current
+    if (el && feed.length > prevLenRef.current) {
+      const last = feed[feed.length - 1]
+      const mine = last?.kind === 'msg' && last.entry.created_by === meId
+      if (mine || nearBottomRef.current) {
+        el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+        nearBottomRef.current = true
+      }
+    }
+    prevLenRef.current = feed.length
+  }, [feed.length, meId])
+
   const feedList = feed.length === 0 ? (
     <p className="text-xs text-[hsl(var(--color-text-muted))] py-6 text-center">
       No messages in this step yet
@@ -1110,6 +1133,7 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
       {canPost ? (
         <div
           ref={regionRef}
+          onScroll={onRegionScroll}
           style={regionH ? { height: regionH } : undefined}
           className="overflow-y-auto overscroll-contain flex flex-col"
         >
