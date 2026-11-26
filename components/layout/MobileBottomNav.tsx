@@ -82,7 +82,7 @@ export function MobileBottomNav() {
   }
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[hsl(var(--color-surface))] border-t border-[hsl(var(--color-border))] z-50 safe-area-bottom">
+    <nav className="md:hidden shrink-0 bg-[hsl(var(--color-surface))] border-t border-[hsl(var(--color-border))] safe-area-bottom">
       <div className="flex items-center justify-around h-16">
         {items.map((item) => {
           const isActive = pathname === item.href || 

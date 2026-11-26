@@ -191,7 +191,7 @@ export default function MobileHomePage({ viewAsUserId, onOpenTab, onBack }: {
   )
 
   return (
-    <div className="space-y-3">
+    <div className="min-h-full flex flex-col justify-between space-y-3">
       {(userName || viewAsUserId) && (
         <div className="sticky -top-4 md:-top-6 z-10 -mx-4 px-4 -mt-4 pt-2 md:-mx-6 md:px-6 md:-mt-6 md:pt-2 pb-1 bg-[hsl(var(--color-background))] flex items-center justify-between gap-2">
           <div className="flex items-center gap-1 min-w-0">
@@ -221,7 +221,7 @@ export default function MobileHomePage({ viewAsUserId, onOpenTab, onBack }: {
       )}
 
       {/* Search panel — results float in a dropdown so the panel never grows */}
-      <section className="relative bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl p-4">
+      <section className="relative bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl p-3 md:p-4">
         <div className="flex items-center gap-2 mb-3">
           <Search className="w-5 h-5 text-[hsl(var(--color-primary))]" />
           <h2 className="font-semibold text-[hsl(var(--color-text-primary))] flex-1 whitespace-nowrap">Find a client</h2>
@@ -251,7 +251,7 @@ export default function MobileHomePage({ viewAsUserId, onOpenTab, onBack }: {
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => query.trim().length >= 2 && setDropdownOpen(true)}
           placeholder="First name, last name, or phone…"
-          className="w-full h-11 px-4 rounded-xl bg-[hsl(var(--color-surface-secondary))] border border-[hsl(var(--color-border))] text-[15px] text-[hsl(var(--color-text-primary))] placeholder:text-[hsl(var(--color-text-muted))] outline-none focus:border-[hsl(var(--color-border-hover))]"
+          className="w-full h-10 md:h-11 px-4 rounded-xl bg-[hsl(var(--color-surface-secondary))] border border-[hsl(var(--color-border))] text-[15px] text-[hsl(var(--color-text-primary))] placeholder:text-[hsl(var(--color-text-muted))] outline-none focus:border-[hsl(var(--color-border-hover))]"
         />
 
         {/* Floating dropdown */}
@@ -291,7 +291,7 @@ export default function MobileHomePage({ viewAsUserId, onOpenTab, onBack }: {
         <div
           role="button"
           onClick={() => go('/requests')}
-          className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl p-4 active:bg-[hsl(var(--color-surface-hover))] cursor-pointer"
+          className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl p-3 md:p-4 active:bg-[hsl(var(--color-surface-hover))] cursor-pointer"
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-purple-500/15 flex items-center justify-center shrink-0">
@@ -302,19 +302,19 @@ export default function MobileHomePage({ viewAsUserId, onOpenTab, onBack }: {
           </div>
           <div className="grid grid-cols-3 text-center mt-3">
             <div className="border-r border-[hsl(var(--color-border))]">
-              <p className={`text-4xl font-bold ${newTasks ? 'text-blue-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
+              <p className={`text-3xl md:text-4xl font-bold ${newTasks ? 'text-blue-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
                 {newTasks ?? '–'}
               </p>
               <p className="text-xs text-[hsl(var(--color-text-muted))] mt-1.5">New</p>
             </div>
             <div className="border-r border-[hsl(var(--color-border))]">
-              <p className={`text-4xl font-bold ${lateTasks ? 'text-red-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
+              <p className={`text-3xl md:text-4xl font-bold ${lateTasks ? 'text-red-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
                 {lateTasks ?? '–'}
               </p>
               <p className="text-xs text-[hsl(var(--color-text-muted))] mt-1.5">Late</p>
             </div>
             <div>
-              <p className={`text-4xl font-bold ${answeredCount ? 'text-green-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
+              <p className={`text-3xl md:text-4xl font-bold ${answeredCount ? 'text-green-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
                 {answeredCount ?? '–'}
               </p>
               <p className="text-xs text-[hsl(var(--color-text-muted))] mt-1.5">Answered</p>
@@ -326,7 +326,7 @@ export default function MobileHomePage({ viewAsUserId, onOpenTab, onBack }: {
         <div
           role="button"
           onClick={() => go('/actions')}
-          className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl p-4 active:bg-[hsl(var(--color-surface-hover))] cursor-pointer"
+          className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl p-3 md:p-4 active:bg-[hsl(var(--color-surface-hover))] cursor-pointer"
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-orange-500/15 flex items-center justify-center shrink-0">
@@ -351,19 +351,19 @@ export default function MobileHomePage({ viewAsUserId, onOpenTab, onBack }: {
           </div>
           <div className="grid grid-cols-3 text-center mt-3">
             <div className="border-r border-[hsl(var(--color-border))]">
-              <p className={`text-4xl font-bold ${deadlineCounts?.[deadlineRange] ? 'text-blue-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
+              <p className={`text-3xl md:text-4xl font-bold ${deadlineCounts?.[deadlineRange] ? 'text-blue-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
                 {deadlineCounts?.[deadlineRange] ?? '–'}
               </p>
               <p className="text-xs text-[hsl(var(--color-text-muted))] mt-1.5">Upcoming</p>
             </div>
             <div className="border-r border-[hsl(var(--color-border))]">
-              <p className={`text-4xl font-bold ${overdueCount ? 'text-red-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
+              <p className={`text-3xl md:text-4xl font-bold ${overdueCount ? 'text-red-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
                 {overdueCount}
               </p>
               <p className="text-xs text-[hsl(var(--color-text-muted))] mt-1.5">Late</p>
             </div>
             <div>
-              <p className={`text-4xl font-bold ${neglectedCount ? 'text-amber-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
+              <p className={`text-3xl md:text-4xl font-bold ${neglectedCount ? 'text-amber-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
                 {neglectedCount ?? '–'}
               </p>
               <p className="text-xs text-[hsl(var(--color-text-muted))] mt-1.5">Neglected</p>
@@ -380,7 +380,7 @@ export default function MobileHomePage({ viewAsUserId, onOpenTab, onBack }: {
         </div>
 
         {recentClients.length === 0 ? (
-          <div className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl p-4">
+          <div className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl p-3 md:p-4">
             <p className="text-xs text-[hsl(var(--color-text-muted))]">
               Clients you open will appear here for quick access
             </p>

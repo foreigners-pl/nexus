@@ -68,7 +68,7 @@ export default function DashboardLayout({
             </header>
             <main className={cn(
               "px-4 py-4 flex-1 overflow-y-auto overflow-x-hidden transition-all duration-300",
-              "pb-[calc(4rem+env(safe-area-inset-bottom,0px))]", // Exact clearance for the h-16 + safe-area bottom nav
+              // No bottom pad needed — the mobile nav is in-flow and reserves its own space
               "md:flex md:flex-col md:overflow-hidden md:p-0", // Desktop: pane columns scroll internally, padding lives on the columns
               "ml-0", // No left margin on mobile
               isNavCollapsed ? "md:ml-16" : "md:ml-56" // Left margin on desktop
