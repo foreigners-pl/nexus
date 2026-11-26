@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { Navbar } from '@/components/layout/Navbar'
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav'
-import { FloatingAssistant } from '@/components/layout/FloatingAssistant'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
 import { logout } from '@/app/actions/auth'
 import { LogOut } from 'lucide-react'
@@ -88,7 +87,6 @@ export default function DashboardLayout({
               <PaneProvider>{children}</PaneProvider>
             </main>
             <MobileBottomNav />
-            <FloatingAssistant />
             <LastSeenHeartbeat />
             {/* MiniChat hidden for now */}
             {/* <MiniChat /> */}
