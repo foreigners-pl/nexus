@@ -12,6 +12,7 @@ interface Msg {
   text: string
   audioPath?: string | null
   audioUrl?: string
+  files?: string[]
 }
 
 const SUGGESTIONS = [
@@ -248,7 +249,7 @@ export function AssistantContent() {
     setText('')
     setStaged([])
     setQuickOpen(false)
-    setMessages(m => [...(m || []), { role: 'user', text: value }])
+    setMessages(m => [...(m || []), { role: 'user', text: value, files: staged.map(f => f.name) }])
     setBusy(true)
     const { reply, error } = await sendAssistantMessage(value, staged, tz)
     setMessages(m => [...(m || []), { role: 'model', text: reply || error || 'No reply' }])
@@ -377,6 +378,16 @@ export function AssistantContent() {
                       : 'bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] text-[hsl(var(--color-text-primary))] rounded-bl-md'
                   }`}
                 >
+                  {m.files && m.files.length > 0 && (
+                    <span className="flex flex-wrap gap-1.5 pb-1.5">
+                      {m.files.map(n => (
+                        <span key={n} className="flex items-center gap-1 rounded-md bg-white/15 px-2 py-0.5 text-[11px]">
+                          <Paperclip className="w-3 h-3" />
+                          <span className="max-w-[140px] truncate">{n}</span>
+                        </span>
+                      ))}
+                    </span>
+                  )}
                   {m.audioPath || m.audioUrl ? <AudioBubble path={m.audioPath} initialUrl={m.audioUrl} transcript={m.text} /> : linkify(m.text)}
                 </div>
               </div>
