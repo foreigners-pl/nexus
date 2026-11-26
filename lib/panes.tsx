@@ -98,8 +98,8 @@ function renderPaneRoute(href: string): React.ReactNode | null {
     )
   if ((m = path.match(/^\/admin\/view-as\/([^/]+)$/)))
     return <ViewAsPage params={Promise.resolve({ userId: m[1] })} />
-  if (path === '/requests') return <RequestsContent />
-  if (path === '/actions') return <ActionsContent />
+  if (path === '/requests') return <RequestsContent initialFilter={new URLSearchParams(qs || '').get('f') || undefined} />
+  if (path === '/actions') return <ActionsContent initialFilter={new URLSearchParams(qs || '').get('f') || undefined} />
   if (path === '/notifications') return <NotificationsContent />
   if (path === '/search') {
     const q = new URLSearchParams(qs || '').get('q') || ''

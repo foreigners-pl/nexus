@@ -535,6 +535,21 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
     return items.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
   }
 
+  // Track is exactly the viewed panel's height — sibling panels render
+  // for the swipe but can't stretch the column. ResizeObserver keeps it
+  // synced as the viewed panel's content changes (region measure, feed
+  // growth, request slot toggling).
+  const [viewedH, setViewedH] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    const viewed = slideRef.current?.querySelectorAll('[data-step-panel]')[viewIdx] as HTMLElement | undefined
+    if (!viewed) { setViewedH(null); return }
+    const update = () => setViewedH(viewed.offsetHeight)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(viewed)
+    return () => ro.disconnect()
+  }, [viewIdx])
+
   const viewedStep = steps[viewIdx]
 
   const composerProps = {
@@ -708,9 +723,14 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
         // Bleed to the screen edges; each panel carries the page padding
         // itself so neighbors never touch during the slide.
         <div className="-mx-4 md:-mx-6 overflow-x-clip">
+          {/* Track height = the VIEWED panel's height. Siblings render
+              in-flow for the swipe, but a tall off-screen step (long
+              non-active feed) must not stretch the track — that was the
+              phantom page scroll. */}
           <div
-            className="flex items-start will-change-transform"
+            className="flex items-start will-change-transform overflow-y-clip"
             style={{
+              height: viewedH ?? undefined,
               transform: `translateX(${-viewIdx * 100 + dragPct}%)`,
               transition: animating ? 'transform 200ms ease-out' : 'none',
             }}

@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query'
 import type { MyAction, MissingActionCase } from '@/app/actions/workflow'
@@ -87,7 +88,17 @@ function ActionRow({ action }: { action: MyAction }) {
   )
 }
 
-export function ActionsContent({ viewAsUserId }: { viewAsUserId?: string }) {
+const TASK_FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'upcoming', label: 'Upcoming' },
+  { id: 'late', label: 'Late' },
+  { id: 'neglected', label: 'Neglected' },
+] as const
+
+export function ActionsContent({ viewAsUserId, initialFilter }: { viewAsUserId?: string; initialFilter?: string }) {
+  const [filter, setFilter] = useState(initialFilter || 'all')
+  // Deep links (?f=late) re-render the same mounted page — re-sync the tab
+  useEffect(() => { if (initialFilter) setFilter(initialFilter) }, [initialFilter])
   const { data } = useQuery({
     queryKey: viewAsUserId ? ['viewas-actions', viewAsUserId] : queryKeys.myActions,
     queryFn: async () => {
@@ -114,21 +125,51 @@ export function ActionsContent({ viewAsUserId }: { viewAsUserId?: string }) {
   const upcoming = withDates.filter(a => new Date(a.due_date!).getTime() >= todayMs)
   const empty = withDates.length === 0 && missing.length === 0
 
+  // Filter tabs — deep-linked from the home stat cells via ?f=
+  const counts: Record<string, number> = {
+    all: withDates.length + missing.length,
+    upcoming: upcoming.length,
+    late: late.length,
+    neglected: missing.length,
+  }
+  const filteredEmpty =
+    (filter === 'upcoming' && counts.upcoming === 0) ||
+    (filter === 'late' && counts.late === 0) ||
+    (filter === 'neglected' && counts.neglected === 0)
+
   return (
     <div className="space-y-5">
       {!viewAsUserId && <MobileBackHeader title="Tasks" />}
+
+      {!!actions && (
+        <div className="flex gap-1.5">
+          {TASK_FILTERS.map(f => (
+            <button
+              key={f.id}
+              onClick={() => setFilter(f.id)}
+              className={`flex-1 h-9 rounded-xl text-xs font-semibold transition-colors ${
+                filter === f.id
+                  ? 'bg-[hsl(var(--color-primary))] text-white'
+                  : 'bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] text-[hsl(var(--color-text-secondary))]'
+              }`}
+            >
+              {f.label}{counts[f.id] > 0 ? ` · ${counts[f.id]}` : ''}
+            </button>
+          ))}
+        </div>
+      )}
 
       {!actions ? (
         <div className="flex justify-center py-10">
           <Loader2 className="w-5 h-5 animate-spin text-[hsl(var(--color-text-muted))]" />
         </div>
-      ) : empty ? (
+      ) : empty || filteredEmpty ? (
         <div className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl p-8 text-center">
           <p className="text-sm text-[hsl(var(--color-text-secondary))]">No tasks on your cases</p>
         </div>
       ) : (
         <>
-          {missing.length > 0 && (
+          {(filter === 'all' || filter === 'neglected') && missing.length > 0 && (
             <section>
               <p className="text-xs font-semibold uppercase tracking-wide mb-2 px-1 text-amber-400">
                 Neglected · {missing.length}
@@ -138,7 +179,7 @@ export function ActionsContent({ viewAsUserId }: { viewAsUserId?: string }) {
               </ul>
             </section>
           )}
-          {late.length > 0 && (
+          {(filter === 'all' || filter === 'late') && late.length > 0 && (
             <section>
               <p className="text-xs font-semibold uppercase tracking-wide mb-2 px-1 text-red-400">
                 Late · {late.length}
@@ -148,7 +189,7 @@ export function ActionsContent({ viewAsUserId }: { viewAsUserId?: string }) {
               </ul>
             </section>
           )}
-          {upcoming.length > 0 && (
+          {(filter === 'all' || filter === 'upcoming') && upcoming.length > 0 && (
             <section>
               <p className="text-xs font-semibold uppercase tracking-wide mb-2 px-1 text-[hsl(var(--color-text-muted))]">
                 Upcoming · {upcoming.length}

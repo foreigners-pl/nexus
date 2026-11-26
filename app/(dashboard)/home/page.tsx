@@ -44,9 +44,9 @@ export default function MobileHomePage({ viewAsUserId, onOpenTab, onBack }: {
   /** On desktop opens href as a pane; otherwise navigates normally. */
   const go = (href: string) => {
     if (viewAsUserId && onOpenTab) {
-      if (href === '/requests') return onOpenTab('requests')
-      if (href === '/actions') return onOpenTab('actions')
-      if (href === '/assistant') return onOpenTab('assistant')
+      if (href.startsWith('/requests')) return onOpenTab('requests')
+      if (href.startsWith('/actions')) return onOpenTab('actions')
+      if (href.startsWith('/assistant')) return onOpenTab('assistant')
     }
     if (!paneNav(href)) router.push(href)
   }
@@ -301,19 +301,19 @@ export default function MobileHomePage({ viewAsUserId, onOpenTab, onBack }: {
             <ChevronRight className="w-5 h-5 text-[hsl(var(--color-text-muted))]" />
           </div>
           <div className="grid grid-cols-3 text-center mt-3">
-            <div className="border-r border-[hsl(var(--color-border))]">
+            <div className="border-r border-[hsl(var(--color-border))]" onClick={(e) => { e.stopPropagation(); go('/requests?f=new') }}>
               <p className={`text-3xl md:text-4xl font-bold ${newTasks ? 'text-blue-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
                 {newTasks ?? '–'}
               </p>
               <p className="text-xs text-[hsl(var(--color-text-muted))] mt-1.5">New</p>
             </div>
-            <div className="border-r border-[hsl(var(--color-border))]">
+            <div className="border-r border-[hsl(var(--color-border))]" onClick={(e) => { e.stopPropagation(); go('/requests?f=late') }}>
               <p className={`text-3xl md:text-4xl font-bold ${lateTasks ? 'text-red-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
                 {lateTasks ?? '–'}
               </p>
               <p className="text-xs text-[hsl(var(--color-text-muted))] mt-1.5">Late</p>
             </div>
-            <div>
+            <div onClick={(e) => { e.stopPropagation(); go('/requests?f=answered') }}>
               <p className={`text-3xl md:text-4xl font-bold ${answeredCount ? 'text-green-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
                 {answeredCount ?? '–'}
               </p>
@@ -350,19 +350,19 @@ export default function MobileHomePage({ viewAsUserId, onOpenTab, onBack }: {
             </div>
           </div>
           <div className="grid grid-cols-3 text-center mt-3">
-            <div className="border-r border-[hsl(var(--color-border))]">
+            <div className="border-r border-[hsl(var(--color-border))]" onClick={(e) => { e.stopPropagation(); go('/actions?f=upcoming') }}>
               <p className={`text-3xl md:text-4xl font-bold ${deadlineCounts?.[deadlineRange] ? 'text-blue-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
                 {deadlineCounts?.[deadlineRange] ?? '–'}
               </p>
               <p className="text-xs text-[hsl(var(--color-text-muted))] mt-1.5">Upcoming</p>
             </div>
-            <div className="border-r border-[hsl(var(--color-border))]">
+            <div className="border-r border-[hsl(var(--color-border))]" onClick={(e) => { e.stopPropagation(); go('/actions?f=late') }}>
               <p className={`text-3xl md:text-4xl font-bold ${overdueCount ? 'text-red-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
                 {overdueCount}
               </p>
               <p className="text-xs text-[hsl(var(--color-text-muted))] mt-1.5">Late</p>
             </div>
-            <div>
+            <div onClick={(e) => { e.stopPropagation(); go('/actions?f=neglected') }}>
               <p className={`text-3xl md:text-4xl font-bold ${neglectedCount ? 'text-amber-400' : 'text-[hsl(var(--color-text-primary))]'}`}>
                 {neglectedCount ?? '–'}
               </p>

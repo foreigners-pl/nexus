@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query'
 import type { MyQuery } from '@/app/actions/workflow'
@@ -155,10 +155,20 @@ function TaskGroup({ title, tasks, accent }: { title: string; tasks: Task[]; acc
   )
 }
 
-export function RequestsContent({ viewAsUserId }: { viewAsUserId?: string }) {
+const REQUEST_FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'new', label: 'New' },
+  { id: 'late', label: 'Late' },
+  { id: 'answered', label: 'Answered' },
+] as const
+
+export function RequestsContent({ viewAsUserId, initialFilter }: { viewAsUserId?: string; initialFilter?: string }) {
   const queryClient = useQueryClient()
   const [showHistory, setShowHistory] = useState(false)
   const [markingAll, setMarkingAll] = useState(false)
+  const [filter, setFilter] = useState(initialFilter || 'all')
+  // Deep links (?f=late) re-render the same mounted page — re-sync the tab
+  useEffect(() => { if (initialFilter) setFilter(initialFilter) }, [initialFilter])
   const { data } = useQuery({
     queryKey: viewAsUserId ? ['viewas-requests', viewAsUserId] : queryKeys.requests,
     queryFn: async () => {
@@ -203,6 +213,23 @@ export function RequestsContent({ viewAsUserId }: { viewAsUserId?: string }) {
   const freshQueries = toAnswer.filter(q => pendingSince(q) >= cutoff)
   const empty = tasks.length === 0 && queries.length === 0
 
+  // Filter tabs — 'all' shows the full grouped layout; a bucket tab shows
+  // only that bucket. Counts combine queries + board tasks per bucket.
+  const counts: Record<string, number> = {
+    all: tasks.length + queries.length,
+    new: freshQueries.length + fresh.length,
+    late: lateQueries.length + late.length,
+    answered: answered.length,
+  }
+  const showQueries = (bucket: 'late' | 'new' | 'answered') =>
+    filter === 'all' || filter === bucket
+  const showTasks = (bucket: 'late' | 'new') =>
+    filter === 'all' || filter === bucket
+  const filteredEmpty =
+    (filter === 'new' && counts.new === 0) ||
+    (filter === 'late' && counts.late === 0) ||
+    (filter === 'answered' && counts.answered === 0)
+
   const markAll = async () => {
     // Optimistic — answered rows leave the list immediately; on failure the
     // snapshot is restored.
@@ -227,13 +254,30 @@ export function RequestsContent({ viewAsUserId }: { viewAsUserId?: string }) {
     <div className="space-y-5">
       {!viewAsUserId && <MobileBackHeader title="Requests" />}
 
-      {empty ? (
+      {/* Filter tabs — deep-linked from the home stat cells via ?f= */}
+      <div className="flex gap-1.5">
+        {REQUEST_FILTERS.map(f => (
+          <button
+            key={f.id}
+            onClick={() => setFilter(f.id)}
+            className={`flex-1 h-9 rounded-xl text-xs font-semibold transition-colors ${
+              filter === f.id
+                ? 'bg-[hsl(var(--color-primary))] text-white'
+                : 'bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] text-[hsl(var(--color-text-secondary))]'
+            }`}
+          >
+            {f.label}{counts[f.id] > 0 ? ` · ${counts[f.id]}` : ''}
+          </button>
+        ))}
+      </div>
+
+      {empty || filteredEmpty ? (
         <div className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl p-8 text-center">
           <p className="text-sm text-[hsl(var(--color-text-secondary))]">Nothing needs your attention</p>
         </div>
       ) : (
         <>
-          {lateQueries.length > 0 && (
+          {showQueries('late') && lateQueries.length > 0 && (
             <section>
               <p className="text-xs font-semibold uppercase tracking-wide mb-2 px-1 text-red-400">
                 Late requests · {lateQueries.length}
@@ -243,7 +287,7 @@ export function RequestsContent({ viewAsUserId }: { viewAsUserId?: string }) {
               </ul>
             </section>
           )}
-          {freshQueries.length > 0 && (
+          {showQueries('new') && freshQueries.length > 0 && (
             <section>
               <p className="text-xs font-semibold uppercase tracking-wide mb-2 px-1 text-blue-400">
                 New requests · {freshQueries.length}
@@ -253,7 +297,7 @@ export function RequestsContent({ viewAsUserId }: { viewAsUserId?: string }) {
               </ul>
             </section>
           )}
-          {answered.length > 0 && (
+          {showQueries('answered') && answered.length > 0 && (
             <section>
               <div className="flex items-baseline justify-between mb-2 px-1">
                 <p className="text-xs font-semibold uppercase tracking-wide text-green-400">
@@ -274,12 +318,12 @@ export function RequestsContent({ viewAsUserId }: { viewAsUserId?: string }) {
               </ul>
             </section>
           )}
-          <TaskGroup title="Late tasks" tasks={late} accent="text-red-400" />
-          <TaskGroup title="New tasks" tasks={fresh} accent="text-blue-400" />
+          {showTasks('late') && <TaskGroup title="Late tasks" tasks={late} accent="text-red-400" />}
+          {showTasks('new') && <TaskGroup title="New tasks" tasks={fresh} accent="text-blue-400" />}
         </>
       )}
 
-      {history.length > 0 && (
+      {(filter === 'all' || filter === 'answered') && history.length > 0 && (
         <section>
           {!showHistory ? (
             <button
