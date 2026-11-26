@@ -77,22 +77,22 @@ const SYSTEM_PROMPT = `You are the Nexus CRM assistant, chatting inside the CRM 
 The CRM organises work into CASES (identified by a code like C0000582 and a client name). Each case moves through workflow STEPS. Key concepts:
 - Step feed: every step has a chat-like feed of messages and thin event lines.
 - Requests: a user highlights their own message(s) on a step as a formal request to the other party (CSR ↔ legal). The assignee answers; the requester then marks it seen before requesting again. A request waiting over 24h is "late". Board tasks appear in the same queue.
-- Actions: personal reminders with a due date, set on a case. Late = past due. A case is "neglected" when it has zero open actions.
+- Tasks: personal reminders with a due date, set on a case. Late = past due. A case is "neglected" when it has zero open tasks.
 - Notifications: informational alerts (new requests, answers, deadlines) the user receives; they can be marked as read.
 - Eligibility: presale confirmation steps.
 
 Rules:
 - You act as the signed-in user — be concise, plain text, no markdown except links.
-- Linkify case and client mentions with [label](/path): name-first like [Damjann Test (C0000586)](/cases/C0000586) — always put the client name first with the code in brackets, never the bare code alone; clients need their id like [Milana Novak](/clients/<uuid>). Only linkify on first mention. When the topic is requests, messages, or actions on a case, link straight to its feed like [Damjann Test (C0000586)](/cases/C0000586/progress); for billing/money topics use /cases/<code>/billing instead.
+- Linkify case and client mentions with [label](/path): name-first like [Damjann Test (C0000586)](/cases/C0000586) — always put the client name first with the code in brackets, never the bare code alone; clients need their id like [Milana Novak](/clients/<uuid>). Only linkify on first mention. When the topic is requests, messages, or tasks on a case, link straight to its feed like [Damjann Test (C0000586)](/cases/C0000586/progress); for billing/money topics use /cases/<code>/billing instead.
 - For multi-part requests (e.g. create a client, then a case, then messages) work through them in order with tool calls; only stop to ask when something is genuinely ambiguous.
 - New clients/cases: create_client makes the person; create_case needs an existing client, optionally a service and a lawyer. Messages and requests go to the case's current step.
-- For write actions (messages, requests, answers, actions, cancellations), just do them — the user asked you to.
+- For write actions (messages, requests, answers, tasks, cancellations), just do them — the user asked you to.
 - Follow counts and specifics literally: if they ask for N messages, send exactly N — no extra "initiated" or filler messages they didn't request. A request counts as one of the messages.
 - Each day is a fresh session — you only see today's chat. For anything from earlier days use read_session; say "let me check" rather than guessing what was discussed.
 - Live tool output beats memory: report only what the tools return right now — never repeat queue items from earlier messages, the user may have cleared them since.
-- When listing queue items (requests, actions, tasks, neglected cases) use one bullet per line:
+- When listing queue items (requests, tasks, board tasks, neglected cases) use one bullet per line:
   "• Request on [Damjann Test (C0000586)](/cases/C0000586/progress): what it's about"
-  "• Action on [case]: what's needed" — the linked case first, then a short explanation of what it needs.
+  "• Task on [case]: what's needed" — the linked case first, then a short explanation of what it needs.
 - If a case reference is ambiguous, ask which one.
 - If the user asks for something the tools can't do, say so briefly.
 - Answer in the language the user writes in.`
@@ -105,7 +105,7 @@ const FUNCTION_DECLARATIONS = [
   },
   {
     name: 'list_actions',
-    description: "The user's open action reminders bucketed into late / upcoming / undated, plus neglected_cases (their cases with zero open actions).",
+    description: "The user's open task reminders bucketed into late / upcoming / undated, plus neglected_cases (their cases with zero open tasks).",
     parameters: { type: Type.OBJECT, properties: {}, required: [] },
   },
   {
@@ -173,7 +173,7 @@ const FUNCTION_DECLARATIONS = [
   },
   {
     name: 'get_case',
-    description: 'Get a case overview: client, current step, live request count, open actions.',
+    description: 'Get a case overview: client, current step, live request count, open tasks.',
     parameters: {
       type: Type.OBJECT,
       properties: { case: { type: Type.STRING, description: 'Case code (e.g. C0000582) or client name' } },
@@ -252,7 +252,7 @@ const FUNCTION_DECLARATIONS = [
   },
   {
     name: 'set_action',
-    description: 'Set a personal action reminder on a case with a due date.',
+    description: 'Set a personal task reminder on a case with a due date.',
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -265,12 +265,12 @@ const FUNCTION_DECLARATIONS = [
   },
   {
     name: 'complete_action',
-    description: 'Mark one of the user\'s open actions as done. Optionally narrow by case and/or text match.',
+    description: 'Mark one of the user\'s open tasks as done. Optionally narrow by case and/or text match.',
     parameters: {
       type: Type.OBJECT,
       properties: {
         case: { type: Type.STRING },
-        text: { type: Type.STRING, description: 'Part of the action text to match' },
+        text: { type: Type.STRING, description: 'Part of the task text to match' },
       },
       required: [],
     },

@@ -25,6 +25,7 @@ export default function CaseActionsPage({ params }: { params: Promise<{ id: stri
   const [form, setForm] = useState<'new' | string | null>(null) // 'new' or entry id
   const [body, setBody] = useState('')
   const [dueDate, setDueDate] = useState('')
+  const [dueTime, setDueTime] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -54,6 +55,7 @@ export default function CaseActionsPage({ params }: { params: Promise<{ id: stri
     setForm('new')
     setBody('')
     setDueDate('')
+    setDueTime('')
     setError(null)
   }
 
@@ -61,6 +63,7 @@ export default function CaseActionsPage({ params }: { params: Promise<{ id: stri
     setForm(a.id)
     setBody(a.body || '')
     setDueDate(a.due_date || '')
+    setDueTime(a.due_time?.slice(0, 5) || '')
     setError(null)
   }
 
@@ -70,7 +73,7 @@ export default function CaseActionsPage({ params }: { params: Promise<{ id: stri
   const submit = async () => {
     if (!form || !body.trim() || !dueDate) return
     const editing = form !== 'new' ? form : null
-    const draft = { body, dueDate }
+    const draft = { body, dueDate, dueTime }
     const now = new Date().toISOString()
     setError(null)
     setForm(null)
@@ -79,7 +82,7 @@ export default function CaseActionsPage({ params }: { params: Promise<{ id: stri
     let prevAction: CaseEntry | undefined
     if (editing) {
       prevAction = actions.find(a => a.id === editing)
-      setActions(prev => prev.map(a => (a.id === editing ? { ...a, body: body.trim(), due_date: dueDate } : a)))
+      setActions(prev => prev.map(a => (a.id === editing ? { ...a, body: body.trim(), due_date: dueDate, due_time: dueTime || null } : a)))
     } else {
       optimistic = {
         id: `temp-${Date.now()}`,
@@ -90,6 +93,7 @@ export default function CaseActionsPage({ params }: { params: Promise<{ id: stri
         created_by: meId,
         created_at: now,
         due_date: dueDate,
+        due_time: dueTime || null,
         waiting_on: null,
         completed_at: null,
         completed_by: null,
@@ -101,8 +105,8 @@ export default function CaseActionsPage({ params }: { params: Promise<{ id: stri
     }
 
     const r = editing
-      ? await updateAction(editing, caseId, draft.body, draft.dueDate)
-      : await createAction(caseId, draft.body, draft.dueDate)
+      ? await updateAction(editing, caseId, draft.body, draft.dueDate, undefined, draft.dueTime || undefined)
+      : await createAction(caseId, draft.body, draft.dueDate, undefined, draft.dueTime || undefined)
 
     if (r.error) {
       if (optimistic) setActions(prev => prev.filter(a => a.id !== optimistic!.id))
@@ -110,6 +114,7 @@ export default function CaseActionsPage({ params }: { params: Promise<{ id: stri
       setForm(editing ?? 'new')
       setBody(draft.body)
       setDueDate(draft.dueDate)
+      setDueTime(draft.dueTime)
       setError(r.error)
       return
     }
@@ -133,10 +138,10 @@ export default function CaseActionsPage({ params }: { params: Promise<{ id: stri
   const done = actions.filter(a => a.completed_at)
 
   return (
-    <div className="pb-20">
+    <div>
       <SubPageHeader
         backHref={`/cases/${caseId}`}
-        title="Actions"
+        title="Tasks"
         subtitle="Your reminders on this case"
         icon={<Zap className="w-4 h-4 text-white" />}
       />
@@ -166,7 +171,7 @@ export default function CaseActionsPage({ params }: { params: Promise<{ id: stri
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-[hsl(var(--color-text-primary))]">{a.body}</p>
                     <p className={`text-xs mt-0.5 ${overdue ? 'text-red-400 font-medium' : 'text-[hsl(var(--color-text-muted))]'}`}>
-                      {a.due_date ? `Due ${new Date(a.due_date).toLocaleDateString()}` : 'No due date'}
+                      {a.due_date ? `Due ${new Date(a.due_date).toLocaleDateString()}${a.due_time ? ` ${a.due_time.slice(0, 5)}` : ''}` : 'No due date'}
                       {!mine && ` · ${a.author?.display_name || a.author?.email?.split('@')[0] || 'someone'}'s`}
                     </p>
                   </div>
@@ -188,7 +193,7 @@ export default function CaseActionsPage({ params }: { params: Promise<{ id: stri
           {form === null ? (
             <Button variant="secondary" onClick={openNew} className="w-full gap-2">
               <Plus className="w-4 h-4" />
-              Add action
+              Add task
             </Button>
           ) : (
             <div className="rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-3">
@@ -199,12 +204,20 @@ export default function CaseActionsPage({ params }: { params: Promise<{ id: stri
                 placeholder="Remind yourself to…"
                 className="w-full h-10 px-3 rounded-lg bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] text-sm text-[hsl(var(--color-text-primary))] placeholder:text-[hsl(var(--color-text-muted))] outline-none"
               />
-              <input
-                type="date"
-                value={dueDate}
-                onChange={e => setDueDate(e.target.value)}
-                className="h-10 px-3 rounded-lg bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] text-sm text-[hsl(var(--color-text-primary))]"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={e => setDueDate(e.target.value)}
+                  className="flex-1 h-10 px-3 rounded-lg bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] text-sm text-[hsl(var(--color-text-primary))]"
+                />
+                <input
+                  type="time"
+                  value={dueTime}
+                  onChange={e => setDueTime(e.target.value)}
+                  className="w-28 h-10 px-3 rounded-lg bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] text-sm text-[hsl(var(--color-text-primary))]"
+                />
+              </div>
               {error && <p className="text-xs text-red-400">{error}</p>}
               <div className="flex gap-2">
                 <Button variant="secondary" onClick={() => setForm(null)} className="flex-1">Cancel</Button>

@@ -44,9 +44,9 @@ export async function sendMorningDigests(onlyUserId?: string): Promise<{ sent: n
         n(toAnswer.filter(q => !q.late).length, 'new request'),
         n(review.length, 'answer to review'),
         n(tasks.length, 'board task'),
-        n(lateAct.length, 'late action'),
-        n(upcoming.length, 'upcoming action'),
-        n(undated.length, 'undated action'),
+        n(lateAct.length, 'late task'),
+        n(upcoming.length, 'upcoming task'),
+        n(undated.length, 'undated task'),
         n(neglected.length, 'neglected case'),
       ].filter(Boolean).join(' · ')
 
@@ -58,8 +58,8 @@ export async function sendMorningDigests(onlyUserId?: string): Promise<{ sent: n
         ...toAnswer.map(q => `• Request on ${link(q.case, q.case_id)}: ${q.about || 'needs your answer'}${q.late ? ' — waiting over a day' : ''}`),
         ...review.map(q => `• Answer on ${link(q.case, q.case_id)}: ${q.about || 'answered'} — mark it seen`),
         ...tasks.map(t => `• Task on ${t.board || 'board'}: ${t.title}${t.due ? ` (due ${t.due})` : ''}`),
-        ...[...lateAct, ...upcoming, ...undated].map(a => `• Action on ${link(a.case, a.case_id)}: ${a.what}${a.due ? ` (due ${a.due})` : ''}`),
-        ...neglected.map(c => `• Neglected case: ${link(c.case, c.case_id)} has no open actions`),
+        ...[...lateAct, ...upcoming, ...undated].map(a => `• Task on ${link(a.case, a.case_id)}: ${a.what}${a.due ? ` (due ${a.due})` : ''}`),
+        ...neglected.map(c => `• Neglected case: ${link(c.case, c.case_id)} has no open tasks`),
       ]
       const chatText = `Morning — your queue:\n${bullets.slice(0, 8).join('\n')}${bullets.length > 8 ? `\n…and ${bullets.length - 8} more` : ''}`
 

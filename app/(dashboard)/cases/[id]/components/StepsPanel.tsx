@@ -6,6 +6,9 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
   getCaseWorkflow,
   moveToStep,
+  promoteToAction,
+  updateAction,
+  completeAction,
   type CaseStep,
   type CaseEntry,
   type CaseQuery,
@@ -157,8 +160,10 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
   const [staged, setStaged] = useState<{ id: string; name: string }[]>([])
   const [feedBusy, setFeedBusy] = useState(false)
   const [feedError, setFeedError] = useState<string | null>(null)
-  const [select, setSelect] = useState<null | { mode: 'request' | 'answer'; stepId: string; queryId?: string }>(null)
+  const [select, setSelect] = useState<null | { mode: 'request' | 'answer' | 'action'; stepId: string; queryId?: string }>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  // Task dialog — the entry being promoted to a task (isNew) or edited
+  const [actionTarget, setActionTarget] = useState<null | { entry: CaseEntry; isNew: boolean }>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const refreshAll = () => {
@@ -239,7 +244,7 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
     refreshAll()
   }
 
-  const startSelect = (mode: 'request' | 'answer', stepId: string, queryId?: string) => {
+  const startSelect = (mode: 'request' | 'answer' | 'action', stepId: string, queryId?: string) => {
     setSelect({ mode, stepId, queryId })
     setSelectedIds(new Set())
   }
@@ -250,6 +255,13 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
   }
 
   const toggleSelectEntry = (entryId: string) => {
+    // Action mode: a tap immediately opens the date/time dialog — no
+    // multi-select, one task per message.
+    if (select?.mode === 'action') {
+      const entry = entries.find(e => e.id === entryId)
+      if (entry) setActionTarget({ entry, isNew: entry.kind !== 'action' })
+      return
+    }
     setSelectedIds(prev => {
       const n = new Set(prev)
       if (n.has(entryId)) n.delete(entryId)
@@ -363,6 +375,47 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
     refreshAll()
   }
 
+  const saveTask = async (entry: CaseEntry, dueDate: string, dueTime: string) => {
+    if (!dueDate) { setFeedError('Pick a due date'); return }
+    const isNew = entry.kind !== 'action'
+    setFeedError(null)
+    setFeedBusy(true)
+    const prev = patchEntries([entry.id], {
+      kind: 'action',
+      due_date: dueDate,
+      due_time: dueTime || null,
+    })
+    setActionTarget(null)
+    const r = isNew
+      ? await promoteToAction(entry.id, dueDate, dueTime || undefined)
+      : await updateAction(entry.id, caseId, entry.body ?? '', dueDate, undefined, dueTime || undefined)
+    if (r.error) {
+      setEntries(p => p.map(e => prev.get(e.id) ?? e))
+      setFeedError(r.error)
+      setFeedBusy(false)
+      return
+    }
+    setFeedBusy(false)
+    if (isNew) cancelSelect()
+    refreshAll()
+  }
+
+  const completeTask = async (entry: CaseEntry) => {
+    setFeedError(null)
+    setFeedBusy(true)
+    const prev = patchEntries([entry.id], { completed_at: new Date().toISOString(), completed_by: meId })
+    setActionTarget(null)
+    const r = await completeAction(entry.id, caseId)
+    if (r.error) {
+      setEntries(p => p.map(e => prev.get(e.id) ?? e))
+      setFeedError(r.error)
+      setFeedBusy(false)
+      return
+    }
+    setFeedBusy(false)
+    refreshAll()
+  }
+
   const handleMove = async (stepId: string) => {
     await moveToStep(caseId, stepId)
     refresh()
@@ -446,9 +499,10 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
     const items: FeedItem[] = []
     for (const e of entries.filter(e => e.step_id === stepId)) {
       if (e.kind === 'action') {
-        items.push({ kind: 'event', at: e.created_at, key: `a-${e.id}`, icon: 'action', text: `${nameOf(e.created_by)} set an action` })
+        items.push({ kind: 'msg', at: e.created_at, key: e.id, entry: e })
+        items.push({ kind: 'event', at: e.created_at, key: `a-${e.id}`, icon: 'action', text: `${nameOf(e.created_by)} set a task` })
         if (e.completed_at) {
-          items.push({ kind: 'event', at: e.completed_at, key: `ad-${e.id}`, icon: 'done', text: `${nameOf(e.completed_by)} completed an action` })
+          items.push({ kind: 'event', at: e.completed_at, key: `ad-${e.id}`, icon: 'done', text: `${nameOf(e.completed_by)} completed a task` })
         }
       } else if (e.kind === 'system') {
         items.push({ kind: 'event', at: e.created_at, key: `s-${e.id}`, icon: 'system', text: `${nameOf(e.created_by)} ${e.body}` })
@@ -563,7 +617,7 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--color-text-primary))] hover:bg-[hsl(var(--color-surface-hover))] transition-colors"
             >
               <Zap className="w-4 h-4 text-[hsl(var(--color-primary))]" />
-              Actions
+              Tasks
               {openAction && (
                 <span className="text-xs text-[hsl(var(--color-text-muted))]">
                   · {openAction.body}
@@ -614,6 +668,7 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
             onStartSelect={(mode, queryId) => startSelect(mode, s.id, queryId)}
             onMarkSeen={markSeen}
             onCancelRequest={cancelRequest}
+            onActionTap={(entry) => setActionTarget({ entry, isNew: entry.kind !== 'action' })}
             composer={<FeedComposer stepId={s.id} {...composerProps} onSend={() => sendFeedMessage(s.id)} />}
           />
         </div>
@@ -663,6 +718,18 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
         >
           <FeedComposer stepId={viewedStep.id} {...composerProps} onSend={() => sendFeedMessage(viewedStep.id)} />
         </div>
+      )}
+
+      {/* Task date/time popup — from action-mode tap or tapping a task bubble */}
+      {actionTarget && (
+        <TaskDialog
+          entry={actionTarget.entry}
+          isNew={actionTarget.isNew}
+          busy={feedBusy}
+          onSave={(d, t) => saveTask(actionTarget.entry, d, t)}
+          onComplete={() => completeTask(actionTarget.entry)}
+          onClose={() => setActionTarget(null)}
+        />
       )}
     </div>
   )
@@ -751,20 +818,33 @@ function EventLine({ icon, text, at }: { icon: keyof typeof EVENT_META; text: st
   )
 }
 
-function FeedMessage({ entry, query, attachments, mine, right, selectMode, selected, onToggle }: {
+function formatDue(d: string | null, t?: string | null) {
+  if (!d) return 'no date'
+  const date = new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  return t ? `${date} ${t.slice(0, 5)}` : date
+}
+
+function FeedMessage({ entry, query, attachments, mine, right, selectMode, actionMode, selected, onToggle, onActionTap }: {
   entry: CaseEntry
   query?: CaseQuery
   attachments: FeedAttachment[]
   mine: boolean
   right: boolean
   selectMode: boolean
+  actionMode?: boolean
   selected: boolean
   onToggle: () => void
+  onActionTap?: () => void
 }) {
   const author = entry.author?.display_name || entry.author?.email?.split('@')[0] || 'Someone'
   const isQuestion = entry.request_part === 'question'
   const isAnswer = entry.request_part === 'answer'
+  const isAction = entry.kind === 'action'
+  const actionDone = !!entry.completed_at
+  const overdue = isAction && !actionDone && entry.due_date && new Date(entry.due_date).getTime() < new Date(new Date().toDateString()).getTime()
   const live = !!query && (query.status === 'open' || query.status === 'answered')
+  const tappable = selectMode ? (mine || actionMode) : (isAction && !actionDone)
+  const handleTap = selectMode ? (tappable ? onToggle : undefined) : (isAction && !actionDone ? onActionTap : undefined)
 
   const openFile = async (a: FeedAttachment) => {
     const url = await getAttachmentUrl(a.file_path)
@@ -774,14 +854,22 @@ function FeedMessage({ entry, query, attachments, mine, right, selectMode, selec
   return (
     <div className={`flex ${right ? 'justify-end' : 'justify-start'}`}>
     <div
-      onClick={selectMode && mine ? onToggle : undefined}
+      onClick={handleTap}
       className={`rounded-xl border px-3.5 py-2.5 transition-colors max-w-[85%] ${
-        isQuestion && live
+        isAction && !actionDone
+          ? overdue
+            ? 'border-red-500/60 bg-red-500/5'
+            : 'border-orange-400/60 bg-orange-400/5'
+          : isAction
+            ? 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] opacity-70'
+          : isQuestion && live
           ? 'border-amber-400/60 bg-amber-400/5'
           : isAnswer && live
             ? 'border-green-500/50 bg-green-500/5'
             : 'border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))]'
-      } ${selectMode ? (mine ? 'cursor-pointer' : 'opacity-50') : ''} ${
+      } ${selectMode ? (tappable ? 'cursor-pointer' : 'opacity-50') : ''} ${
+        !selectMode && isAction && !actionDone ? 'cursor-pointer' : ''
+      } ${
         selected ? 'ring-2 ring-[hsl(var(--color-primary))]' : ''
       }`}
     >
@@ -791,6 +879,15 @@ function FeedMessage({ entry, query, attachments, mine, right, selectMode, selec
           {new Date(entry.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
         </p>
         <span className={`${right ? 'mr-auto' : 'ml-auto'} flex items-center gap-1.5 shrink-0`}>
+          {isAction && (
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+              actionDone ? 'bg-green-500/15 text-green-400'
+              : overdue ? 'bg-red-500/15 text-red-400'
+              : 'bg-orange-500/15 text-orange-400'
+            }`}>
+              {actionDone ? 'Task · done' : `Task · due ${formatDue(entry.due_date, entry.due_time)}`}
+            </span>
+          )}
           {isQuestion && (
             <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
               live ? 'bg-amber-400/15 text-amber-400' : 'bg-[hsl(var(--color-surface-active))] text-[hsl(var(--color-text-muted))]'
@@ -805,7 +902,7 @@ function FeedMessage({ entry, query, attachments, mine, right, selectMode, selec
               Answer
             </span>
           )}
-          {selectMode && mine && (
+          {selectMode && mine && !actionMode && (
             <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
               selected ? 'border-[hsl(var(--color-primary))] bg-[hsl(var(--color-primary))]' : 'border-[hsl(var(--color-text-muted))]'
             }`}>
@@ -836,7 +933,7 @@ function FeedMessage({ entry, query, attachments, mine, right, selectMode, selec
   )
 }
 
-function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attachmentsByEntry, select, selectedIds, busy, onToggleEntry, onStartSelect, onMarkSeen, onCancelRequest, composer }: {
+function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attachmentsByEntry, select, selectedIds, busy, onToggleEntry, onStartSelect, onMarkSeen, onCancelRequest, onActionTap, composer }: {
   stepId: string
   canPost: boolean
   feed: FeedItem[]
@@ -845,13 +942,14 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
   csrId: string | null
   legalId: string | null
   attachmentsByEntry: Record<string, FeedAttachment[]>
-  select: { mode: 'request' | 'answer'; stepId: string; queryId?: string } | null
+  select: { mode: 'request' | 'answer' | 'action'; stepId: string; queryId?: string } | null
   selectedIds: Set<string>
   busy: boolean
   onToggleEntry: (entryId: string) => void
-  onStartSelect: (mode: 'request' | 'answer', queryId?: string) => void
+  onStartSelect: (mode: 'request' | 'answer' | 'action', queryId?: string) => void
   onMarkSeen: (queryId: string) => void
   onCancelRequest: (queryId: string) => void
+  onActionTap: (entry: CaseEntry) => void
   composer: ReactNode
 }) {
   const stepQueries = Object.values(queries).filter(q => q.step_id === stepId)
@@ -881,7 +979,9 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
       if (!el) { setRegionH(null); return }
       if (window.innerWidth >= 768) {
         const composer = composerRef.current
-        const scroller = el.closest('.overflow-y-auto') as HTMLElement | null
+        // The region itself is .overflow-y-auto — closest() would match it,
+        // so start from the parent to reach the pane's scroll column.
+        const scroller = el.parentElement?.closest('.overflow-y-auto') as HTMLElement | null
         if (!composer || !scroller) { setRegionH(null); return }
         const sRect = scroller.getBoundingClientRect()
         const docTop = el.getBoundingClientRect().top - sRect.top + scroller.scrollTop
@@ -929,12 +1029,12 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
 
   // Open at the bottom instantly — the anchored feed means a short chat
   // sits near the composer, so landing at scrollTop 0 shows empty space.
+  // The region is its own scrollport now — snap it directly.
   const snappedRef = useRef(false)
   useLayoutEffect(() => {
-    if (snappedRef.current || regionH == null || !feed.length || window.innerWidth < 768) return
+    if (snappedRef.current || regionH == null || !feed.length) return
     snappedRef.current = true
-    const scroller = regionRef.current?.closest('.overflow-y-auto') as HTMLElement | null
-    if (scroller) scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'auto' })
+    regionRef.current?.scrollTo({ top: regionRef.current.scrollHeight, behavior: 'auto' })
   }, [regionH])
 
   const feedList = feed.length === 0 ? (
@@ -954,8 +1054,10 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
           mine={item.entry.created_by === meId}
           right={alignRight(item.entry.created_by)}
           selectMode={select !== null}
+          actionMode={select?.mode === 'action'}
           selected={selectedIds.has(item.entry.id)}
           onToggle={() => onToggleEntry(item.entry.id)}
+          onActionTap={() => onActionTap(item.entry)}
         />
       ))}
     </div>
@@ -981,10 +1083,16 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
               </Button>
             </div>
           ) : (
-            <Button variant="secondary" onClick={() => onStartSelect('request')} className="w-full gap-2">
-              <MessageSquare className="w-4 h-4" />
-              Send Request
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => onStartSelect('request')} className="flex-1 gap-2">
+                <MessageSquare className="w-4 h-4" />
+                Request
+              </Button>
+              <Button variant="secondary" onClick={() => onStartSelect('action')} className="flex-1 gap-2">
+                <Zap className="w-4 h-4" />
+                Task
+              </Button>
+            </div>
           )}
           {toAnswer && (
             <Button onClick={() => onStartSelect('answer', toAnswer.id)} className="w-full gap-2">
@@ -995,14 +1103,15 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
         </div>
       )}
 
-      {/* Feed — chat-style: oldest on top, newest hugs the pinned composer.
-          The region fills down to the composer and anchors the messages to
-          its bottom, so empty space collects at the top on short feeds. */}
+      {/* Feed — chat-style: oldest on top, newest hugs the composer. The
+          region is its own scrollport sized down to the composer, so only
+          messages scroll — steps, request bar and input stay fixed. mt-auto
+          anchors a short feed to the bottom. */}
       {canPost ? (
         <div
           ref={regionRef}
-          style={regionH ? { minHeight: regionH } : undefined}
-          className="flex flex-col"
+          style={regionH ? { height: regionH } : undefined}
+          className="overflow-y-auto overscroll-contain flex flex-col"
         >
           <div className="mt-auto">{feedList}</div>
         </div>
@@ -1029,6 +1138,55 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
   )
 }
 
+// Task dialog — set a deadline on a message (new task) or edit an open
+// task's date/time + mark it complete.
+function TaskDialog({ entry, isNew, busy, onSave, onComplete, onClose }: {
+  entry: CaseEntry
+  isNew: boolean
+  busy: boolean
+  onSave: (dueDate: string, dueTime: string) => void
+  onComplete: () => void
+  onClose: () => void
+}) {
+  const [date, setDate] = useState(entry.due_date || '')
+  const [time, setTime] = useState(entry.due_time?.slice(0, 5) || '')
+  const inputCls = 'h-10 px-3 rounded-lg bg-[hsl(var(--color-input-bg))] border border-[hsl(var(--color-input-border))] text-sm text-[hsl(var(--color-text-primary))] outline-none'
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60" onClick={onClose}>
+      <div
+        className="w-full max-w-sm rounded-2xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] p-4 space-y-3"
+        onClick={e => e.stopPropagation()}
+      >
+        <p className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">
+          {isNew ? 'Set a task' : 'Edit task'}
+        </p>
+        {entry.body && (
+          <p className="text-xs text-[hsl(var(--color-text-secondary))] line-clamp-3 rounded-lg bg-[hsl(var(--color-surface-secondary))] px-3 py-2">
+            {entry.body}
+          </p>
+        )}
+        <div className="flex gap-2">
+          <input type="date" value={date} onChange={e => setDate(e.target.value)} className={`${inputCls} flex-1`} />
+          <input type="time" value={time} onChange={e => setTime(e.target.value)} className={`${inputCls} w-28`} />
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={onClose} disabled={busy} className="flex-1">
+            Cancel
+          </Button>
+          {!isNew && (
+            <Button onClick={onComplete} disabled={busy} className="flex-1 bg-green-600 hover:bg-green-700">
+              Complete
+            </Button>
+          )}
+          <Button onClick={() => onSave(date, time)} disabled={busy || !date} className="flex-1">
+            {isNew ? 'Set task' : 'Save'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Shared composer body — rendered inside the mobile fixed overlay and in
 // the desktop sticky slot. Switches to select-mode controls when the owner
 // step is picking request/answer messages.
@@ -1043,7 +1201,7 @@ function FeedComposer({ stepId, text, setText, staged, onRemoveStaged, busy, err
   fileRef: RefObject<HTMLInputElement | null>
   onUpload: (files: FileList | null) => void
   onSend: () => void
-  select: { mode: 'request' | 'answer'; stepId: string; queryId?: string } | null
+  select: { mode: 'request' | 'answer' | 'action'; stepId: string; queryId?: string } | null
   selectedCount: number
   onCancelSelect: () => void
   onConfirmSelect: () => void
@@ -1062,6 +1220,18 @@ function FeedComposer({ stepId, text, setText, staged, onRemoveStaged, busy, err
   }, [text])
 
   if (selecting) {
+    if (select!.mode === 'action') {
+      return (
+        <div className="space-y-2">
+          <p className="text-xs text-[hsl(var(--color-text-secondary))]">
+            Tap a message to turn it into a task
+          </p>
+          <Button variant="secondary" onClick={onCancelSelect} disabled={busy} className="w-full">
+            Cancel
+          </Button>
+        </div>
+      )
+    }
     return (
       <div className="space-y-2">
         <p className="text-xs text-[hsl(var(--color-text-secondary))]">

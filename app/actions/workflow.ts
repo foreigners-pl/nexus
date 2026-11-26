@@ -29,6 +29,7 @@ export interface CaseEntry {
   created_by: string | null
   created_at: string
   due_date: string | null
+  due_time?: string | null
   waiting_on: string | null
   completed_at: string | null
   completed_by: string | null
@@ -840,34 +841,69 @@ export async function addNote(caseId: string, body: string) {
   return { success: true }
 }
 
-export async function createAction(caseId: string, body: string, dueDate: string, waitingOn?: string) {
+export async function createAction(caseId: string, body: string, dueDate: string, waitingOn?: string, dueTime?: string, stepId?: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
 
   const trimmed = body.trim()
-  if (!trimmed) return { error: 'Action description is required' }
+  if (!trimmed) return { error: 'Task description is required' }
   if (!dueDate) return { error: 'Due date is required' }
 
   const { data: entry, error } = await supabase.from('case_entries').insert({
     case_id: caseId,
-    step_id: await getActiveStepId(supabase, caseId),
+    step_id: stepId ?? await getActiveStepId(supabase, caseId),
     kind: 'action',
     body: trimmed,
     due_date: dueDate,
+    due_time: dueTime || null,
     waiting_on: waitingOn || null,
     created_by: user.id,
   }).select('id').single()
 
-  if (error) return { error: 'Failed to create action' }
+  if (error) return { error: 'Failed to create task' }
 
   const ctx = await getCaseNotifyContext(caseId)
   await notifyUsers(ctx.recipients, {
     kind: 'deadline',
-    title: `New action on ${ctx.caseLabel}`,
+    title: `New task on ${ctx.caseLabel}`,
     body: `${trimmed} — due ${new Date(dueDate).toLocaleDateString()}`,
     link: `/cases/${caseId}/progress/${entry.id}`,
     caseId,
+  })
+  return { success: true }
+}
+
+/** Turn an existing feed message into a task — same entry, gains a deadline. */
+export async function promoteToAction(entryId: string, dueDate: string, dueTime?: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+  if (!dueDate) return { error: 'Due date is required' }
+
+  const { data: entry } = await supabase
+    .from('case_entries')
+    .select('case_id, body, kind, completed_at')
+    .eq('id', entryId)
+    .single()
+  if (!entry) return { error: 'Message not found' }
+  if (entry.kind === 'action') return { error: 'Already a task' }
+
+  const { error } = await supabase
+    .from('case_entries')
+    .update({ kind: 'action', due_date: dueDate, due_time: dueTime || null })
+    .eq('id', entryId)
+    .is('completed_at', null)
+
+  if (error) return { error: 'Failed to set task' }
+
+  const ctx = await getCaseNotifyContext(entry.case_id)
+  await notifyUsers(ctx.recipients, {
+    kind: 'deadline',
+    title: `New task on ${ctx.caseLabel}`,
+    body: `${(entry.body || 'Message').trim()} — due ${new Date(dueDate).toLocaleDateString()}`,
+    link: `/cases/${entry.case_id}/progress/${entryId}`,
+    caseId: entry.case_id,
   })
   return { success: true }
 }
@@ -884,45 +920,45 @@ export async function completeAction(entryId: string, caseId: string) {
     .eq('kind', 'action')
     .is('completed_at', null)
 
-  if (error) return { error: 'Failed to complete action' }
+  if (error) return { error: 'Failed to complete task' }
 
   const { data: action } = await supabase.from('case_entries').select('body').eq('id', entryId).single()
   const ctx = await getCaseNotifyContext(caseId)
   await notifyUsers(ctx.recipients, {
     kind: 'task',
-    title: `Action completed on ${ctx.caseLabel}`,
-    body: action?.body || `${ctx.actorName} completed an action`,
+    title: `Task completed on ${ctx.caseLabel}`,
+    body: action?.body || `${ctx.actorName} completed a task`,
     link: `/cases/${caseId}/progress/${entryId}`,
     caseId,
   })
   return { success: true }
 }
 
-export async function updateAction(entryId: string, caseId: string, body: string, dueDate: string, waitingOn?: string) {
+export async function updateAction(entryId: string, caseId: string, body: string, dueDate: string, waitingOn?: string, dueTime?: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
 
   const { data: old } = await supabase
     .from('case_entries')
-    .select('due_date')
+    .select('due_date, due_time')
     .eq('id', entryId)
     .single()
 
   const { error } = await supabase
     .from('case_entries')
-    .update({ body: body.trim(), due_date: dueDate, waiting_on: waitingOn || null })
+    .update({ body: body.trim(), due_date: dueDate, due_time: dueTime || null, waiting_on: waitingOn || null })
     .eq('id', entryId)
     .eq('kind', 'action')
     .is('completed_at', null)
 
-  if (error) return { error: 'Failed to update action' }
+  if (error) return { error: 'Failed to update task' }
 
-  if (old?.due_date !== dueDate) {
+  if (old?.due_date !== dueDate || (old?.due_time ?? null) !== (dueTime || null)) {
     const ctx = await getCaseNotifyContext(caseId)
     await notifyUsers(ctx.recipients, {
       kind: 'deadline',
-      title: `Action deadline moved on ${ctx.caseLabel}`,
+      title: `Task deadline moved on ${ctx.caseLabel}`,
       body: `${body.trim()} — now due ${new Date(dueDate).toLocaleDateString()}`,
       link: `/cases/${caseId}/progress/${entryId}`,
       caseId,

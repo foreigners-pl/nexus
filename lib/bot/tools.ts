@@ -311,7 +311,7 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
         const who = (e.author as any)?.display_name || (e.author as any)?.email?.split('@')[0] || 'Someone'
         const day = new Date(e.created_at).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })
         if (e.kind === 'action') {
-          lines.push(`[${day}] ${who} set an action: ${e.body}${e.due_date ? ` (due ${e.due_date})` : ''}`)
+          lines.push(`[${day}] ${who} set a task: ${e.body}${e.due_date ? ` (due ${e.due_date})` : ''}`)
         } else if (e.kind === 'system') {
           lines.push(`[${day}] ${who} ${e.body}`)
         } else {
@@ -491,14 +491,14 @@ export async function runTool(supabase: Supabase, me: BotUser, name: string, arg
       }
       const { data } = await q.order('due_date', { ascending: true })
       const rows = data || []
-      if (!rows.length) return { error: 'No open actions found' }
+      if (!rows.length) return { error: 'No open tasks found' }
       let match = rows
       if (args.text) {
         const needle = String(args.text).toLowerCase()
         match = rows.filter((a: any) => (a.body || '').toLowerCase().includes(needle))
       }
-      if (match.length === 0) return { error: 'No action matches that', open_actions: rows.map((a: any) => a.body) }
-      if (match.length > 1) return { error: 'Multiple actions match — be more specific', open_actions: match.map((a: any) => `${a.body} (${(a.cases as any)?.case_code})`) }
+      if (match.length === 0) return { error: 'No task matches that', open_actions: rows.map((a: any) => a.body) }
+      if (match.length > 1) return { error: 'Multiple tasks match — be more specific', open_actions: match.map((a: any) => `${a.body} (${(a.cases as any)?.case_code})`) }
       const a = match[0] as any
       await supabase.from('case_entries').update({
         completed_at: new Date().toISOString(), completed_by: me.id,

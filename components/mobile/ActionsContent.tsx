@@ -70,7 +70,7 @@ function ActionRow({ action }: { action: MyAction }) {
       >
         <div className="flex-1 min-w-0">
           <p className="text-[15px] font-medium text-[hsl(var(--color-text-primary))] truncate">
-            {action.body || 'Action'}
+            {action.body || 'Task'}
           </p>
           <p className="text-xs text-[hsl(var(--color-text-secondary))] mt-0.5 truncate">
             {action.client_name || action.case_code || 'Case'}
@@ -116,7 +116,7 @@ export function ActionsContent({ viewAsUserId }: { viewAsUserId?: string }) {
 
   return (
     <div className="space-y-5">
-      {!viewAsUserId && <MobileBackHeader title="Actions" />}
+      {!viewAsUserId && <MobileBackHeader title="Tasks" />}
 
       {!actions ? (
         <div className="flex justify-center py-10">
@@ -124,7 +124,7 @@ export function ActionsContent({ viewAsUserId }: { viewAsUserId?: string }) {
         </div>
       ) : empty ? (
         <div className="bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-2xl p-8 text-center">
-          <p className="text-sm text-[hsl(var(--color-text-secondary))]">No actions on your cases</p>
+          <p className="text-sm text-[hsl(var(--color-text-secondary))]">No tasks on your cases</p>
         </div>
       ) : (
         <>

@@ -161,7 +161,7 @@ function UserRow({ row }: { row: UsageRow }) {
                 items={row.requests}
               />
               <ItemGroup
-                title="Actions"
+                title="Tasks"
                 icon={<Zap className="w-3.5 h-3.5" />}
                 accent="text-orange-400"
                 items={row.actions}

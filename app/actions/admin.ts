@@ -562,7 +562,7 @@ export async function getUsageOverview(): Promise<{ users: UsageRow[]; canManage
     const isLate = !!a.due_date && a.due_date < today
     const item: UsageItem = {
       id: a.id,
-      title: a.body || 'Action',
+      title: a.body || 'Task',
       subtitle: [caseLabel(a.cases) || a.cases?.case_code].filter(Boolean).join(' · '),
       date: a.due_date,
       tag: isLate ? 'late' : 'upcoming',

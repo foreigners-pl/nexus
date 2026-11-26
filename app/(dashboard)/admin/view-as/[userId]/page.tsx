@@ -296,7 +296,7 @@ export default function ViewAsPage({ params }: { params: Promise<{ userId: strin
           <ChevronLeft className="w-6 h-6" />
         </button>
         <p className="flex-1 text-lg font-semibold text-[hsl(var(--color-text-primary))] truncate">
-          {view === 'requests' ? 'Requests' : view === 'actions' ? 'Actions' : 'Assistant'}
+          {view === 'requests' ? 'Requests' : view === 'actions' ? 'Tasks' : 'Assistant'}
           <span className="text-sm font-normal text-[hsl(var(--color-text-secondary))]"> — {user?.name ?? '…'}</span>
         </p>
       </div>

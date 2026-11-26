@@ -306,9 +306,9 @@ export async function nudgeUser(userId: string): Promise<{ ok?: boolean; summary
     n(newReq, 'new request'),
     n(review, 'answer to review'),
     n(tasks, 'board task'),
-    n(lateAct, 'late action'),
-    n(upcoming, 'upcoming action'),
-    n(undated, 'undated action'),
+    n(lateAct, 'late task'),
+    n(upcoming, 'upcoming task'),
+    n(undated, 'undated task'),
     n(neglected, 'neglected case'),
   ].filter(Boolean) as string[]
   const summary = parts.join(', ')

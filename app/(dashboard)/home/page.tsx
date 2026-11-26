@@ -332,7 +332,7 @@ export default function MobileHomePage({ viewAsUserId, onOpenTab, onBack }: {
             <div className="w-10 h-10 rounded-xl bg-orange-500/15 flex items-center justify-center shrink-0">
               <CalendarClock className="w-5 h-5 text-orange-400" />
             </div>
-            <p className="text-base font-semibold text-[hsl(var(--color-text-primary))] flex-1 min-w-0 truncate">Actions</p>
+            <p className="text-base font-semibold text-[hsl(var(--color-text-primary))] flex-1 min-w-0 truncate">Tasks</p>
             <div className="flex rounded-lg border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface-secondary))] p-0.5 shrink-0">
               {DEADLINE_RANGES.map(r => (
                 <button
