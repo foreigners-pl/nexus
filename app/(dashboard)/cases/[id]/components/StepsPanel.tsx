@@ -1154,35 +1154,33 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
 
   return (
     <div className="space-y-2.5">
-      {/* Request slot — above the feed. Send → waiting → mark seen, per step */}
+      {/* Request slot — above the feed. The left button reflects request
+          state (send → cancel while open → mark seen once answered); Task
+          always stays accessible beside it. */}
       {canPost && !select && (
         <div className="space-y-2">
-          {myAnswered ? (
-            <Button onClick={() => onMarkSeen(myAnswered.id)} disabled={busy} className="w-full gap-2 bg-green-600 hover:bg-green-700">
-              <CheckCheck className="w-4 h-4" />
-              Mark as seen
-            </Button>
-          ) : myOpen ? (
-            <div className="flex gap-2">
-              <Button variant="secondary" disabled className="flex-1">
-                Request sent — waiting
+          <div className="flex gap-2">
+            {myAnswered ? (
+              <Button onClick={() => onMarkSeen(myAnswered.id)} disabled={busy} className="flex-1 gap-2 bg-green-600 hover:bg-green-700">
+                <CheckCheck className="w-4 h-4" />
+                Mark as seen
               </Button>
-              <Button variant="ghost" onClick={() => onCancelRequest(myOpen.id)} disabled={busy} className="text-red-400 hover:text-red-300">
-                Cancel
+            ) : myOpen ? (
+              <Button variant="secondary" onClick={() => onCancelRequest(myOpen.id)} disabled={busy} className="flex-1 gap-2 text-red-400 hover:text-red-300">
+                <X className="w-4 h-4" />
+                Cancel request
               </Button>
-            </div>
-          ) : (
-            <div className="flex gap-2">
+            ) : (
               <Button variant="secondary" onClick={() => onStartSelect('request')} className="flex-1 gap-2">
                 <MessageSquare className="w-4 h-4" />
                 Request
               </Button>
-              <Button variant="secondary" onClick={() => onStartSelect('action')} className="flex-1 gap-2">
-                <Zap className="w-4 h-4" />
-                Task
-              </Button>
-            </div>
-          )}
+            )}
+            <Button variant="secondary" onClick={() => onStartSelect('action')} className="flex-1 gap-2">
+              <Zap className="w-4 h-4" />
+              Task
+            </Button>
+          </div>
           {toAnswer && (
             <Button onClick={() => onStartSelect('answer', toAnswer.id)} className="w-full gap-2">
               <CornerDownRight className="w-4 h-4" />
