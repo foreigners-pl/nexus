@@ -250,7 +250,7 @@ export function AssistantContent() {
     setStaged([])
     setQuickOpen(false)
     const names = staged.map(f => f.name)
-    setMessages(m => [...(m || []), { role: 'user', text: value }, ...(names.length ? [{ role: 'user' as const, files: names }] : [])])
+    setMessages(m => [...(m || []), { role: 'user', text: value }, ...(names.length ? [{ role: 'user' as const, text: '', files: names }] : [])])
     setBusy(true)
     const { reply, error } = await sendAssistantMessage(value, staged, tz)
     setMessages(m => [...(m || []), { role: 'model', text: reply || error || 'No reply' }])
