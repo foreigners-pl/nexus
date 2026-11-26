@@ -56,7 +56,7 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
   const [steps, setSteps] = useState<CaseStep[]>([])
   const [entries, setEntries] = useState<CaseEntry[]>([])
   const [currentStepId, setCurrentStepId] = useState<string | null>(null)
-  const [openAction, setOpenAction] = useState<CaseEntry | null>(null)
+  const [, setOpenAction] = useState<CaseEntry | null>(null)
   const [queries, setQueries] = useState<Record<string, CaseQuery>>({})
   const [serviceId, setServiceId] = useState<string | null>(null)
   const [eligibility, setEligibility] = useState<CaseEligibilityState>({ statusCompleted: false, documentsCompleted: false, statusAt: null, documentsAt: null })
@@ -642,21 +642,6 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
 
         {/* Step content — sits directly on the page background */}
         <div className="space-y-3">
-          {isActive && s.step_type !== 'eligibility' && s.step_type !== 'presale' && (
-            <button
-              onClick={() => { if (!paneNav(`/cases/${caseId}/actions`)) router.push(`/cases/${caseId}/actions`) }}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface))] px-4 py-2.5 text-sm font-medium text-[hsl(var(--color-text-primary))] hover:bg-[hsl(var(--color-surface-hover))] transition-colors"
-            >
-              <Zap className="w-4 h-4 text-[hsl(var(--color-primary))]" />
-              Tasks
-              {openAction && (
-                <span className="text-xs text-[hsl(var(--color-text-muted))]">
-                  · {openAction.body}
-                </span>
-              )}
-            </button>
-          )}
-
           {!isActive && (
             <Button
               onClick={() => handleMove(s.id)}
