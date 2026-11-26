@@ -37,3 +37,13 @@ export function getRecentClients(): RecentClient[] {
     return []
   }
 }
+
+export function writeRecentClients(list: RecentClient[]) {
+  if (typeof window === 'undefined') return
+
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
+  } catch {
+    // localStorage unavailable - ignore
+  }
+}

@@ -8,7 +8,8 @@ import { fetchCurrentUser, fetchMyOpenTasks, fetchMyOpenActions, fetchCasesMissi
 import { getMyQueries } from '@/app/actions/workflow'
 import { getMyAnsweredHistory } from '@/app/actions/feed'
 import { getViewAsUser, getViewAsRequests, getViewAsActionsData, getViewAsRecentClients } from '@/app/actions/viewas'
-import { getRecentClients, type RecentClient } from '@/lib/recent-clients'
+import { getRecentClients, writeRecentClients, type RecentClient } from '@/lib/recent-clients'
+import { createClient } from '@/lib/supabase/client'
 import { usePaneNavigate } from '@/lib/panes'
 import { usePrefetchClientPage, queryKeys } from '@/lib/query'
 import { useQuery } from '@tanstack/react-query'
@@ -123,7 +124,24 @@ export default function MobileHomePage({ viewAsUserId, onOpenTab, onBack }: {
       getViewAsRecentClients(viewAsUserId).then(({ clients }) => setRecentClients(clients))
       return
     }
-    setRecentClients(getRecentClients())
+    const stored = getRecentClients()
+    setRecentClients(stored)
+    // Prune entries whose client was deleted — the stored list is device-
+    // local and never learns about deletes, so dead ids would error on tap.
+    if (stored.length) {
+      createClient()
+        .from('clients')
+        .select('id')
+        .in('id', stored.map(c => c.id))
+        .then(({ data }) => {
+          const live = new Set((data || []).map(r => r.id as string))
+          const pruned = stored.filter(c => live.has(c.id))
+          if (pruned.length !== stored.length) {
+            setRecentClients(pruned)
+            writeRecentClients(pruned)
+          }
+        })
+    }
 
     fetchCurrentUser().then(({ user }) => {
       setUserName(user?.display_name || user?.email || null)

@@ -160,7 +160,7 @@ export default function ClientPage({ params }: ClientPageProps) {
     const result = await deleteClient(client.id)
     
     if (!result?.error) {
-      window.location.href = '/clients'
+      window.location.href = '/home'
     } else {
       alert(result.error)
       setSubmitting(false)
@@ -189,7 +189,7 @@ export default function ClientPage({ params }: ClientPageProps) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] gap-4">
         <p className="text-[hsl(var(--color-text-secondary))]">Client not found</p>
-        <Button onClick={() => window.location.href = '/clients'}>Back to Clients</Button>
+        <Button onClick={() => window.location.href = '/home'}>Back to Home</Button>
       </div>
     )
   }

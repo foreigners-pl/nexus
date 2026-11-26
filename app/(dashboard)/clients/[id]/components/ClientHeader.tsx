@@ -45,10 +45,10 @@ export function ClientHeader({ client, phoneNumbers, onMergeComplete }: ClientHe
       <header className="sticky -top-4 md:-top-6 z-40 -mx-4 md:-mx-6 -mt-4 md:-mt-6 mb-6 bg-[hsl(var(--color-surface))]/90 backdrop-blur border-b border-[hsl(var(--color-border))]">
         <div className="px-4 md:px-6 h-14 flex items-center gap-3">
           <Link
-            href="/clients"
+            href="/home"
             onClick={paneBack ? (e) => { e.preventDefault(); paneBack() } : undefined}
             className="w-9 h-9 -ml-1 rounded-full flex items-center justify-center text-[hsl(var(--color-text-secondary))] active:bg-[hsl(var(--color-surface-hover))] shrink-0"
-            aria-label="Back to clients"
+            aria-label="Back to home"
           >
             <ChevronLeft className="w-6 h-6" />
           </Link>
