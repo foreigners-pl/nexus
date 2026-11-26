@@ -71,6 +71,8 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
   const [animating, setAnimating] = useState(false)
   const didInit = useRef(false)
   const touchStartX = useRef<number | null>(null)
+  const touchStartY = useRef(0)
+  const swipeAxis = useRef<'h' | 'v' | null>(null)
   const slideRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
   const paneNav = usePaneNavigate()
@@ -440,15 +442,27 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
     setDragPct(0)
     window.setTimeout(() => setAnimating(false), 200)
     touchStartX.current = null
+    swipeAxis.current = null
   }
 
   const onTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX
+    touchStartY.current = e.touches[0].clientY
+    swipeAxis.current = null
   }
 
   const onTouchMove = (e: React.TouchEvent) => {
     if (touchStartX.current === null || animating) return
     const dx = e.touches[0].clientX - touchStartX.current
+    const dy = e.touches[0].clientY - touchStartY.current
+    if (swipeAxis.current === 'v') return // gesture already claimed by vertical scroll
+    if (swipeAxis.current === null) {
+      // Dead zone — the first 10px of travel decides the axis so tiny
+      // horizontal drift during a message scroll never nudges the track.
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return
+      swipeAxis.current = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v'
+      if (swipeAxis.current === 'v') return
+    }
     const w = slideRef.current?.offsetWidth || 1
     const atEdge = (viewIdx === 0 && dx > 0) || (viewIdx === steps.length - 1 && dx < 0)
     setDragPct((dx / w) * (atEdge ? 25 : 100)) // rubber-band at the ends
@@ -460,6 +474,7 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
     else if (dragPct > 30) navTo(viewIdx - 1)
     else snapBack()
     touchStartX.current = null
+    swipeAxis.current = null
   }
 
   if (isLoading) {
@@ -985,11 +1000,14 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
         if (!composer || !scroller) { setRegionH(null); return }
         const sRect = scroller.getBoundingClientRect()
         const docTop = el.getBoundingClientRect().top - sRect.top + scroller.scrollTop
-        // The sticky composer rests 24px (pane bottom padding) above the
-        // scrollport's bottom edge — fill the region so its bottom lands
-        // on the composer's natural top. Longer feeds already exceed this,
-        // so min-height is a no-op for them.
-        const target = scroller.clientHeight - 25 - composer.getBoundingClientRect().height
+        // The region's bottom must land exactly on the composer's natural
+        // top or the column overflows and the pane scrolls. Composer top =
+        // scrollport bottom − its bottom padding − the space-y gap above
+        // it − its height. Read padding + gap live so a class tweak can't
+        // silently reopen the pane scroll.
+        const padBottom = parseFloat(getComputedStyle(scroller).paddingBottom) || 0
+        const gap = parseFloat(getComputedStyle(composer).marginTop) || 0
+        const target = scroller.clientHeight - padBottom - gap - composer.getBoundingClientRect().height
         setRegionH(Math.max(target - docTop, 160))
         return
       }
