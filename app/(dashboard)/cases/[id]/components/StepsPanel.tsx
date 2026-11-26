@@ -1171,12 +1171,12 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
                 Cancel request
               </Button>
             ) : (
-              <Button variant="secondary" onClick={() => onStartSelect('request')} className="flex-1 gap-2">
+              <Button variant="secondary" onClick={() => onStartSelect('request')} className="flex-1 gap-2 bg-amber-400/15 border-amber-400/40 text-amber-400 hover:bg-amber-400/25">
                 <MessageSquare className="w-4 h-4" />
                 Request
               </Button>
             )}
-            <Button variant="secondary" onClick={() => onStartSelect('action')} className="flex-1 gap-2">
+            <Button variant="secondary" onClick={() => onStartSelect('action')} className="flex-1 gap-2 bg-blue-500/15 border-blue-500/40 text-blue-400 hover:bg-blue-500/25">
               <Zap className="w-4 h-4" />
               Task
             </Button>
