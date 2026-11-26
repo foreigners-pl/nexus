@@ -14,7 +14,7 @@ export async function saveAttachment(caseId: string, meta: {
   file_path: string
   file_size: number
   file_type: string
-}) {
+}, opts?: { announce?: boolean }) {
   const supabase = await createClient()
 
   try {
@@ -38,6 +38,30 @@ export async function saveAttachment(caseId: string, meta: {
       // Clean up uploaded file
       await supabase.storage.from('case_attachments').remove([meta.file_path])
       return { error: `Failed to save attachment metadata: ${dbError.message}` }
+    }
+
+    // Announce the upload in the active step's feed — mirrors the bot's
+    // attach_files tool so files-page uploads surface in the process too.
+    // The feed composer passes announce: false — its attachments ride on
+    // the message entry it posts itself.
+    if (opts?.announce) {
+      const { data: c } = await supabase
+        .from('cases')
+        .select('current_step_id')
+        .eq('id', caseId)
+        .single()
+      if (c?.current_step_id) {
+        const { data: entry } = await supabase.from('case_entries').insert({
+          case_id: caseId,
+          step_id: c.current_step_id,
+          kind: 'note',
+          body: `Attached file: ${meta.file_name}`,
+          created_by: user?.id,
+        }).select('id').single()
+        if (entry?.id) {
+          await supabase.from('case_attachments').update({ entry_id: entry.id }).eq('id', attachment.id)
+        }
+      }
     }
 
     // Log activity for case assignees

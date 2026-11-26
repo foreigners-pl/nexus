@@ -205,13 +205,16 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
     // refetch confirm it in the background. Rolled back on failure.
     const text = feedText
     const files = staged
+    // Files sent with no caption get the same "Attached file:" body the
+    // bot writes — the feed never shows a contextless attachment bubble.
+    const body = text.trim() || (files.length ? `Attached file: ${files.map(f => f.name).join(', ')}` : '')
     const tempId = `temp-${Date.now()}`
     const optimistic: CaseEntry = {
       id: tempId,
       case_id: caseId,
       step_id: stepId,
       kind: 'note',
-      body: text.trim() || null,
+      body: body || null,
       created_by: meId,
       created_at: new Date().toISOString(),
       due_date: null,
@@ -233,7 +236,7 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
     setStaged([])
     setFeedError(null)
     setFeedBusy(true)
-    const r = await postStepMessage(caseId, stepId, text, files.map(f => f.id))
+    const r = await postStepMessage(caseId, stepId, body, files.map(f => f.id))
     setFeedBusy(false)
     if (r.error) {
       setEntries(prev => prev.filter(e => e.id !== tempId))

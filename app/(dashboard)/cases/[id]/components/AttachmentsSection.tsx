@@ -53,7 +53,7 @@ export function AttachmentsSection({ caseId, attachments, onUpdate, onAddClick }
           file_path: uploadData.path,
           file_size: file.size,
           file_type: file.type,
-        })
+        }, { announce: true })
 
         if (result.error) {
           alert(`Failed to upload ${file.name}: ${result.error}`)
