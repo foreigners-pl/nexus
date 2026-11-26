@@ -1035,7 +1035,7 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
     if (snappedRef.current || regionH == null || !feed.length) return
     snappedRef.current = true
     regionRef.current?.scrollTo({ top: regionRef.current.scrollHeight, behavior: 'auto' })
-  }, [regionH])
+  }, [regionH, feed.length])
 
   // Auto-scroll on new messages: always when the newest one is mine (I just
   // sent it); otherwise only when already parked at the bottom, so someone
@@ -1236,11 +1236,15 @@ function FeedComposer({ stepId, text, setText, staged, onRemoveStaged, busy, err
   // Grow the field with content up to ~4 lines, then scroll inside it.
   // scrollHeight excludes the border, so add it back — otherwise the box
   // is 2px short and a phantom scrollbar shows even on a single line.
+  // Overflow is hidden outright under the cap — a scrollbar can't appear
+  // at all until the field actually needs to scroll.
   useEffect(() => {
     const t = textRef.current
     if (!t) return
     t.style.height = 'auto'
-    t.style.height = `${Math.min(t.scrollHeight + (t.offsetHeight - t.clientHeight), 110)}px`
+    const next = Math.min(t.scrollHeight + (t.offsetHeight - t.clientHeight), 110)
+    t.style.height = `${next}px`
+    t.style.overflowY = next >= 110 ? 'auto' : 'hidden'
   }, [text])
 
   if (selecting) {
