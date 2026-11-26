@@ -462,8 +462,8 @@ export function StepsPanel({ caseId, focusStepId: focusStepIdProp }: StepsPanelP
       if (q.seen_at) items.push({ kind: 'event', at: q.seen_at, key: `qs-${q.id}`, icon: 'seen', text: `${nameOf(q.seen_by)} marked the request seen` })
       if (q.status === 'cancelled' && q.closed_at) items.push({ kind: 'event', at: q.closed_at, key: `qc-${q.id}`, icon: 'cancel', text: `${nameOf(q.opened_by)} cancelled the request` })
     }
-    // Newest first — the feed reads top-down like an activity stream
-    return items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+    // Oldest first — chat-style, newest message at the bottom by the input
+    return items.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
   }
 
   const viewedStep = steps[viewIdx]
@@ -865,11 +865,11 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
   const alignRight = (authorId: string | null) =>
     authorId === meId || (!viewerIsParty && authorId === legalId)
 
-  // Fill the space down to the pinned composer so the pane doesn't end
-  // early on short feeds — messages stay rooted at the top (newest first)
-  // and empty space collects above the composer. Mobile measures against
-  // the fixed overlay + document scroll; desktop against the sticky
-  // composer inside the pane's own scroll column. Measured before paint.
+  // Fill the space down to the pinned composer so the message column can
+  // anchor to the bottom of it — last message hugs the input, empty space
+  // collects at the top of the chat area. Mobile measures against the fixed
+  // overlay + document scroll; desktop against the sticky composer inside
+  // the pane's own scroll column. Measured before paint.
   const regionRef = useRef<HTMLDivElement>(null)
   const tailRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<HTMLDivElement>(null)
@@ -927,8 +927,15 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
     // the composer/request-slot above can change height.
   }, [canPost, feed.length, select !== null, queries])
 
-  // Feed is newest-first and rooted at the top of its space, so opening at
-  // scrollTop 0 already shows the latest — no bottom snap needed.
+  // Open at the bottom instantly — the anchored feed means a short chat
+  // sits near the composer, so landing at scrollTop 0 shows empty space.
+  const snappedRef = useRef(false)
+  useLayoutEffect(() => {
+    if (snappedRef.current || regionH == null || !feed.length || window.innerWidth < 768) return
+    snappedRef.current = true
+    const scroller = regionRef.current?.closest('.overflow-y-auto') as HTMLElement | null
+    if (scroller) scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'auto' })
+  }, [regionH])
 
   const feedList = feed.length === 0 ? (
     <p className="text-xs text-[hsl(var(--color-text-muted))] py-6 text-center">
@@ -988,15 +995,16 @@ function StepFeed({ stepId, canPost, feed, queries, meId, csrId, legalId, attach
         </div>
       )}
 
-      {/* Feed — newest first, rooted at the top of its space. The region
-          still fills down to the pinned composer so the pane doesn't end
-          early on short feeds, but messages flow from the top. */}
+      {/* Feed — chat-style: oldest on top, newest hugs the pinned composer.
+          The region fills down to the composer and anchors the messages to
+          its bottom, so empty space collects at the top on short feeds. */}
       {canPost ? (
         <div
           ref={regionRef}
           style={regionH ? { minHeight: regionH } : undefined}
+          className="flex flex-col"
         >
-          {feedList}
+          <div className="mt-auto">{feedList}</div>
         </div>
       ) : feedList}
 
