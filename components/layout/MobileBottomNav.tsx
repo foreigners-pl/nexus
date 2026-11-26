@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { useNotifications } from '@/lib/notifications/NotificationContext'
 import { useChat } from '@/lib/chat/ChatContext'
 import { getMyAccess } from '@/app/actions/access'
+import { logout } from '@/app/actions/auth'
 
 // Icons - same as Navbar but slightly smaller for mobile
 const icons = {
@@ -46,13 +47,28 @@ const icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
     </svg>
   ),
+  more: (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
+    </svg>
+  ),
+  logout: (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+    </svg>
+  ),
 }
 
 const navItems = [
   { href: '/home', label: 'Home', icon: 'home' as keyof typeof icons },
-  { href: '/clients', label: 'Clients', icon: 'clients' as keyof typeof icons },
-  { href: '/board', label: 'Board', icon: 'board' as keyof typeof icons },
+  { href: '/clients/mine', label: 'Clients', icon: 'clients' as keyof typeof icons },
   { href: '/wiki', label: 'Wiki', icon: 'wiki' as keyof typeof icons },
+]
+
+// Under "More" — less-used destinations plus sign out.
+const moreItems = [
+  { href: '/clients', label: 'All clients', icon: 'clients' as keyof typeof icons },
+  { href: '/board', label: 'Board', icon: 'board' as keyof typeof icons },
   { href: '/chat', label: 'Chat', icon: 'chat' as keyof typeof icons },
   { href: '/admin', label: 'Admin', icon: 'admin' as keyof typeof icons },
 ]
@@ -60,8 +76,10 @@ const navItems = [
 export function MobileBottomNav() {
   const pathname = usePathname()
   const [canAdmin, setCanAdmin] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   useEffect(() => { getMyAccess().then(a => setCanAdmin(a.canAdmin)) }, [])
-  const items = canAdmin ? navItems : navItems.filter(i => i.href !== '/admin')
+  useEffect(() => { setMoreOpen(false) }, [pathname])
+  const items = moreItems.filter(i => i.href !== '/admin' || canAdmin)
 
   // Get notification count - wrapped in try/catch in case context is not available
   let notificationCount = 0
@@ -81,42 +99,99 @@ export function MobileBottomNav() {
     // Context not available yet
   }
 
-  return (
-    <nav className="md:hidden shrink-0 bg-[hsl(var(--color-surface))] border-t border-[hsl(var(--color-border))] safe-area-bottom">
-      <div className="flex items-center justify-around h-16">
-        {items.map((item) => {
-          const isActive = pathname === item.href || 
-                         (item.href !== '/' && pathname.startsWith(item.href))
-          const showHomeBadge = item.href === '/home' && notificationCount > 0
-          const showChatBadge = item.href === '/chat' && chatUnreadCount > 0
-          const badgeCount = item.href === '/home' ? notificationCount : chatUnreadCount
-          const showBadge = showHomeBadge || showChatBadge
+  const moreActive = !pathname.startsWith('/clients/mine') &&
+    items.some(i => pathname === i.href || pathname.startsWith(i.href))
 
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'flex flex-col items-center justify-center px-3 py-2 min-w-[64px] relative',
-                'text-xs font-medium transition-colors',
-                isActive
-                  ? 'text-[hsl(var(--color-primary))]'
-                  : 'text-[hsl(var(--color-text-secondary))]'
-              )}
-            >
-              <span className="relative">
-                {icons[item.icon]}
-                {showBadge && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                    {badgeCount > 9 ? '9+' : badgeCount}
-                  </span>
+  return (
+    <>
+      {/* More sheet — floats just above the nav bar */}
+      {moreOpen && (
+        <>
+          <div className="fixed inset-0 z-40 md:hidden" onClick={() => setMoreOpen(false)} />
+          <div className="fixed inset-x-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-50 md:hidden rounded-2xl bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] shadow-2xl shadow-black/50 overflow-hidden">
+            {items.map(item => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="flex items-center gap-3 px-4 py-3.5 text-sm font-medium text-[hsl(var(--color-text-primary))] active:bg-[hsl(var(--color-surface-hover))] border-b border-[hsl(var(--color-border))]"
+              >
+                <span className="relative text-[hsl(var(--color-text-secondary))] [&>svg]:w-5 [&>svg]:h-5">
+                  {icons[item.icon]}
+                  {item.href === '/chat' && chatUnreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
+                      {chatUnreadCount > 9 ? '9+' : chatUnreadCount}
+                    </span>
+                  )}
+                </span>
+                {item.label}
+              </Link>
+            ))}
+            <form action={logout}>
+              <button
+                type="submit"
+                className="w-full flex items-center gap-3 px-4 py-3.5 text-sm font-medium text-red-400 active:bg-[hsl(var(--color-surface-hover))]"
+              >
+                <span className="[&>svg]:w-5 [&>svg]:h-5">{icons.logout}</span>
+                Log out
+              </button>
+            </form>
+          </div>
+        </>
+      )}
+
+      <nav className="md:hidden shrink-0 bg-[hsl(var(--color-surface))] border-t border-[hsl(var(--color-border))] safe-area-bottom">
+        <div className="flex items-center justify-around h-16">
+          {navItems.map((item) => {
+            const isActive = pathname === item.href ||
+                           (item.href !== '/' && pathname.startsWith(item.href))
+            const showBadge = item.href === '/home' && notificationCount > 0
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  'flex flex-col items-center justify-center px-3 py-2 min-w-[64px] relative',
+                  'text-xs font-medium transition-colors',
+                  isActive
+                    ? 'text-[hsl(var(--color-primary))]'
+                    : 'text-[hsl(var(--color-text-secondary))]'
                 )}
-              </span>
-              <span className="mt-1">{item.label}</span>
-            </Link>
-          )
-        })}
-      </div>
-    </nav>
+              >
+                <span className="relative">
+                  {icons[item.icon]}
+                  {showBadge && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                      {notificationCount > 9 ? '9+' : notificationCount}
+                    </span>
+                  )}
+                </span>
+                <span className="mt-1">{item.label}</span>
+              </Link>
+            )
+          })}
+          <button
+            onClick={() => setMoreOpen(o => !o)}
+            className={cn(
+              'flex flex-col items-center justify-center px-3 py-2 min-w-[64px] relative',
+              'text-xs font-medium transition-colors',
+              moreOpen || moreActive
+                ? 'text-[hsl(var(--color-primary))]'
+                : 'text-[hsl(var(--color-text-secondary))]'
+            )}
+          >
+            <span className="relative">
+              {icons.more}
+              {chatUnreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                  {chatUnreadCount > 9 ? '9+' : chatUnreadCount}
+                </span>
+              )}
+            </span>
+            <span className="mt-1">More</span>
+          </button>
+        </div>
+      </nav>
+    </>
   )
 }

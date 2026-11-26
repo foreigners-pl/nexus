@@ -58,9 +58,9 @@ function ClientCard({ client }: { client: ClientWithPhones }) {
 
   return (
     <Link href={href} onTouchStart={() => prefetchClient(client.id)}>
-      <div className="p-3.5 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl hover:bg-[hsl(var(--color-surface-hover))] transition-colors active:scale-[0.98]">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-[hsl(var(--color-surface-active))] flex items-center justify-center text-sm font-semibold text-[hsl(var(--color-text-primary))] shrink-0">
+      <div className="p-4 bg-[hsl(var(--color-surface))] border border-[hsl(var(--color-border))] rounded-xl hover:bg-[hsl(var(--color-surface-hover))] transition-colors active:scale-[0.98]">
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-full bg-[hsl(var(--color-surface-active))] flex items-center justify-center text-sm font-semibold text-[hsl(var(--color-text-primary))] shrink-0">
             {initial}
           </div>
           <div className="flex-1 min-w-0">
@@ -74,7 +74,7 @@ function ClientCard({ client }: { client: ClientWithPhones }) {
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-2 mt-0.5 text-xs text-[hsl(var(--color-text-secondary))]">
+            <div className="flex items-center gap-2 mt-1 text-xs text-[hsl(var(--color-text-secondary))]">
               {phoneDisplay && (
                 <span className="font-mono truncate">{phoneDisplay}</span>
               )}
@@ -276,7 +276,7 @@ export function ClientsTable({ clients, loading, loadingMore, isSearching, onLoa
         {/* Mobile Client List */}
         <div 
           ref={tableRef}
-          className="space-y-3 flex-1 overflow-y-auto scrollbar-thin pb-4"
+          className="space-y-3.5 flex-1 overflow-y-auto scrollbar-thin pb-4"
           style={{ maxHeight: 'calc(100vh - 240px)' }}
         >
           {isSearching ? (
