@@ -249,7 +249,8 @@ export function AssistantContent() {
     setText('')
     setStaged([])
     setQuickOpen(false)
-    setMessages(m => [...(m || []), { role: 'user', text: value, files: staged.map(f => f.name) }])
+    const names = staged.map(f => f.name)
+    setMessages(m => [...(m || []), { role: 'user', text: value }, ...(names.length ? [{ role: 'user' as const, files: names }] : [])])
     setBusy(true)
     const { reply, error } = await sendAssistantMessage(value, staged, tz)
     setMessages(m => [...(m || []), { role: 'model', text: reply || error || 'No reply' }])
@@ -379,7 +380,7 @@ export function AssistantContent() {
                   }`}
                 >
                   {m.files && m.files.length > 0 && (
-                    <span className="flex flex-wrap gap-1.5 pb-1.5">
+                    <span className={`flex flex-wrap gap-1.5 ${m.text || m.audioPath || m.audioUrl ? 'pb-1.5' : ''}`}>
                       {m.files.map(n => (
                         <span key={n} className="flex items-center gap-1 rounded-md bg-white/15 px-2 py-0.5 text-[11px]">
                           <Paperclip className="w-3 h-3" />
