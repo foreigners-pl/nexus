@@ -547,6 +547,12 @@
   .safe-area-top {
     padding-top: env(safe-area-inset-top, 0px);
   }
+
+  /* App shell — vh fallback for browsers without dvh support (old Safari) */
+  .app-shell {
+    height: 100vh;
+    height: 100dvh;
+  }
 }
 
 /* ========== MOBILE PERFORMANCE ========== */

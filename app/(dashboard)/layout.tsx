@@ -41,7 +41,7 @@ export default function DashboardLayout({
     <QueryProvider>
       <NotificationProvider>
         <ChatProvider>
-          <div className="h-dvh bg-[hsl(var(--color-background))] flex flex-col">
+          <div className="app-shell bg-[hsl(var(--color-background))] flex flex-col">
             <Navbar />
             {/* Mobile-only top bar: branding + notification bell */}
             <header className="md:hidden sticky top-0 z-40 bg-[hsl(var(--color-surface))]/90 backdrop-blur border-b border-[hsl(var(--color-border))]">
@@ -67,7 +67,7 @@ export default function DashboardLayout({
               </div>
             </header>
             <main className={cn(
-              "px-4 py-4 flex-1 overflow-y-auto overflow-x-hidden transition-all duration-300",
+              "px-4 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden transition-all duration-300",
               // No bottom pad needed — the mobile nav is in-flow and reserves its own space
               "md:flex md:flex-col md:overflow-hidden md:p-0", // Desktop: pane columns scroll internally, padding lives on the columns
               "ml-0", // No left margin on mobile
