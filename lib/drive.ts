@@ -1,4 +1,5 @@
 import type { drive_v3 } from 'googleapis'
+import { Readable } from 'stream'
 
 // Google Drive access via service account — the accounting folder is
 // shared directly with the SA's email, so no OAuth consent/verification
@@ -96,7 +97,7 @@ export async function uploadFile(folderId: string, name: string, mimeType: strin
   const drive = await getDrive()
   const res = await drive.files.create({
     requestBody: { name, parents: [folderId], mimeType },
-    media: { mimeType, body: buf },
+    media: { mimeType, body: Readable.from(buf) },
     fields: 'id, name, mimeType',
     supportsAllDrives: true,
   })
