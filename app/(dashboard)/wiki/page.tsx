@@ -691,7 +691,7 @@ export default function WikiPage() {
       </div>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col h-full min-w-0 bg-[hsl(var(--color-background))]">
+      <div className="hidden md:flex flex-1 flex-col h-full min-w-0 bg-[hsl(var(--color-background))]">
         {selectedDocument ? (
           <div className="flex-1 overflow-hidden p-8 min-w-0">
             <DocumentViewer
