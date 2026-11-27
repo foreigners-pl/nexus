@@ -93,6 +93,21 @@ export async function downloadFile(fileId: string): Promise<Buffer> {
   return Buffer.from(res.data as ArrayBuffer)
 }
 
+/** Overwrite an existing file's contents (and optionally rename it).
+ *  Service accounts can't own new files on My Drive (no storage quota),
+ *  but updating an existing user-owned file works fine. */
+export async function updateFileContent(fileId: string, name: string, buf: Buffer): Promise<DriveFile> {
+  const drive = await getDrive()
+  const res = await drive.files.update({
+    fileId,
+    requestBody: { name },
+    media: { mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', body: Readable.from(buf) },
+    fields: 'id, name, mimeType',
+    supportsAllDrives: true,
+  })
+  return { id: res.data.id!, name: res.data.name!, mimeType: res.data.mimeType! }
+}
+
 export async function uploadFile(folderId: string, name: string, mimeType: string, buf: Buffer): Promise<DriveFile> {
   const drive = await getDrive()
   const res = await drive.files.create({

@@ -3,7 +3,7 @@
 import { getAccess } from '@/lib/access'
 import {
   rootFolderId, listFolder, findChildFolder, monthFolderCandidates,
-  downloadFile, uploadFile, type DriveFile,
+  downloadFile, uploadFile, updateFileContent, type DriveFile,
 } from '@/lib/drive'
 import { parseStatementText, type SaleRow } from '@/lib/accounting/statement'
 import { generateRegister } from '@/lib/accounting/register'
@@ -139,14 +139,33 @@ export async function generateAccountingRegister(
   const out = await generateRegister(buf, year, month, included)
 
   const fileName = `${MONTH_PL[month - 1]} ${year} - Ewidencja sprzedaży BEZ KASY FISKALNEJ z VAT.xlsx`
-  const uploaded = await uploadFile(
-    mf.id, fileName,
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', out,
-  )
+
+  // Service accounts can't own new files on My Drive (no storage quota).
+  // If the month folder already holds a register xlsx — the workflow is
+  // "copy last month's file in, then fill it" — write into it in place
+  // (the template bytes were downloaded above, so overwriting is safe).
+  // Otherwise try a fresh upload (works on Shared Drives).
+  const existing = docs.find(d => d.kind === 'register')
+  let saved: DriveFile
+  if (existing) {
+    saved = await updateFileContent(existing.id, fileName, out)
+  } else {
+    try {
+      saved = await uploadFile(mf.id, fileName, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', out)
+    } catch (e: any) {
+      if (/storage quota|Insufficient permissions/i.test(e.message || '')) {
+        throw new Error(
+          "Can't create the file — service accounts have no Drive storage. " +
+          "Copy last month's register xlsx into this month's folder, then generate again (it will be overwritten in place)."
+        )
+      }
+      throw e
+    }
+  }
 
   return {
     fileName,
-    driveFileId: uploaded.id,
+    driveFileId: saved.id,
     rowCount: included.length,
     totalGross: Math.round(included.reduce((a, s) => a + s.gross, 0) * 100) / 100,
   }
