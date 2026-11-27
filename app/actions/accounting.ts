@@ -7,7 +7,6 @@ import {
 } from '@/lib/drive'
 import { parseStatementText, type SaleRow } from '@/lib/accounting/statement'
 import { generateRegister } from '@/lib/accounting/register'
-import { extractText } from 'unpdf'
 
 const MONTH_PL = [
   'styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec',
@@ -86,6 +85,7 @@ export async function scanAccountingMonth(year: number, month: number): Promise<
   const stmt = docs.find(d => d.kind === 'statement')
   if (stmt) {
     const buf = await downloadFile(stmt.id)
+    const { extractText } = await import('unpdf')
     const { text } = await extractText(new Uint8Array(buf))
     sales = parseStatementText(Array.isArray(text) ? text.join('\n') : text)
   }

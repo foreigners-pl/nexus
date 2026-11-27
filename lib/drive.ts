@@ -1,4 +1,3 @@
-import { google } from 'googleapis'
 import type { drive_v3 } from 'googleapis'
 
 // Google Drive access via service account — the accounting folder is
@@ -6,6 +5,7 @@ import type { drive_v3 } from 'googleapis'
 // is needed. GOOGLE_SERVICE_ACCOUNT_KEY holds the full JSON key;
 // GOOGLE_ACCOUNTING_FOLDER_ID is the root folder containing year folders
 // (2026/…) with month subfolders inside.
+// googleapis is lazy-imported so this module never fails to load.
 
 export interface DriveFile {
   id: string
@@ -14,15 +14,19 @@ export interface DriveFile {
   modifiedTime?: string
 }
 
-function getDrive(): drive_v3.Drive {
+let _drive: drive_v3.Drive | null = null
+async function getDrive(): Promise<drive_v3.Drive> {
+  if (_drive) return _drive
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
   if (!raw) throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY is not configured')
+  const { google } = await import('googleapis')
   const creds = JSON.parse(raw)
   const auth = new google.auth.GoogleAuth({
     credentials: creds,
     scopes: ['https://www.googleapis.com/auth/drive'],
   })
-  return google.drive({ version: 'v3', auth })
+  _drive = google.drive({ version: 'v3', auth })
+  return _drive
 }
 
 export function rootFolderId(): string {
@@ -32,7 +36,7 @@ export function rootFolderId(): string {
 }
 
 export async function listFolder(folderId: string): Promise<DriveFile[]> {
-  const drive = getDrive()
+  const drive = await getDrive()
   const files: DriveFile[] = []
   let pageToken: string | undefined
   do {
@@ -80,7 +84,7 @@ export function monthFolderCandidates(year: number, month: number): string[] {
 }
 
 export async function downloadFile(fileId: string): Promise<Buffer> {
-  const drive = getDrive()
+  const drive = await getDrive()
   const res = await drive.files.get(
     { fileId, alt: 'media', supportsAllDrives: true },
     { responseType: 'arraybuffer' }
@@ -89,7 +93,7 @@ export async function downloadFile(fileId: string): Promise<Buffer> {
 }
 
 export async function uploadFile(folderId: string, name: string, mimeType: string, buf: Buffer): Promise<DriveFile> {
-  const drive = getDrive()
+  const drive = await getDrive()
   const res = await drive.files.create({
     requestBody: { name, parents: [folderId], mimeType },
     media: { mimeType, body: buf },
@@ -100,7 +104,7 @@ export async function uploadFile(folderId: string, name: string, mimeType: strin
 }
 
 export async function createFolder(parentId: string, name: string): Promise<DriveFile> {
-  const drive = getDrive()
+  const drive = await getDrive()
   const res = await drive.files.create({
     requestBody: {
       name,
