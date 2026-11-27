@@ -16,6 +16,7 @@ interface SelectProps {
   onChange: (value: string) => void
   placeholder?: string
   searchPlaceholder?: string
+  searchable?: boolean
   disabled?: boolean
 }
 
@@ -25,6 +26,7 @@ export function Select({
   onChange,
   placeholder = 'Select...',
   searchPlaceholder = 'Search...',
+  searchable = true,
   disabled = false
 }: SelectProps) {
   const [isOpen, setIsOpen] = useState(false)
@@ -109,16 +111,18 @@ export function Select({
           }}
           className="z-[9999] bg-[hsl(var(--color-surface))] backdrop-blur-xl border border-[hsl(var(--color-border))] rounded-xl shadow-[0_10px_40px_rgb(0_0_0/0.4)] max-h-60 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
         >
-          <div className="p-2 border-b border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface-hover)/0.3)]">
-            <Input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={searchPlaceholder}
-              autoFocus={isDesktopViewport()}
-              className="bg-[hsl(var(--color-surface))]"
-            />
-          </div>
+          {searchable && (
+            <div className="p-2 border-b border-[hsl(var(--color-border))] bg-[hsl(var(--color-surface-hover)/0.3)]">
+              <Input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder={searchPlaceholder}
+                autoFocus={isDesktopViewport()}
+                className="bg-[hsl(var(--color-surface))]"
+              />
+            </div>
+          )}
           <div className="overflow-y-auto max-h-48 p-1">
             {filteredOptions.length === 0 ? (
               <div className="px-4 py-3 text-sm text-[hsl(var(--color-text-secondary))] text-center">No results found</div>

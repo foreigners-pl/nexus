@@ -6,14 +6,21 @@ import {
   type MonthScan, type GenerateResult,
 } from '@/app/actions/accounting'
 import type { SaleRow } from '@/lib/accounting/statement'
+import { Select } from '@/components/ui/Select'
 import {
   FileText, Sheet, Landmark, File as FileIcon, Loader2, Plus, Trash2,
   ExternalLink, RefreshCw, CircleCheck,
 } from 'lucide-react'
 
-const MONTH_PL = [
-  'styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec',
-  'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień',
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
+const MONTH_OPTIONS = MONTHS.map((m, i) => ({ id: String(i + 1), label: m }))
+const CHANNEL_OPTIONS = [
+  { id: 'Bank', label: 'Bank' },
+  { id: 'Stripe', label: 'Stripe' },
+  { id: 'Other', label: 'Other' },
 ]
 
 const KIND = {
@@ -84,9 +91,12 @@ export default function AccountingPage() {
         </div>
         <div className="flex-1 max-w-[12rem]">
           <label className={section}>Month</label>
-          <select className={input} value={month} onChange={e => setMonth(Number(e.target.value))}>
-            {MONTH_PL.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
-          </select>
+          <Select
+            options={MONTH_OPTIONS}
+            value={String(month)}
+            onChange={v => setMonth(Number(v))}
+            searchable={false}
+          />
         </div>
         <button
           onClick={run} disabled={!!busy}
@@ -145,12 +155,14 @@ export default function AccountingPage() {
                     className={`${input} !w-24 text-right`} inputMode="decimal" value={s.gross}
                     onChange={e => set(i, { gross: Number(e.target.value.replace(',', '.')) || 0 })}
                   />
-                  <select
-                    className={`${input} !w-24`} value={s.channel}
-                    onChange={e => set(i, { channel: e.target.value as SaleRow['channel'] })}
-                  >
-                    <option>Bank</option><option>Stripe</option><option>Other</option>
-                  </select>
+                  <div className="w-24 shrink-0">
+                    <Select
+                      options={CHANNEL_OPTIONS}
+                      value={s.channel}
+                      onChange={v => set(i, { channel: v as SaleRow['channel'] })}
+                      searchable={false}
+                    />
+                  </div>
                   <button
                     onClick={() => setSales(rows => rows.filter((_, j) => j !== i))}
                     className="p-1.5 text-[hsl(var(--color-text-secondary))] hover:text-red-400 shrink-0"
