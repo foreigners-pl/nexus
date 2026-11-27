@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Crown, FileText, Activity, Loader2 } from 'lucide-react'
+import { Crown, FileText, Activity, Calculator, Loader2 } from 'lucide-react'
 import { getMyAccess } from '@/app/actions/access'
 
 export default function AdminPage() {
@@ -64,6 +64,20 @@ export default function AdminPage() {
               <p className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Usage overview</p>
               <p className="text-xs text-[hsl(var(--color-text-secondary))] truncate">
                 Last seen and workload per user.
+              </p>
+            </div>
+          </Link>
+        )}
+
+        {access.canAdmin && (
+          <Link href="/admin/accounting" className={card}>
+            <div className={icon}>
+              <Calculator className="w-5 h-5 text-[hsl(var(--color-primary))]" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-[hsl(var(--color-text-primary))]">Accounting</p>
+              <p className="text-xs text-[hsl(var(--color-text-secondary))] truncate">
+                Monthly sales register from Drive docs.
               </p>
             </div>
           </Link>
