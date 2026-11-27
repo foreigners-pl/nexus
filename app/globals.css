@@ -575,3 +575,13 @@
   }
 }
 
+
+/* Native select dropdowns — the popup ignores the select's own colors,
+   so options need explicit theme colors or they render white-on-white */
+select {
+  color-scheme: dark;
+}
+select option {
+  background-color: hsl(var(--color-surface));
+  color: hsl(var(--color-text-primary));
+}
